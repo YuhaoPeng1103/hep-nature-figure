@@ -49,11 +49,19 @@ from style_bench import measure, METRIC_ROBUST
 #
 #  原则：**指标在类内一致，才配当阻断门。** 不一致的只做参考。
 # ══════════════════════════════════════════════════════════════
-BLOCKING_METRICS = {"whitespace"}          # 类内一致的 → 阻断
+# ── 阻断策略：两级 ──
+# ① 类内一致的指标 → 一律阻断
+BLOCKING_METRICS = {"whitespace"}
+# ② 类内分散的指标 → 通常仅提醒，**但超出太多就升级为阻断**
 ADVISORY_METRICS = {"saturation", "edge_density", "dark_ratio",
-                    "stroke_width_est"}    # 类内分散的 → 仅提醒
-# 判据：落在这个"类内区间"之外多少才算偏
-RANGE_MARGIN = 1.6      # 允许超出 p25–p75 区间 1.6 倍
+                    "stroke_width_est"}
+# ★ 偏离的度量：相对【区间边界】，不是相对区间宽度。
+#   踩过的坑：saturation=0.002 vs 区间 [0.242,0.370]
+#     用「区间宽度」归一 → (0.242-0.002)/0.128 = 1.9，看着"只是偏一点"
+#     用「下界」归一   → (0.242-0.002)/0.242 = 0.99，真相是"低了 99%"
+#   区间宽度做分母会掩盖"整个量级都不对"这种情况。
+REL_WARN = 0.25         # 相对偏离 >25% → 偏
+REL_BLOCK = 0.50        # 相对偏离 >50% → 升级为阻断（范畴错误）
 
 
 def measure_candidate(path, target_size):
@@ -111,10 +119,10 @@ def check_style(rep, cand_path, target, tol_scale=1.0):
         has_range = False
 
     print(f"\n② 风格收敛（目标：{name}）")
-    M = RANGE_MARGIN * tol_scale
     if has_range:
-        print(f"   判据：落在类内区间 [p25, p75] 外 {M:.1f} 倍范围内即算通过")
-    print(f"   {'指标':<18}{'目标区间':>20}{'本图':>9}  判定")
+        print(f"   判据：相对偏离 ≤{REL_WARN*100:.0f}% 通过；"
+              f">{REL_BLOCK*100:.0f}% 升级为阻断")
+    print(f"   {'指标':<18}{'目标区间':>20}{'本图':>9}{'偏离':>9}  判定")
     total, n_block = 0.0, 0
     for k in list(BLOCKING_METRICS) + list(ADVISORY_METRICS):
         if k not in prof:
@@ -125,14 +133,23 @@ def check_style(rep, cand_path, target, tol_scale=1.0):
         c = cand.get(k)
         if c is None or mid <= 1e-9:
             continue
-        span = max(hi - lo, mid * 0.12)      # 区间太窄时给个最小宽度
-        over = ((c - hi) / span) if c > hi else ((lo - c) / span if c < lo else 0.0)
-        total += max(0.0, over)
-        ok = over <= M
+        # 相对【最近的边界】算偏离
+        if c > hi:
+            over = (c - hi) / max(hi, 1e-9)
+        elif c < lo:
+            over = (lo - c) / max(lo, 1e-9)
+        else:
+            over = 0.0
+        total += over
+        ok = over <= REL_WARN
         blocking = k in BLOCKING_METRICS
-        note = "阻断项" if blocking else "仅提醒"
-        print(f"   {k:<18}[{lo:>7.3f},{hi:>7.3f}]{c:>9.3f}  "
-              f"{'OK' if ok else f'超出 {over:.1f}×区间'}  ({note})")
+        escalated = False
+        if not ok and not blocking and over > REL_BLOCK:
+            blocking, escalated = True, True
+        note = ("阻断项" if k in BLOCKING_METRICS else
+                ("★升级为阻断" if escalated else "仅提醒"))
+        print(f"   {k:<18}[{lo:>7.3f},{hi:>7.3f}]{c:>9.3f}{over*100:>8.0f}%  "
+              f"{'OK' if ok else '超出'}  ({note})")
         if not ok:
             rep.add(False, blocking, f"风格·{k}",
                     f"在类内区间外 {over:.1f} 倍（{note}）")
