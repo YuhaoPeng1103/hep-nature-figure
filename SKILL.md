@@ -123,6 +123,39 @@ python3 scripts/check_delivery.py fig.pdf fig.eps
 ```
 检查：0 嵌入位图？文字可提取？字号 ≥5pt？
 
+#### 风格档案与阻断门禁（不写死风格）
+
+**风格不写死**——目标可以是任意一张参考图，也可以是**类级风格档案**。
+
+```bash
+# 从目标图提取档案（存【数字】，不存图 —— 版权受限的图也能用）
+python3 scripts/style_profile.py extract 参考图.png -o prof.json
+
+# 从多张同风格的图提取【类级】档案（更稳）
+python3 scripts/style_profile.py extract refs/*.png -o t3.json --name T3
+
+# 阻断式门禁：判"离目标风格多远"
+python3 scripts/delivery_gate.py fig.png --profile t3.json --pdf fig.pdf
+python3 scripts/delivery_gate.py fig.png --target 参考图.png --ir ir/B1.yaml
+```
+
+**门禁的判据不是固定的**，而是**按类内离散度分级**（实测得出的原则）：
+
+| 指标在类内 | 例（T3, n=22） | 门禁角色 |
+|---|---|---|
+| **一致**（相对IQR<0.15） | 留白 0.10 | **阻断** —— 超出类内区间就不许交付 |
+| 分散（IQR 0.2–0.5） | 边密度 0.24 / 暗像素 0.45 | **仅提醒** |
+
+> **原则：指标在类内一致，才配当阻断门。** 拿一个本身就在飘的指标去卡人，只会误导。
+
+**判的是"在不在类内区间"，不是"在不在中位数上"**——因为图与图本来就不一样。
+
+为什么存数字不存图：
+1. 版权受限的论文配图不能随仓库分发，但**测量结果是事实**，可以
+2. 对 skill 更**有用**——它需要知道"目标图的线宽/配色/密度是多少"，不需要那张图
+
+内置档案见 `assets/style-profiles.json`（T1/T2/T3 三类，从本地参考库聚合）。
+
 #### 缺工具怎么办
 
 **不要降级、不要糊弄。** 按顺序：
@@ -310,6 +343,8 @@ python3 scripts/auto_converge.py --ref 参考图.png \
 | `style_bench.py` | 风格度量与基准比对（**是诊断工具，不是优化目标**） |
 | `assemble_panels.py` | 复合图拼版，保矢量 |
 | `extract_figures.py` | 从论文 PDF 自动切图 |
+| `style_profile.py` | **提取风格档案**（存数字不存图，版权干净） |
+| `delivery_gate.py` | **阻断式门禁**：离目标风格超限就不许交付 |
 | `check_delivery.py` | **投稿前检查**：矢量？文字可编辑？字号达标？ |
 | `demo_combined.py` | **多工具联合示范**：svg_lib(卡通) + TikZ(公式) + PyMuPDF(合成) |
 | `check_tools.py` | **工具能力探测 + 装机指引**——按图选工具的第一步 |
