@@ -176,6 +176,21 @@ python3 scripts/demo_combined.py
 
 ---
 
+## 关于参考图的版权
+
+`assets/t3-exemplars/` **只包含 CC-BY 开放获取的图**（STAR, Nature 2024），
+其余参考图因版权原因**未随仓库分发** —— 详见
+[`assets/t3-exemplars/NOTICE.md`](assets/t3-exemplars/NOTICE.md)，
+里面有每张图的出处和获取方式。
+
+自己建库：
+
+```bash
+python3 scripts/extract_figures.py 你的论文.pdf -o refs/
+```
+
+> **不要把版权受限的论文配图打包发布。** 这是使用本 skill 时容易踩的坑。
+
 ## 诚实的边界
 
 这个 skill **不是**"一键出 Nature 级图"。
