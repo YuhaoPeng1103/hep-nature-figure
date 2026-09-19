@@ -147,15 +147,21 @@ python3 scripts/demo_combined.py
 │   ├── extract_figures.py       从论文 PDF 自动切图
 │   └── demo_combined.py         多工具联合示范
 └── assets/
-    ├── t3-exemplars/            8 张 T3 参考图（3D 示意图 + 光影）
+    ├── t3-exemplars/            参考图库（含 2 张 CC-BY 图 + 版权说明）
     └── ir/                      3 套 IR 标准答案
 ```
 
 ---
 
-## 四条硬纪律
+## 五条硬纪律
 
 写在 `SKILL.md` 里，是踩坑换来的：
+
+0. **不要把版权受限的图打包发布**
+   建参考图库前先看许可：CC-BY 可再分发（需署名），
+   CC-BY-NC / 版权保留只能内部用。
+   *踩坑*：本仓库最初打包了 8 张参考图，推之前查证才发现
+   5 张来自 Springer Nature 综述和 Nature 非 OA 文章，已改为只留 CC-BY。
 
 1. **几何量必须【量】，禁止【看】**
    数量、角度、比例、坐标必须写脚本扫像素得出。
