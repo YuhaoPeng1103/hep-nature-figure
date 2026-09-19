@@ -1,0 +1,298 @@
+---
+name: hep-nature-figure
+description: >-
+  Produce publication-quality high-energy nuclear physics figures: 3D schematics with
+  lighting, collision/QGP illustrations, multi-panel composites, and reproductions of
+  existing journal figures. Use for 科研配图、论文示意图、高能核物理配图、Nature 级配图、
+  碰撞示意图、QGP 示意图、复现论文图、手绘草图转配图、3D 示意图 with shading.
+  Routes to the right backend per figure (SVG / matplotlib / Blender / image generation)
+  instead of forcing one tool. Not for statistics-only work or interactive dashboards.
+---
+
+# HEP Nature Figure — Router
+
+## 这个 skill 的核心
+
+**把「物理意图」和「这张图怎么画」强制拆开，并在动手前写成 IR。**
+
+价值不在于"AI 会画图"，而在于**让物理正确成为流程里的强制约束**，而不是靠人盯着。
+老师原话的失败模式是"花里胡哨但物理表达不准确"——IR 就是防这个的。
+
+**关键性质**：IR 与后端无关。同一份 IR 可交给 SVG / matplotlib / Blender / Illustrator。
+**后端按图选，不预设。**
+
+---
+
+## 路由协议
+
+### 0. 判定任务类型
+
+| 类型 | 输入 | 判据 |
+|---|---|---|
+| **A 复现** | 参考图 | 要求与已有图结构一致 |
+| **B 创作** | 手绘草图 / 文字描述 | 没有现成目标图 |
+| **C 数据图** | 数据 + 坐标轴需求 | 有数值要表达 |
+| **D 复合** | 上述的组合 | 一张图里既有示意又有数据 |
+
+**A/B 走本 skill 主干；C 用 matplotlib，本 skill 只施加样式约束；D 走拼版。**
+
+### 1. 判定图型
+
+| 层级 | 特征 | 主后端 |
+|---|---|---|
+| **T1** | 2D 定量面板（谱、曲线、误差带） | matplotlib |
+| **T2** | 3D 曲面（rainbow colormap + 网格） | matplotlib（**不是 Mathematica**，实测其 3D 会栅格化） |
+| **T3** | 3D 示意图 + 光影（碰撞几何、QGP、探测器） | **SVG 手绘** ← 本 skill 主战场 |
+
+### 2. 写 IR（**强制，不可跳过**）
+
+读 `references/ir-spec.md`，按格式产出 IR。
+
+**三个必填项，缺一不可**：
+- `figure.physics_claim` —— 一句话说明这张图在物理上表达什么
+- 每个元素的 `physics_role` —— 它在物理上代表什么（**不能写"装饰"**）
+- `style.classification` + `evidence` —— 风格归类**并给判据**
+
+**画序 = z 序**，从后往前写。SVG 没有深度，后画的盖住先画的。
+
+> 跳过 IR 直接画 = "AI 随机画一张好看的图"，复现不了，物理也没保证。
+
+### 3. 选后端（按图选工具，不预设）
+
+**先跑工具探测**——缺工具不是放弃的理由，是**告诉用户装什么**：
+
+```bash
+python3 scripts/check_tools.py            # 全量探测 + 装机指引
+python3 scripts/check_tools.py --for 示意图  # 只看某类图
+```
+
+**两条独立轴共同决定后端**：
+
+```
+内容轴：示意图 / 定量图 / 复合
+风格轴：矢量插画 / 半写实 / 照片级 / 手绘 / 扁平 / 数据可视化
+```
+
+#### 工具路由表（依据 Nature 官方美术指南 + 开源替代调研）
+
+| 图型 | 首选 | 备选 | 说明 |
+|---|---|---|---|
+| 数据图（谱/曲线/误差带） | `matplotlib` | `ROOT` / Mathematica | 三者都真矢量 |
+| 3D 曲面 | `matplotlib` | Asymptote | **不要用 Mathematica**——实测其 3D 会栅格化 |
+| 示意图（矢量插画） | `svg_lib` 生成 | **Inkscape** 精修 | Inkscape = Illustrator 开源替代，**有 CLI 可被调用** |
+| 需要路径布尔/复杂描边 | **Inkscape** | Illustrator | Inkscape 可命令行调用；Illustrator 只能人工 |
+| 真 3D（几何即内容） | **Blender** | — | 探测器几何、CAD |
+| 数学公式密集 | **Ipe** / **TikZ** | Asymptote | LaTeX 原生，公式直接嵌入 |
+| 复合图拼版 | `assemble_panels.py` | Inkscape | 保持矢量 |
+| 最终交付 | **可编辑矢量** | — | Nature **硬性要求**，便于美术团队重排版 |
+
+#### Nature 官方要求（实测查证，不是猜的）
+
+- 线稿/图表/示意图：**首选 Adobe Illustrator (.ai)、EPS、PDF**，须**从生成软件直接导出**
+- Nature 提供 **Illustrator 模板**
+- 典型流程：各面板在各自软件做 → **在矢量编辑器里合成**
+- 照片/复杂插画：Photoshop 分层 PSD，或 ≥300 dpi 位图
+- **必须可编辑矢量**——美术团队要重排版、换字体、调样式
+- 字体：无衬线（Helvetica/Arial 优先），正文标注 5–7 pt
+
+> **推论**：Illustrator 的核心作用不是"画"，是**合成 + 可编辑叠加层**。
+> 所以 skill 的交付目标应该是「**结构正确 + 分层干净 + 可直接打开精修的矢量**」，
+> 而不是「一步到位的成品」。
+
+#### 交付格式：SVG 和 PDF/EPS **都要出**
+
+| 格式 | 用途 | 为什么 |
+|---|---|---|
+| **SVG** | **工作稿**（给人精修） | `<g inkscape:label>` 保留**图层结构**，Inkscape/Illustrator 里每个部件可单独选中。文本格式，可 diff |
+| **PDF** | **交付稿**（投稿） | Nature 官方首选，字体内嵌、打印就绪。**但没有图层概念**，人精修时会丢层级 |
+| **EPS** | 备份交付 | Nature 也接受。`pdftops -eps` 生成 |
+
+⚠️ **不要只出 PDF**（人精修没图层），**也不要只出 SVG**（不是 Nature 列出的格式）。
+
+> Nature 官方原话：*"For line art, graphs, charts and schematics we prefer
+> Adobe Illustrator (AI), Encapsulated PostScript (EPS), or PDF"* —— **没提 SVG**。
+> SVG 是我们的**工作格式**，不是投稿格式。
+
+交付前跑：
+```bash
+python3 scripts/check_delivery.py fig.pdf fig.eps
+```
+检查：0 嵌入位图？文字可提取？字号 ≥5pt？
+
+#### 缺工具怎么办
+
+**不要降级、不要糊弄。** 按顺序：
+
+1. 跑 `check_tools.py` 确认缺什么
+2. **告诉用户安装命令**（脚本已给出）
+3. 装好后**调用它**，而不是用别的工具凑合
+
+> 这条是硬纪律：**缺工具 = 去装，不是绕开。**
+> 用户可能只是没装，不是不能用。
+
+### 4. 执行
+
+- **SVG**：`scripts/svg_lib.py` 提供图元（火球/圆柱/核子/壳/坐标轴…）
+- **matplotlib**：`size_steps`、`pdf.fonttype=42`（文字可编辑）
+- **公式 / 数学排版**：**TikZ**（`pdflatex`）。分式、上下标、贝塞尔函数——
+  SVG 手写极痛苦且排版差。详见 `references/multi-tool.md`
+- **拼版**：`scripts/assemble_panels.py`（PyMuPDF，保矢量）
+
+> **一张图通常要多个工具。** 例：碰撞几何用 svg_lib、公式用 TikZ、
+> 合成用 PyMuPDF——各部分交给各自最擅长的，在拼版层汇合。
+
+### 5. 验证（**不可跳过**）
+
+按顺序跑：
+
+```bash
+# 渲染静默失败检测（渐变失效/字体丢失都不报错，靠它抓）
+python3 scripts/check_render.py fig.png --probe 0.5,0.10 --probe 0.3,0.7
+
+# 与参考图并排对比（A 类任务必做）
+python3 scripts/compare_ref.py 参考.png fig.png -o cmp.png
+
+# 风格偏离量化（A 类任务必做）
+python3 scripts/style_bench.py compare 参考.png fig.png
+```
+
+**然后必须人看图。** 见下面的纪律。
+
+**几何量的复核**：IR 里凡是写了数量的（如"径向线 40 条"），
+实现后都要写脚本从成图上量一遍，确认与 IR 一致。别靠看。
+
+---
+
+## 四条硬纪律
+
+### 纪律 1：几何量必须【量】，禁止【看】
+
+**数量、角度、比例、坐标** —— 这些必须写脚本扫像素得出，不许目测。
+
+来源：盲测实测。我目测 T3-03 的径向线得出"48 条"，脚本一扫是 **40 条**。
+AI 盲测时自己写了扫描脚本，数对了；我目测，数错了。
+
+```python
+# 例：数径向线条数
+# 在半径 r 的圆上扫一圈，统计蓝色像素的簇数
+```
+
+**哪些必须量**：元素个数、圆/多边形边数、角度与夹角、缩放比例、
+相对坐标、颜色值、线宽。
+
+**哪些可以看**：风格分类、物理角色、叠放顺序、视觉层次。
+
+### 纪律 2：绘制顺序就是 z 序
+
+后画的盖住先画的。画反了元素会**凭空消失且不报错**。
+顺序：背景 → 外轮廓/后壳 → 前表面 → 表面上的线 → 前景物体。
+
+### 纪律 3：风格指标是【诊断工具】，不是【优化目标】
+
+`style_bench` 告诉你**往哪看**，不告诉你**调到多少**。
+踩过的坑：按指标"整体降饱和+加深描边"，结果把不该压暗的平面也压暗，
+**3 项指标反而恶化、视觉更差**。
+
+正确流程：
+```
+量 → 判断 → ★把指标对应的像素可视化、找到具体原因★ → 只改那一处 → 复测 → 看图
+```
+**第 3 步是关键。** 直接从指标跳到调参数必然伤及无辜。
+
+### 纪律 4：物理正确性无法自动验证
+
+- 复现任务：有参考图当 ground truth，可对照检查
+- 创作任务：**没有 ground truth，必须人看**
+
+**不要说"自动达到 Nature 级"。** 能说的是：
+"把偏离量化、让失败可见、验证修正是否收敛"，最终判定仍需人。
+
+---
+
+## 自动收敛循环（复现任务用）
+
+复现一张图手工要 7 轮以上——那不叫"省时间"。用 `auto_converge.py` 自动化：
+
+```bash
+python3 scripts/auto_converge.py --ref 参考图.png \
+    --script repro_T3-03_param.py --max-iter 24
+```
+
+**使用前必须先测敏感度**，别凭直觉写映射表：
+
+```bash
+# 每个参数取区间两端各渲一次，量各指标的响应幅度
+# 幅度 >0.15 才算有效杠杆；<0.10 的指标要标为"无杠杆"
+```
+
+踩过的坑（都写在 `auto_converge.py` 的注释里）：
+1. **映射表凭直觉写 → 5 条只对 1 条**。必须先测敏感度。
+2. **sign 的语义是「修正方向」不是「相关方向」**。写反了会"指标越高越加"，南辕北辙还看不出来。
+3. **没有回溯 → loss 单调恶化**。变差必须回退 + 步长减半。
+4. **参数撞界会冻死循环**。撞界要跳到下一个可调指标。
+5. **敏感度是在基准点测的**，其他参数移动后可能失效 → 循环会卡在某个指标上反复小幅试探。这是坐标下降的固有局限。
+
+### 天花板由参数空间决定，不是由搜索算法决定
+
+实测：`whitespace` 原本**所有参数对它的敏感度都 <0.10**，卡在 +34% 不动。
+加了 `face_tone`（前表面亮度）后敏感度到 **0.57**，直接降到 −7%。
+
+**指标调不动时，先怀疑参数空间不够，别怀疑算法。**
+
+## 交付前自检
+
+**机器可判**（AI 自己核对并给证据）：
+- ☐ 元素清单逐条对上，无遗漏无多余
+- ☐ 渲染无静默失败（渐变非纯黑、文字无豆腐块）
+- ☐ 导出矢量；单面板 `get_images()==0`；复合图看 `get_xobjects()>0`
+- ☐ 文字可提取（不是被转成轮廓）
+- ☐ 面板标号由拼版层加，面板内部不重复画
+
+**人工判**：
+- ☐ 物理表达准确
+- ☐ 与参考图的结构/物理内容一致（A 类）
+- ☐ 视觉达到可投稿水平
+
+> 停在"元素清单全中 + 物理无误"。**不追像素级复刻**——那会陷入无限调参。
+
+---
+
+## 按需参考（不要一次全读）
+
+| 什么时候读 | 文件 |
+|---|---|
+| 写 IR、判定风格与后端 | `references/ir-spec.md` |
+| 画 SVG、查图元、查技法 | `references/svg-cookbook.md` |
+| 决定用哪个后端、为什么 | `references/tool-selection.md` |
+| 风格量化、闭环修正 | `references/style-bench.md` |
+| 遇到渲染异常 / 静默失败 | `references/gotchas.md` |
+| **一张图要用多种工具** | `references/multi-tool.md` |
+
+## 资产
+
+- `assets/t3-exemplars/` —— 8 张 T3 参考图（复现目标与风格基准）
+- `assets/ir/` —— **三套** IR 标准答案（**不要提前给被测 AI 看**）
+  - B1_T3-03 / B2_T3-05：手写，已按盲测验证结果修正
+  - B3_T3-07：**盲测产出**（25 个元素，比手写版完整得多，含几何反解）
+
+> **建立标准答案的方法**：不要自己手写就完事。
+> 实测：手写版在辐条数（48 vs 实测 40）、黑圈内是否可见、
+> 两幅是否相同等处都错了；盲测 AI 自己写扫描脚本，全对。
+> **正确做法是——先手写一版，再让一个没见过它的 AI 独立提取，
+> 逐条验证后合并。** 差异处往往就是手写版出错的地方。
+
+## 脚本
+
+| 脚本 | 用途 |
+|---|---|
+| `svg_lib.py` | SVG 图元库（火球/圆柱/核子/壳/环/坐标轴/场线…） |
+| `check_render.py` | 渲染静默失败检测，四项检查 |
+| `compare_ref.py` | 参考图与成图并排对比 |
+| `style_bench.py` | 风格度量与基准比对（**是诊断工具，不是优化目标**） |
+| `assemble_panels.py` | 复合图拼版，保矢量 |
+| `extract_figures.py` | 从论文 PDF 自动切图 |
+| `check_delivery.py` | **投稿前检查**：矢量？文字可编辑？字号达标？ |
+| `demo_combined.py` | **多工具联合示范**：svg_lib(卡通) + TikZ(公式) + PyMuPDF(合成) |
+| `check_tools.py` | **工具能力探测 + 装机指引**——按图选工具的第一步 |
+| `auto_converge.py` | **自动收敛循环**：量→定位→修正→复测，把人从多轮手工调参里解放出来 |
+| `repro_T3-03_param.py` | 参数化复现脚本（供 auto_converge 驱动），可作模板 |

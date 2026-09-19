@@ -1,0 +1,187 @@
+# IR 标准答案 —— B1
+# 参考图：refs_extracted/_T3精选/T3-03_STAR2024_phi角示意_火球剖面.png
+figure:
+  id: B1-T3-03
+  source: "STAR Collab., Nature 635 (2024), Extended Data Fig. 1, panel g"
+  physics_claim: >
+    定义高能核碰撞中反应平面上的方位角 ϕ，并示意探测器对粒子出射方向的
+    接受度覆盖；下方为同一构型的对照面板。
+  archetype: 示意图
+  panels_count: 2
+  panel_relation: >
+    ★ 修正：两幅【不只是标注不同】。辐条的角度分布也不同
+    （实测对应辐条最大角差约 17°，超过一个 9° 间隔）。
+    盲测声称"上图 = 下图沿 y 压缩 1.814 倍"；我复测噪声过大，
+    **未能证实也未能推翻**，需查原文确认。
+
+elements:                      # 画序 = z 序，从后往前
+  - id: E1
+    name: 探测器外壳
+    physics_role: >
+      十二边形棱柱，代表探测器的接受度覆盖范围（非圆形是因为
+      探测器由分立模块拼成）。
+    primitive: n棱柱（3D 挤出）
+    params:
+      n_faces: 12
+      rot: "15°（使上边为水平平边）"
+      depth_offset: "向左上，约 0.07R"
+      shell_scale: 1.055
+    material: "银灰渐变；后壳比前表面暗"
+    z: 1
+
+  - id: E2
+    name: 前表面
+    physics_role: 探测器的接受面
+    primitive: n边形面 + 径向渐变
+    params: {n_faces: 12}
+    material: "近白；中心亮、向外极缓转灰（形成凹陷感）"
+    z: 2
+
+  - id: E3
+    name: 嵌套描边环
+    physics_role: 探测器的分层结构示意
+    primitive: n边形描边 × 3
+    params: {半径比: [0.905, 0.845, 0.785], 不填充}
+    material: "灰描边，透明度递减"
+    z: 3
+
+  - id: E4
+    name: 径向线（辐条）
+    physics_role: >
+      从碰撞点向外的粒子出射方向；线数对应方位角采样密度。
+    primitive: 直线族（从中心辐射）
+    params:
+      n_lines: 40                 # ★ 实测 40（脚本数圆环上的蓝色簇）
+      r_inner: "约 0.13R（几乎接到中心黑圈）"
+      r_outer: "0.90R"
+      角分布: "9.00° 等分"
+    material: >
+      ★ 沿半径有【颜色渐变】：外段深蓝 #3129b4，向中心过渡到橙红
+      （在火球发光区上呈橙色）。不是纯色线。
+    z: 4
+    note: >
+      ★ 修正记录：原写 48 条，脚本实测为 40 条。
+      原写"纯蓝"，放大后发现沿半径有 橙→蓝 渐变。
+      两处均因【目测】出错，改用脚本测量后更正。
+
+  - id: E5
+    name: 中心碰撞区
+    physics_role: 碰撞产生的 QGP 火球（发光体）
+    primitive: 径向渐变圆 + 黑色描边圆
+    params: {r_core: "0.205R", r_black: "0.217R", glow: "1.5×"}
+    material: "白热→橙→红，边缘透明；黑圈细描边"
+    z: 5
+    note: >
+      ★ 修正记录：黑圈是【只描边不填充】，且【圈内辐条仍可见】（呈橙色）。
+      原实现把发光体画在黑圈之上，盖住了圈内辐条 —— 与参考图不符。
+      ⚠️ 验证教训：我第一版用脚本找"圈内的蓝色像素"验证，全报 0%，
+      误判为"圈内无辐条"。实际上圈内辐条是【橙色】的。
+      **找错颜色 = 找错结论。**
+
+  - id: E6
+    name: ϕ 角箭头
+    physics_role: 标注方位角 ϕ 的定义方向
+    primitive: 圆弧 + 箭头
+    params: {radius: "1.06R", 角度范围: "-152° → -28°"}
+    text: "ϕ"
+    present_in: "仅上方面板"
+    z: 6
+
+  - id: E7
+    name: xy 坐标指示
+    physics_role: 定义横纵平面坐标（x 右、y 上）
+    primitive: 两条带箭头的短线 + 标签
+    present_in: "仅上方面板"
+    z: 7
+
+  - id: E8
+    name: 面板标号
+    physics_role: 图注编号
+    text: "g"
+    z: 8
+
+composition:
+  canvas: {ratio: "约 0.45（竖长条）", 用途: "多面板图的其中一栏"}
+  视角: >
+    正视，无透视。上下两个面板内容相同、水平完全对齐，
+    中心 x 都在 0.52。差别只在标注与辐条角度分布。
+  分区: 上下等分，各占约 0.5 画布高。
+  元素布局:
+    - id: E1
+      锚点: [0.52, 0.20]
+      相对尺寸: "外接直径约 0.72 画布宽"
+    - id: E5
+      锚点: [0.52, 0.20]
+      相对尺寸: "黑圈半径约 0.095 画布宽"
+    - id: E6
+      锚点: [0.52, 0.10]
+      备注: "圆弧箭头与探测器不同心（圆心偏上，实测 dx≈-10, dy≈-9 px）"
+    - id: E7
+      锚点: [0.22, 0.30]
+      备注: "坐标指示在左下角外侧"
+    - id: E8
+      锚点: [0.06, 0.04]
+    - id: E1b
+      锚点: [0.52, 0.76]
+      备注: "下面板，与上面板同尺寸同位置（仅 y 平移）"
+  叠放关系: >
+    外壳 → 前表面 → 嵌套环 → 辐条 → 黑圈（只描边，圈内辐条可见）→ 中心发光体。
+    ★ 辐条在黑圈【之下】但颜色为橙色，故圈内仍可见。
+
+
+style:
+  # ★ 风格分类 —— 驱动后端选型
+  classification: 矢量插画
+  evidence: >
+    十二边形的明暗来自手绘径向渐变而非光照计算；描边宽度统一；无材质纹理。
+  palette:
+    shell: "#ced2d9 → #a3a8b2"
+    face: "#ffffff → #e2e5ea"
+    rim: "#8b9099"
+    lines: "#3129b4"
+    fireball: "#fff0cf → #ffcb84 → #fb9a52 → #e04a20"
+    背景: "#ffffff"
+  line_widths: {outline: 1.0, detail: 0.8, emphasis: 1.2}
+  fonts:
+    latin: "DejaVu Sans"
+    size_steps: [12, 15, 17, 21]
+  conventions:
+    - "黑圈画在最上层，界定中心区"
+    - "径向线画在前表面之后、中心发光体之前"   # ← z 序易错点
+
+execution:
+  primary: svg
+  reason: >
+    内容轴：无数据、全部是几何图形、形状是表达手段 → 指向 SVG。
+    风格轴：矢量插画 → 指向 SVG / Illustrator。
+    两轴一致，故 primary = svg。
+  style_switch: >
+    同一份 figure + elements，若风格改为「半写实科学插画」
+    （给核子加质感、给火球加真实辉光），应改用 blender(toon shader)
+    或 imagegen；前两层不需要任何改动。
+    若改为「扁平信息图」（去描边、纯色块），仍用 svg，只改 style 层参数。
+  fallback: [illustrator, matplotlib]
+  rejected:
+    - tool: blender
+      reason: "无真实 3D 几何需求；默认渲染风格与插画不符；输出位图"
+    - tool: imagegen
+      reason: "随机采样，无法保证 48 条线的对称性与 panel 一致性"
+  portability: "figure + elements + style 三层可直接换后端实现"
+
+assertions:
+  machine:
+    - "两个面板都存在，上下排布"
+    - "E1..E5 在两个面板里都出现；E6/E7 只在上方面板"
+    - "径向线条数 = 48"
+    - "中心黑圈存在，橙色发光体在黑圈内"
+    - "渐变生效（中心像素非纯黑）"
+    - "导出矢量，文字可提取"
+  human:
+    - "十二边形的朝向正确（上边水平）"
+    - "物理表达准确：ϕ 角定义无误"
+    - "视觉达到可投稿水平"
+
+# ── 已知易错点（供评分时参考）
+# 1. z 序：径向线若画在前表面之前会被完全盖住，且不报错
+# 2. 径向线要止于内圈之外、外圈之内，两端都裁
+# 3. 前表面的"凹陷感"来自径向渐变，不是描边

@@ -1,0 +1,133 @@
+# 工具选型：按图选工具（实测版）
+
+> **原则**：不是"我用什么工具"，也不是"你说过什么工具"，
+> 而是**这张图适合什么工具就用什么工具**。
+>
+> **方法**：每一条选型结论都附带实测证据。凡未经实测的，标注「未测」。
+
+---
+
+## 一、本机可用工具（实测确认）
+
+| 工具 | 状态 | 验证方式 |
+|---|---|---|
+| Python 3.10 + matplotlib + numpy + scipy + PIL | ✅ | `import` 成功 |
+| **cairosvg** 2.9.0 | ✅ | 渲染 SVG 渐变正常 |
+| **PyMuPDF** 1.27 | ✅ | PDF 几何审计、拼版可用 |
+| **ROOT** 6.36 | ✅ | `gROOT->GetVersion()`；导出 PDF/SVG 成功 |
+| **Blender** 4.2 LTS | ✅ | 装于 `~/opt/blender`，渲染成功 |
+| **WolframScript / Mathematica 14.0** | ✅ | `2+2`→`4`；导出 PDF/SVG 成功 |
+| MATLAB | ❌ | 目录为空（卸载残留） |
+| Origin 2021 | ❌ | 目录为空（卸载残留） |
+| Illustrator / Photoshop | ❌ | 无可执行文件 |
+
+> ⚠️ **我的判断记录**：本项目过程中我对工具可用性判断错了 **4 次**——
+> ChatGPT 沙箱（实际比我说的强）、ROOT（我忽略了已装）、Mathematica（已装）、
+> Origin/MATLAB（看目录名以为装了，实际是空目录）。
+> **所以本文件的每一条都以实测为准，不再有"我觉得"。**
+
+---
+
+## 二、最关键的一条实测发现：矢量保真度差异巨大
+
+**期刊投稿要矢量图**，但不同工具的"矢量导出"含金量完全不同。
+实测同一个需求在不同工具下的输出：
+
+| 工具 | 图型 | 矢量指令数 | 嵌入位图 | 判定 |
+|---|---|---|---|---|
+| **matplotlib** | 3D 曲面 | **1551** | 0 | ✅ **真矢量** |
+| **Mathematica** | 3D 图形 | 0 | 900×727 @300ppi | ❌ **栅格化** |
+| **Mathematica** | 2D 曲线 | 119 | 0 | ✅ 真矢量 |
+| SVG（svg_lib） | 3D 示意 | 770 | 0 | ✅ 真矢量 |
+| Blender | 3D 渲染 | — | 全幅位图 | ❌ 位图 |
+
+### 结论
+
+**`Mathematica` 的 3D 导出是栅格化的。** 2D 是真矢量，3D 会嵌一张位图进 PDF。
+
+这条很重要，因为老师明确说"主要绘图工具是 Python 和 Mathematica"。
+但**在 3D 图这个需求上，Mathematica 交不出真矢量**——
+而这恰好是本项目的核心（T2 曲面 + T3 示意图都是 3D）。
+
+**反过来，matplotlib 的 `plot_surface` 是真矢量**（1551 条指令、48 KB、零位图）。
+所以在 3D 曲面上，**matplotlib 优于 Mathematica**。
+
+---
+
+## 三、选型表（按图型）
+
+| # | 图型 | 首选 | 备选 | 依据 |
+|---|---|---|---|---|
+| 1 | **2D 数据图**（谱、曲线、误差带、比值） | matplotlib | ROOT / Mathematica | 三者都真矢量；matplotlib 最易控 |
+| 2 | **3D 曲面**（rainbow colormap，如 Jia T2） | **matplotlib** | — | 实测真矢量；**Mathematica 会栅格化** |
+| 3 | **3D 示意图 + 光影**（T3 主战场） | **SVG 手绘（svg_lib）** | Blender（风格不符） | 唯一同时满足：真矢量 + 光影 + 可移植到 ChatGPT |
+| 4 | **照片级 3D**（真实几何、CAD） | Blender | — | 真 3D 几何非手算投影可替代；代价是位图 |
+| 5 | **概念草图 / 插画 / 封面** | DALL·E / GPT-4o 原生 | — | **未测**——需实测后补 |
+| 6 | **复合图拼版**（示意 + 定量） | PyMuPDF（`assemble_panels.py`） | — | 已验证：保矢量、文字可提取 |
+| 7 | **大数据量 / 现有 `.root` 文件** | ROOT | — | 领域标准；本机 6.36 可用 |
+| 8 | **交互式探索**（非交付） | ROOT / Mathematica | — | 不涉及矢量要求 |
+
+---
+
+## 四、ChatGPT 沙箱的可用工具（实测）
+
+| 可用 | 不可用 |
+|---|---|
+| Python 3.13.5 | Mathematica |
+| numpy 2.3.5 / matplotlib 3.10.8 / scipy / pandas / Pillow | ROOT |
+| **PyMuPDF 1.26.7** | Blender |
+| **CairoSVG 2.8.2** | MATLAB / Origin |
+| svgwrite 1.4.3 | Illustrator |
+| **Noto Sans CJK（中文字体）** | 网络（DNS 失败，无法 pip install） |
+| matplotlib PDF fonttype=42，文字可提取 | |
+
+**关键结论**：
+
+1. **我本地的主链工具链（svg_lib / check_render / compare_ref /
+   assemble_panels / extract_figures）可以原样搬进 ChatGPT** ——
+   依赖扫描确认只用到 numpy/matplotlib/PIL/PyMuPDF/cairosvg，全都在。
+2. **SVG 渐变在 ChatGPT 里正常**（中心像素 `(127,0,128)` = 红蓝正中值）。
+3. **有中文字体**，中文标注可行。
+4. **网络被封** → 工具链必须自包含，不能依赖运行时安装。目前是自包含的。
+
+### 这直接决定了双轨的分界
+
+```
+              本机          ChatGPT       结论
+matplotlib     ✅            ✅           两轨通用
+SVG/svg_lib    ✅            ✅           两轨通用  ★主战场
+PyMuPDF        ✅            ✅           两轨通用
+Mathematica    ✅            ❌           仅本机
+ROOT           ✅            ❌           仅本机
+Blender        ✅            ❌           仅本机
+```
+
+**"两轨通用"的才应该是 skill 的核心。** 仅本机的工具做成可选增强，不做依赖。
+
+---
+
+## 五、还没测的（诚实标注）
+
+| 项 | 为什么该测 | 怎么测 |
+|---|---|---|
+| **DALL·E / GPT-4o 图像生成** | 图型 #5 全靠它，我完全没测过 | 在 ChatGPT 里跑：草图 → 成图，看可控性和可复现性 |
+| **Mathematica 2D 的精细度** | 是否值得作为 2D 备选 | 出一张 Nature 级 2D 图对比 matplotlib |
+| **Blender toon/flat 风格** | 我上次用的默认设置，不能代表上限 | 用 toon shader + flat lighting 重做一次 |
+| **ROOT 的出版级输出** | 本机可用，但如果质量不够就没必要 | 出一张多 panel 图对比 matplotlib |
+| **图片理解（探针第 21 项）** | Benchmark 能否自动执行全看这个 | 在 ChatGPT 上传参考图让它描述 |
+
+---
+
+## 六、一句话规则
+
+**先问"这张图的形状是不是科学内容"，再问"哪个工具能给它真矢量"。**
+
+- 形状是内容（探测器几何、真实场结构）→ Blender / ROOT
+- 形状是表达（碰撞示意、演化流程）→ SVG
+- 有数据 → matplotlib（3D 曲面也是它，别用 Mathematica）
+- 没有明确结构、只要感觉 → 图像生成模型
+- 拼起来 → PyMuPDF
+
+---
+
+*本文件随实测更新。凡未实测的结论一律标注。*

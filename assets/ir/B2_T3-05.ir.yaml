@@ -1,0 +1,207 @@
+# IR 标准答案 —— B2
+# 参考图：refs_extracted/_T3精选/T3-05_Kharzeev2021_3D火球+B场+磁力线.png
+figure:
+  id: B2-T3-05
+  source: "Kharzeev & Liao, Nat. Rev. Phys. 3, 55 (2021), Fig. 1"
+  physics_claim: >
+    手性磁效应的物理图像：非对心重离子碰撞产生的 QGP 中，
+    带电粒子在强磁场 B 下沿磁场方向产生电荷分离。
+    panel a 是示意图（碰撞几何 + B 场 + 电荷分离），
+    panel b 是反应平面内的磁场强度与方向分布。
+  archetype: 复合图（示意图 + 定量场图）
+  panels_count: 2
+  panel_relation: "a 为示意，b 为同一物理的定量场分布"
+
+elements:                      # 仅 panel a；画序 = z 序
+  - id: E1
+    name: 反应平面
+    physics_role: >
+      两核碰撞的相互作用平面（反应平面），所有几何量在此平面上定义。
+    primitive: 透视平行四边形
+    params: {倾斜: "左上高右上低"}
+    material: "浅蓝白，半透明 (0.72)"
+    z: 1
+
+  - id: E2
+    name: 半透明壳 ×2
+    physics_role: >
+      碰撞后两核残骸沿束流方向分离形成的区域（或 P-odd 畴结构的示意）。
+    primitive: 碗/壳形（非正椭球；一侧饱满一侧收窄）
+    params: {数量: 2, 位置: "左下 + 右上"}
+    material: "淡紫渐变 + 虚线开口弧 + 左上高光"
+    z: 2
+
+  - id: E3
+    name: 束流箭头 ×2
+    physics_role: 入射束流方向
+    primitive: 粗箭头（带状）
+    params: {数量: 2}
+    material: "淡紫 #cbaae8"
+    z: 3
+
+  - id: E4
+    name: 中心火球
+    physics_role: 碰撞产生的 QGP 火球，内部 + / − 表示电荷分离
+    primitive: 有机形状拉长团块（非正椭球）
+    params: {宽高比: "约 0.58"}
+    material: "橙褐径向渐变，边缘半透明"
+    text: "+（上部）、−（下部）"
+    z: 4
+
+  - id: E5
+    name: B 场箭头
+    physics_role: 垂直反应平面的强磁场方向
+    primitive: 竖直粗箭头（双层叠加）
+    params: {起点: "火球上缘", 长度: "约 2.2R"}
+    material: "极淡粉紫 #f0dcee 外层 + #e0c8e8 内层"
+    text: "B"
+    z: 5
+
+  - id: E6
+    name: 带电粒子散点
+    physics_role: 火球中受磁场作用的带电粒子
+    primitive: 小圆点散布
+    params: {数量: "约 36", seed: "固定以保证可复现"}
+    material: "蓝 #4aa3d8 为主，混少量橙 #e8913c"
+    z: 6
+
+  - id: E7
+    name: 虚线场线 ×2
+    physics_role: 从正电荷经火球到负电荷的示意连线
+    primitive: 折线虚线
+    params: {数量: 2, 线型: "5 4"}
+    material: "黑色 #1a1a1a，线宽 1.1"
+    z: 7
+
+  - id: E8
+    name: 电荷标记 ×4
+    physics_role: 电荷分离的两个极（上正下负）
+    primitive: 实心圆 + 白色正负号
+    params: {数量: "4（2 正 2 负）", r: 12}
+    material: "正电荷 #d81f2a，负电荷 #2b6fd4"
+    z: 8
+
+  - id: E9
+    name: 3D 坐标轴
+    physics_role: 定义 x / y / z 方向
+    primitive: 三条带箭头短线 + 标签
+    params: {约定: "y↑ / x→ / z↙"}
+    note: "★ 注意：与 svg_lib.axes3d 的约定 (y↗/z↑) 不同，不可混用"
+    z: 9
+
+# panel b 的元素（定量图，由 matplotlib 后端负责）
+panel_b:
+  elements:
+    - id: P1
+      name: 磁场强度热图
+      primitive: imshow / pcolormesh
+      material: "Reds colormap，vmin=0, vmax=1.2"
+    - id: P2
+      name: 磁场矢量场
+      primitive: quiver（单位化箭头）
+      params: {网格: "26×26"}
+    - id: P3
+      name: colorbar
+      text: "×10¹⁵ T"
+    - id: P4
+      name: 坐标轴
+      text: "x (fm) / y (fm)，范围 -10..10"
+  note: >
+    ⚠️ 物理诚实性：复现时若场函数是唯象构造而非第一性原理计算，
+    必须在脚本头部声明。带量纲的面板不能为了"看着像"而编数值。
+
+composition:
+  canvas: {ratio: "约 1.23（横）", 用途: "双栏图"}
+  视角: >
+    以约 25° 俯角俯视反应平面。平面呈平行四边形，左下低、右上高。
+    无强透视收缩（近似等距投影）。
+  分区: >
+    两个面板左右并排。panel a（示意）占约 51%，panel b（定量场图）占约 49%。
+  元素布局:
+    - id: E1
+      锚点: [0.50, 0.72]
+      相对尺寸: "宽约 0.79 画布宽，高约 0.41 画布高"
+    - id: E2
+      锚点: [0.27, 0.68]
+      备注: "左下壳，rx≈0.12 画布宽"
+    - id: E2b
+      锚点: [0.73, 0.44]
+      备注: "右上壳，略小"
+    - id: E4
+      锚点: [0.50, 0.57]
+      相对尺寸: "总宽约 0.12 画布宽，高约 0.25 画布高"
+    - id: E5
+      锚点: [0.50, 0.40]
+      备注: "从火球上缘向上，长约 0.22 画布高"
+    - id: E8
+      锚点: [[0.33, 0.17], [0.66, 0.18]]   # 两个电荷标记
+    - id: E9
+      锚点: [0.14, 0.30]
+      备注: "坐标轴指示在左下"
+  叠放关系: >
+    平面 -> 壳 -> 束流箭头 -> 火球 -> B 场箭头 -> 散点 -> 虚线场线
+    -> 电荷标记 -> 坐标轴。
+    面板标号 a/b 由拼版层加，面板内不画。
+
+
+style:
+  # ★ 风格分类 —— 驱动后端选型
+  classification: 矢量插画（panel a） + 数据可视化（panel b）
+  evidence: >
+    panel a 的壳与火球是手绘渐变，无真实折射；panel b 有坐标轴/colorbar/统计表达。
+  palette:
+    shells: "#c9a8e0（半透明 0.60）"
+    beams: "#cbaae8"
+    fireball: "#f7d9ae → #e0a86a → #c98e4e"
+    B_field: "#f0dcee / #e0c8e8"
+    pos: "#d81f2a"
+    neg: "#2b6fd4"
+    背景: "#ffffff"
+  line_widths: {outline: 1.0, beam: 15.0, dashed: 1.1}
+  fonts:
+    latin: "DejaVu Sans"
+    cjk: "Noto Sans CJK"
+  conventions:
+    - "面板标号 a/b 由拼版层统一添加，不画在面板内部"
+
+execution:
+  primary: mixed               # ★ 复合图：两个面板用不同后端
+  panels:
+    a: svg                     # 示意图 → SVG
+    b: matplotlib              # 定量场图 → matplotlib
+  assembly: assemble_panels.py # PyMuPDF，保矢量
+  reason: >
+    两轴分别判定，两个面板落在不同象限：
+      panel a — 内容轴：无数据示意图；风格轴：矢量插画 → svg
+      panel b — 内容轴：有数据的定量场图；风格轴：数据可视化 → matplotlib
+    强行统一到单一后端会两头不讨好（SVG 画不了 colormap，matplotlib 画不了光影）。
+  style_switch: >
+    panel a 若改为「照片级渲染」，改用 blender；figure + elements 不动。
+    panel b 若改为「交互式探索」（非交付），改用 ROOT；同样只换后端。
+  rejected:
+    - tool: blender
+      reason: "无需真实 3D 几何；输出位图"
+    - tool: mathematica
+      reason: >
+        实测其 3D 导出会栅格化（PDF 内嵌 900×727 位图，0 条矢量指令），
+        交不出投稿级矢量
+    - tool: imagegen
+      reason: "无法保证 panel a 的元素布局与 panel b 的数值准确"
+
+assertions:
+  machine:
+    - "panel a 与 panel b 都存在，左右排布"
+    - "E1..E9 全部存在"
+    - "四个电荷标记颜色正确（两红两蓝）"
+    - "面板标号 a/b 各出现一次，不重复"
+    - "复合图 0 个嵌入位图，有矢量 XObject，文字可提取"
+  human:
+    - "B 场方向与电荷分离的物理关系正确"
+    - "panel b 的场分布与参考图结构相似"
+    - "视觉达到可投稿水平"
+
+# ── 已知易错点
+# 1. 两张不同后端的面板，标号必须由拼版层加，面板内不要画（否则重复）
+# 2. svg_lib.arrow 画粗箭头时箭头头会随线宽等比放大（markerUnits 默认
+#    strokeWidth），故库内已改为 userSpaceOnUse 并封顶
+# 3. 复合图的矢量验证不能用 get_drawings() 计数（面板是 XObject，不遍历）
