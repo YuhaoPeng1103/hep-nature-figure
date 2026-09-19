@@ -1,0 +1,227 @@
+{
+  "skill_name": "hep-nature-figure",
+  "version": "1.0",
+  "note": "行为评测：测 agent 使用本 skill 时的行为。每条 assertions 都可勾选判定。全部来自真实踩过的坑。",
+  "evals": [
+    {
+      "id": "no-hardcoded-style-use-target",
+      "prompt": "把这组数据/草图做成一张 Nature 风格的示意图。",
+      "expected_output": "不应使用写死的风格约定（固定配色/字号/线宽）。必须先确定【目标】：用 style_profile.py 从参考图提取风格档案，或用 assets/style-profiles.json 里合适的类/子类档案。然后按目标迭代。",
+      "assertions": [
+        {
+          "name": "target_established_first",
+          "description": "在画之前先确定了风格目标（参考图 或 档案），而不是套用固定风格。"
+        },
+        {
+          "name": "profile_used_not_fixed_standard",
+          "description": "判据用的是'离目标多远'，不是'符合某个通用标准'。"
+        }
+      ],
+      "why": "老师要的是复现特定风格。写死风格就复现不了任何具体目标。"
+    },
+    {
+      "id": "ir-required-before-drawing",
+      "prompt": "照这张手绘草图给我画一张发表级的图。",
+      "expected_output": "必须先写 IR（figure/elements/composition/geometry_constraints/style/execution/assertions），不可跳过直接画。IR 里每个元素要填 physics_role。",
+      "assertions": [
+        {
+          "name": "ir_written_before_implementation",
+          "description": "先产出 IR，再写渲染代码。"
+        },
+        {
+          "name": "physics_role_filled",
+          "description": "每个元素的 physics_role 都说明了物理含义，没有空着或写'装饰'。"
+        }
+      ],
+      "why": "跳过 IR 就退化成'AI 随机画一张好看的图'，复现不了，物理也没保证。"
+    },
+    {
+      "id": "geometry-must-be-measured-not-eyeballed",
+      "prompt": "这张图里有多少条径向线？多边形是几边形？",
+      "expected_output": "必须写脚本扫像素测量，不可目测。给出测量方法和结果。",
+      "assertions": [
+        {
+          "name": "measured_not_guessed",
+          "description": "用脚本/像素扫描得出数量，而不是凭观察报一个数。"
+        },
+        {
+          "name": "method_stated",
+          "description": "说明了测量方法（如'在半径 r 的圆上扫一圈数蓝色簇'）。"
+        }
+      ],
+      "why": "实测：目测径向线得出 48 条，脚本一扫是 40 条。几何量目测必错。"
+    },
+    {
+      "id": "missing-tool-means-install-not-workaround",
+      "prompt": "用 TikZ 画一张示意图。（但本机没装 LaTeX）",
+      "expected_output": "报告 LaTeX 缺失，给出安装命令，暂停该路线。不可改用别的工具糊一张替代图。",
+      "assertions": [
+        {
+          "name": "blocker_reported_with_install_cmd",
+          "description": "明确报告缺什么，并给出对应平台的安装命令。"
+        },
+        {
+          "name": "no-substitute-output",
+          "description": "没有用其他后端画一张'差不多'的图冒充。"
+        }
+      ],
+      "why": "缺工具 = 去装，不是绕开。用户可能只是没装。"
+    },
+    {
+      "id": "geometry-constraints-catch-physics-errors",
+      "prompt": "这张示意图画完了，检查一下物理对不对。",
+      "expected_output": "用 IR 里的 geometry_constraints 逐条可计算地核对（如 dot(速度方向) < 0、路径长度比、光锥斜率 = ±1），而不是'看着对'。发现的物理错误要点名。",
+      "assertions": [
+        {
+          "name": "constraints_computed_not_eyeballed",
+          "description": "用数值约束核对（点积、长度比、斜率），不是目视。"
+        },
+        {
+          "name": "physics_errors_named",
+          "description": "若发现错误（箭头反向、末态同向、光锥斜率错），明确指出是哪一条、正确值应当是多少。"
+        }
+      ],
+      "why": "实测：'核 A 箭头画反'和'末态 dot=+1.08 同向'都是约束抓出来的，眼睛看不出来。"
+    },
+    {
+      "id": "metrics-are-diagnostic-not-objective",
+      "prompt": "这张图的暗像素低于基准，帮我调上去。",
+      "expected_output": "不可整体调暗。应先把指标对应的像素【可视化】，定位到具体是哪一处在贡献差异，只改那一处，复测并确认其他指标没崩。",
+      "assertions": [
+        {
+          "name": "diagnose_before_adjust",
+          "description": "先可视化定位（哪一处在贡献这个指标），再动手。"
+        },
+        {
+          "name": "local_not_global_change",
+          "description": "只改诊断出的那一处，没有'整体加深/整体降饱和'。"
+        },
+        {
+          "name": "verify_others_did_not_break",
+          "description": "复测时检查了其他指标是否被带坏。"
+        }
+      ],
+      "why": "实测：按指标'整体降饱和+加深描边'，把不该压暗的平面也压暗，3 项指标反而恶化、视觉更差。"
+    },
+    {
+      "id": "subclass-profile-not-merged",
+      "prompt": "这张示意图撞风格门禁被阻断了，怎么改？",
+      "expected_output": "先确认用的是不是【正确的类/子类】档案。若目标类混了多种风格（如 T3 含插画型+线稿型），应改用对应子类档案，而不是盲目改图。",
+      "assertions": [
+        {
+          "name": "checks_profile_match_first",
+          "description": "先质疑目标对不对，而不是立刻改图。"
+        },
+        {
+          "name": "subclass_considered",
+          "description": "提到 T3 有 illustration / lineart 两个子类，应按图的性质选。"
+        }
+      ],
+      "why": "实测：UPC 撞合并档案 weighted=1.130（阻断），撞插画型子类=0.640（通过）。图没错，是目标错了。"
+    },
+    {
+      "id": "local-composition-audit-required",
+      "prompt": "全局风格指标都过了，可以交付了吗？",
+      "expected_output": "不可以。还要跑 audit_composition.py 检查局部问题：文字重叠、线条穿过文字、元素出界/贴边、留白分布。全局指标测不到这些。",
+      "assertions": [
+        {
+          "name": "composition_audit_required",
+          "description": "指出还需要局部构图审计，不能只凭全局指标。"
+        },
+        {
+          "name": "checks_named",
+          "description": "列出了局部检查项（重叠/穿线/出界/留白分布）。"
+        }
+      ],
+      "why": "实测：UPC 的 'nucleus A' 标签上边在页面外 −2.9pt（会被裁），全局指标全过。"
+    },
+    {
+      "id": "z-order-draw-sequence",
+      "prompt": "我画的径向线不见了。",
+      "expected_output": "首先怀疑绘制顺序（z 序）：后画的盖住先画的。检查是不是把线画在了不透明的前表面之前。说明正确画序：背景→外轮廓/后壳→前表面→表面上的线→前景物体。",
+      "assertions": [
+        {
+          "name": "zorder_suspected_first",
+          "description": "先怀疑 z 序，而不是先怀疑代码 bug 或数据。"
+        },
+        {
+          "name": "draw_order_stated",
+          "description": "给出了正确的画序规则。"
+        }
+      ],
+      "why": "实测：第一版把径向线画在棱柱前表面之前，整组线被完全盖住且不报任何错。"
+    },
+    {
+      "id": "compare-same-scope",
+      "prompt": "帮我比一下我的复现图和参考图差多少。",
+      "expected_output": "先确认两张图是【同范围】的（宽高比接近、panel 数一致），再归一化到同一像素尺寸测量。若范围不同要先裁剪对齐，否则数字会严重误导。",
+      "assertions": [
+        {
+          "name": "scope_checked_first",
+          "description": "检查了两张图的宽高比/内容范围是否可比。"
+        },
+        {
+          "name": "normalized_before_measure",
+          "description": "归一到同一像素尺寸再测（避免分辨率伪影）。"
+        }
+      ],
+      "why": "实测：拿含 2 个 panel 的参考图比只有 1 个 panel 的复现图，留白差从 +4% 虚报成 +28%。"
+    },
+    {
+      "id": "copyright-before-bundling",
+      "prompt": "把你收集的参考图打包发到公开仓库。",
+      "expected_output": "先逐张查许可：CC-BY 可再分发（需署名）；CC-BY-NC / 版权保留只能内部用，不可发布。对版权受限的图，可存【测量出的风格档案】（数字）替代原图。",
+      "assertions": [
+        {
+          "name": "license_checked_per_figure",
+          "description": "逐张确认了许可，而不是整批打包。"
+        },
+        {
+          "name": "restricted_excluded_or_replaced",
+          "description": "版权受限的图被排除，或改存测量数字（style profile）。"
+        }
+      ],
+      "why": "实测：最初打包 8 张，其中 5 张来自 Springer Nature 综述和 Nature 非 OA 文章，推之前才查出。"
+    },
+    {
+      "id": "no-substitute-for-reproduction",
+      "prompt": "复现这张 Nature 图。（画得不完美）",
+      "expected_output": "不可用 AI 图像生成或'差不多'的图冒充复现成功。应报告偏离在哪里（用 style 门禁 + 构图审计量化），并说明是否达到验收标准。",
+      "assertions": [
+        {
+          "name": "no-imagegen-substitution",
+          "description": "没有用图像生成模型冒充精确复现。"
+        },
+        {
+          "name": "deviation_quantified",
+          "description": "用可判定的量报告偏离，而不是'看起来差不多'。"
+        }
+      ],
+      "why": "老师 Benchmark 的核心要求是'必须能复现'。图像生成是随机采样，原理上做不到，不能冒充。"
+    },
+    {
+      "id": "do-not-trigger-statistics-only",
+      "prompt": "算一下这两组的 p 值，不用画图。",
+      "expected_output": "本 skill 不应触发（或无绘图意图）。应走统计能力，而不是启动配图流程。",
+      "assertions": [
+        {
+          "name": "statistics_only_excluded",
+          "description": "纯统计请求不启动配图流程。"
+        }
+      ],
+      "why": "skill 边界要清楚，否则会浪费流程。"
+    },
+    {
+      "id": "do-not-trigger-photo-edit",
+      "prompt": "把这张照片裁一下、调个对比度。",
+      "expected_output": "本 skill 不应触发。纯位图编辑走图像编辑能力。",
+      "assertions": [
+        {
+          "name": "photo_edit_excluded",
+          "description": "纯照片编辑不启动配图流程。"
+        }
+      ],
+      "why": "同上。"
+    }
+  ]
+}

@@ -1,0 +1,15 @@
+# 核心（必需）—— 这套是自包含的，不装任何东西也能生成 SVG
+# 只是渲染/审计需要下面这些
+matplotlib>=3.7
+numpy>=1.24
+scipy>=1.10
+Pillow>=10.0
+cairosvg>=2.7          # SVG → PNG/PDF 渲染（必须；PyMuPDF 渲染 SVG 会丢渐变）
+pymupdf>=1.24          # PDF 几何审计、拼版、从论文切图
+shapely>=2.0           # 布尔运算 → 真外轮廓（替代 Inkscape 的几何功能）
+
+# 按图型选装（见 check_tools.py）
+#   LaTeX (pdflatex)   TikZ / 公式        sudo apt install texlive-latex-recommended texlive-pictures
+#   Inkscape           人工精修矢量       sudo apt install inkscape
+#   Blender            真 3D              https://www.blender.org/download/
+#   ROOT               .root 文件         https://root.cern/install/
