@@ -1,0 +1,229 @@
+# IR —— 手绘草图 4：重离子碰撞的时空演化
+# 输入：sketch_test/sketch4_timeline.png
+# 任务类型：B（创作）
+# ★ 本图用于验证：输入草图的元素密度是否决定输出密度
+figure:
+  id: SKETCH-4-TIMELINE
+  source: "手绘草图4（作者自绘）"
+  physics_claim: >
+    重离子碰撞的时空演化：两个 Lorentz 收缩的核相向接近并重叠，
+    在碰撞区形成 QGP；QGP 在自身压强梯度下流体力学膨胀，
+    随后强子化、化学冻结、热冻结，最终粒子自由飞出被探测器接收。
+    panel b 用 τ–z 时空图标出各阶段所在的时空区域与光锥边界。
+  archetype: 复合图（过程示意 + 时空图）
+  panels_count: 2
+  panel_relation: "a 为空间演化序列（5 个阶段）；b 为同一过程的 τ–z 时空图表征"
+
+elements:                      # 画序 = z 序，从后往前
+  - id: E1
+    name: 阶段1 — 两个入射核
+    physics_role: >
+      两个 Lorentz 收缩的原子核相向接近。纵向压扁成薄饼是因为
+      在碰撞参考系中核以接近光速运动。
+    primitive: 竖直扁椭圆 ×2
+    params: {长宽比: "约 3.6:1", 间距: "约 2.3 倍核宽"}
+    material: "蓝紫渐变 + 深色描边"
+    z: 1
+
+  - id: E2
+    name: 阶段2 — 重叠
+    physics_role: >
+      两核在纵向上重叠——重叠区就是参与碰撞的物质（participants），
+      这是 QGP 形成的初始条件。
+    primitive: 两个部分重叠的扁椭圆
+    params: {重叠量: "约 0.45 倍核宽"}
+    material: "同 E1，重叠区颜色加深"
+    z: 2
+
+  - id: E3
+    name: 阶段3 — QGP 形成
+    physics_role: >
+      重叠区形成夸克胶子等离子体——高温高密的解禁闭物质。
+      中心的星芒表示局部热化完成。
+    primitive: 有机团块 + 中心星芒
+    params: {团块半径: "约 0.055 画布宽", 星芒射线: 7}
+    material: "橙红渐变 + 弥散边缘"
+    z: 3
+
+  - id: E4
+    name: 阶段4 — 流体力学膨胀
+    physics_role: >
+      QGP 在压强梯度驱动下向外膨胀。向外的箭头表示集体流——
+      这是把初态几何转化为末态动量各向异性的机制。
+    primitive: 有机团块 + 10 条径向箭头
+    params: {团块半径: "约 0.072 画布宽", 箭头数: 10}
+    material: "橙红渐变；箭头深色"
+    z: 4
+
+  - id: E5
+    name: 阶段5 — 冻结
+    physics_role: >
+      强子化与冻结完成后，粒子自由飞出、不再相互作用。
+      分散的小圆表示自由强子。
+    primitive: 散布的小圆 ×16
+    params: {数量: 16, 散布半径: "约 0.09 画布宽"}
+    material: "空心小圆，深色描边"
+    z: 5
+
+  - id: E6
+    name: 阶段间箭头 ×4
+    physics_role: 时间推进方向
+    primitive: 水平箭头
+    params: {数量: 4}
+    material: "深灰"
+    z: 6
+
+  - id: E7
+    name: 阶段标签 ×5
+    physics_role: 各阶段命名
+    primitive: 文字
+    text: "nuclei approach / overlap / QGP forms / expansion / freeze-out"
+    z: 7
+
+  - id: E8
+    name: panel b 坐标轴
+    physics_role: >
+      τ–z 时空图的坐标轴：z 为束流方向的空间坐标，t 为时间。
+      时空图用于标出各阶段所在的区域。
+    primitive: 两条带箭头直线 + 标签
+    material: "深色"
+    z: 8
+
+  - id: E9
+    name: panel b 光锥
+    physics_role: >
+      t = ±z 的光锥边界——因果关系不能越过它。
+      碰撞后的物质只能存在于光锥之内。
+    primitive: 两条斜线
+    params: {斜率: "±1（45°）"}
+    z: 9
+
+  - id: E10
+    name: panel b proper-time 双曲线 ×4
+    physics_role: >
+      等固有时间 τ = √(t²−z²) 的双曲线族——表征膨胀的时空轨迹。
+      数值越大表示演化越晚。
+    primitive: 双曲线弧 ×4 + 标签
+    params: {数量: 4, 标签: "τ = 1,2,3,4"}
+    z: 10
+
+  - id: E11
+    name: panel b 相区标签 ×3
+    physics_role: 标出 pre-equilibrium / QGP / hadron gas 三个演化阶段所在的时空区域
+    primitive: 文字
+    text: "pre-eq. / QGP / hadron gas"
+    z: 11
+
+  - id: E12
+    name: panel b 冻结点 ×6
+    physics_role: >
+      冻结发生的时空点序列——沿一条轨迹从 QGP 边界延伸出去，
+      表示介质逐渐冷却、退出强子气体区。
+    primitive: 小圆 ×6
+    z: 12
+
+  - id: E13
+    name: 面板标号 a / b
+    physics_role: 图注编号
+    primitive: 文字
+    z: 13
+
+composition:
+  canvas: {ratio: "约 1.97（横）", 用途: "双栏图"}
+  视角: 正视。panel a 是过程序列（时间从左到右），panel b 是时空图。
+  分区: >
+    panel a 占左侧约 78%，含 5 个等间距阶段；
+    panel b 占右侧约 22%，是 τ–z 时空图。
+  元素布局:
+    - id: E1
+      锚点: [0.085, 0.40]
+      备注: "5 个阶段中心 x 依次为 0.085 / 0.26 / 0.44 / 0.61 / 0.79"
+    - id: E5
+      锚点: [0.79, 0.40]
+    - id: E8
+      锚点: [0.835, 0.74]
+      备注: "panel b 坐标原点，轴向上和向右"
+    - id: E13
+      锚点: "a 在 [0.035, 0.05]，b 在 [0.78, 0.05]"
+  叠放关系: >
+    阶段间箭头在元素之下；标签在最上层。
+    所有阶段在同一水平线上（y 中心一致）。
+
+geometry_constraints:
+  # ★ 本图的物理正确性靠这几条守住
+  约束:
+    - 名: 五阶段等间距
+      量: "相邻阶段中心 x 的间距标准差 / 平均间距"
+      要求: "< 0.05"
+      为什么: "过程序列必须等间距，否则时间推进的视觉节奏错乱"
+    - 名: 阶段共线
+      量: "五个阶段中心 y 的标准差"
+      要求: "< 0.02 画布高"
+      为什么: "同一过程的不同时刻，必须在同一水平线上"
+    - 名: 膨胀阶段的箭头朝外
+      量: "dot(每个箭头方向, 该箭头起点→团块中心)"
+      要求: "< 0 对所有箭头成立"
+      为什么: "膨胀是向外的；朝内的箭头在物理上是错的"
+    - 名: 光锥斜率
+      量: "光锥线在 τ–z 图上的斜率"
+      要求: "= ±1（45°）"
+      为什么: "光锥 t=|z| 是物理常数，画错斜率就失去因果意义"
+    - 名: 冻结轨迹在光锥内
+      量: "每个冻结点是否满足 t > |z|"
+      要求: "全部成立"
+      为什么: "因果性——物质不能跑到光锥外"
+
+style:
+  classification: 矢量插画
+  evidence: >
+    参考库 T3 同类：径向渐变做体积感，统一描边，无材质纹理。
+    明暗是画出来的而非光照计算。
+  palette:
+    入射核: "#8a9ee0 → #4a5cb8"
+    QGP: "#ffb850 → #f86818 → #dc3808"
+    箭头/描边: "#2a2a2a"
+    标签: "#1a1a1a"
+    背景: "#ffffff"
+  line_widths: {outline: 1.6, flow_arrow: 2.0, axis: 2.0}
+  fonts: {latin: "DejaVu Sans", size_steps: [12, 14, 16, 19]}
+  conventions:
+    - "QGP 团块边缘必须弥散"
+    - "五阶段的尺寸要一致，只有内容变"
+
+execution:
+  primary: svg
+  reason: >
+    内容轴：无数据、形状是表达手段 → SVG。
+    风格轴：矢量插画 → SVG/Inkscape。两轴一致。
+  style_switch: >
+    若风格改为「数据可视化」（panel b 改成定量的 τ–z 热图），
+    panel b 应改用 matplotlib；figure + elements 不变。
+  fallback: [illustrator, matplotlib]
+  rejected:
+    - tool: blender
+      reason: "无真实 3D 几何需求"
+    - tool: imagegen
+      reason: "元素多且需精确，随机采样无法保证结构一致"
+    - tool: tikz
+      reason: "本图无公式；TikZ 做渐变与发光别扭"
+  portability: "figure + elements 两层完全后端无关"
+
+assertions:
+  machine:
+    - "E1..E13 全部存在"
+    - "五个阶段等间距（间距标准差 / 均值 < 0.05）"
+    - "五个阶段共线（y 标准差 < 0.02 画布高）"
+    - "膨胀阶段的 10 条箭头全部朝外（与径向点积 < 0）"
+    - "光锥斜率为 ±1"
+    - "6 个冻结点全部在光锥内（t > |z|）"
+    - "导出矢量且文字可提取；最小字号 ≥5pt"
+  human:
+    - "五阶段的物理顺序正确（接近→重叠→QGP→膨胀→冻结）"
+    - "时空图的相区划分与光锥位置正确"
+    - "视觉达到可投稿水平"
+
+# ── 物理核对要点
+# 1. 顺序：接近 → 重叠 → QGP 形成 → 膨胀 → 冻结，不能颠倒
+# 2. 膨胀箭头必须朝外（朝内即错）
+# 3. 光锥斜率必须 ±1
+# 4. 所有物理过程必须发生在光锥内
