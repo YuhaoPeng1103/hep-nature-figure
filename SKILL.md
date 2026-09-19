@@ -360,6 +360,7 @@ python3 scripts/auto_converge.py --ref 参考图.png \
 | `style_bench.py` | 风格度量与基准比对（**是诊断工具，不是优化目标**） |
 | `assemble_panels.py` | 复合图拼版，保矢量 |
 | `extract_figures.py` | 从论文 PDF 自动切图 |
+| `audit_composition.py` | **局部构图审计**：文字重叠/线穿文字/出界/留白分布 |
 | `style_profile.py` | **提取风格档案**（存数字不存图，版权干净） |
 | `delivery_gate.py` | **阻断式门禁**：离目标风格超限就不许交付 |
 | `check_delivery.py` | **投稿前检查**：矢量？文字可编辑？字号达标？ |

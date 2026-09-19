@@ -20,7 +20,7 @@ from svg_lib import SVG
 import geom
 
 OUT=Path("repro"); OUT.mkdir(exist_ok=True)
-W,H=806,382
+W,H=806,396
 s=SVG(W,H)
 FONT="DejaVu Sans"
 
@@ -29,8 +29,8 @@ def nucleus(cx, cy, rx, ry, base_hi, base_mid, base_lo, seed=3):
     m = s.radial([(0.00, base_hi, 0.96), (0.42, base_mid, 0.93),
                   (1.00, base_lo, 0.90)], cx=0.38, cy=0.34, r=0.82)
     s.add(f'<ellipse cx="{cx:.1f}" cy="{cy:.1f}" rx="{rx:.1f}" ry="{ry:.1f}" '
-          f'fill="url(#{m})" stroke="{base_lo}" stroke-width="2.0" '
-          f'stroke-opacity="0.9"/>')
+          f'fill="url(#{m})" stroke="#0a0f3a" stroke-width="2.6" '
+          f'/>')
     rng=random.Random(seed); pts=[]
     for i in range(13):
         for _ in range(20):
@@ -75,10 +75,10 @@ def tx(x,y,t,sz=15,an="middle",col="#1a1a1a"):
           f'fill="{col}" text-anchor="{an}">{t}</text>')
 
 # ── 几何 ──
-CA, CB = 92, 286          # 上核 / 下核中心 y
+CA, CB = 104, 288          # 上核 / 下核中心 y
 XA, XB = 108, 692          # 左 / 右核中心 x
 RX, RY = 31, 62
-VX, VY = 400, 189          # 相互作用顶点
+VX, VY = 400, 196          # 相互作用顶点
 
 s.begin_layer("layer-nuclei","1 原子核")
 nucleus(XA, CA, RX, RY, "#8ea4f0", "#3a52b8", "#141f6e", seed=1)   # A 蓝
@@ -89,8 +89,8 @@ s.end_layer()
 
 s.begin_layer("layer-arrows","2 速度箭头")
 # 核 A 向右（蓝色系），核 B 向左（紫色系）
-arrow(XA+RX+8, CA, XA+142, CA, "#3a4fa8", 4.4)
-arrow(XB-RX-8, CB, XB-142, CB, "#5a3aa8", 4.4)
+arrow(XA+RX+8, CA, XA+142, CA, "#101c66", 5.0)
+arrow(XB-RX-8, CB, XB-142, CB, "#2a0f66", 5.0)
 s.end_layer()
 
 s.begin_layer("layer-photons","3 光子交换")
@@ -98,7 +98,7 @@ s.begin_layer("layer-photons","3 光子交换")
 # 光子线从【上核下缘】到【下核上缘】——现在间距有 70px，波能展开
 for dx in (-86, 86):
     glow_line(VX+dx, CA+RY+4, VX+dx, CB-RY-4, "#5ac8ff", 15, 0.32, 8)
-    wave(VX+dx, CA+RY+4, VX+dx, CB-RY-4, 11, 4, "#2a8fd0", 2.5)
+    wave(VX+dx, CA+RY+4, VX+dx, CB-RY-4, 11, 4, "#155a92", 3.0)
 # 碰撞参数 b：上下核中心之间的虚线 + 参考线
 s.add(f'<line x1="{VX}" y1="{CA}" x2="{VX}" y2="{CB}" stroke="#333" '
       f'stroke-width="1.3" stroke-dasharray="6 4"/>')
@@ -114,19 +114,19 @@ s.add(f'<circle cx="{VX}" cy="{VY}" r="52" fill="url(#{gl})" opacity="0.85"/>')
 for i in range(12):
     a=2*math.pi*i/12
     s.add(f'<line x1="{VX}" y1="{VY}" x2="{VX+26*math.cos(a):.1f}" '
-          f'y2="{VY+26*math.sin(a):.1f}" stroke="#b06010" stroke-width="2.0" '
+          f'y2="{VY+26*math.sin(a):.1f}" stroke="#5a2c04" stroke-width="2.6" '
           f'stroke-linecap="round" opacity="0.85"/>')
 s.add(f'<circle cx="{VX}" cy="{VY}" r="5" fill="#fff8e0" stroke="#b06010" '
       f'stroke-width="1.2"/>')
 s.end_layer()
 
 s.begin_layer("layer-final","5 末态粒子")
-arrow(VX+10, VY-4, VX+138, VY-78, "#c0392b", 3.2)
-arrow(VX-10, VY+4, VX-138, VY+78, "#2a6ae0", 3.2)
+arrow(VX+10, VY-4, VX+138, VY-78, "#8a1410", 3.6)
+arrow(VX-10, VY+4, VX-138, VY+78, "#10307a", 3.6)
 s.end_layer()
 
 s.begin_layer("layer-labels","6 标注")
-tx(XA, CA-RY-20, "nucleus A", 15)
+tx(XA, CA-RY-8, "nucleus A", 15)
 tx(XB+22, CB+RY+6, "nucleus B", 15, "start")
 tx(XA+96, CA-18, "v", 15)
 tx(XB-100, CB-14, "v", 15)
