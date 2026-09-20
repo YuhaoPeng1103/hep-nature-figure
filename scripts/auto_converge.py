@@ -29,7 +29,7 @@ from pathlib import Path
 import numpy as np
 from PIL import Image
 
-sys.path.insert(0, str(Path(__file__).parent / "hep-nature-figure" / "scripts"))
+sys.path.insert(0, str(Path(__file__).resolve().parent))
 from style_bench import measure, METRIC_ROBUST
 
 # ── 映射表：指标偏离 → 调哪个参数 ──────────────────────────────
@@ -77,6 +77,22 @@ WEIGHT = {          # 鲁棒指标的权重（暗像素和边密度最能反映"
     "whitespace": 1.0, "saturation": 1.0, "gradient_ratio": 1.0,
 }
 
+# ══════════════════════════════════════════════════════════════
+#  ★★ 创作任务（--profile）默认**不优化这两个指标**
+#
+#  实测证据：拿 --profile 驱动卡通图收敛，优化器为了满足
+#  dark_ratio / edge_density，把 label_scale 一路推到上界 1.60 —— 结果
+#  "nucleus A" 与 "nucleus B" 挤成不可读的一团，底部说明文字溢出画布。
+#  **机械上收敛了，图上更差了。** 这正是纪律 3 禁止的"优化指标而不是优化图"。
+#
+#  为什么会这样：dark_ratio 与 text_area_ratio 几乎是同一个函数
+#  （近黑像素占比），它测的是**文字密度**；edge_density 对字号也有 +99% 响应。
+#  所以"把这两个指标调上去"实际等于"把字调大"，与图的质量无关。
+#
+#  正确用法：它们当**诊断**（看偏离多少、往哪看），不当**目标**。
+#  确实想优化它们时用 --include-ink-metrics 显式打开。
+INK_PROXY_METRICS = {"dark_ratio", "edge_density"}
+
 
 def measure_pair(ref_path, mine_path):
     """归一到同一尺寸再量（避免分辨率偏差，见 style-bench 的陷阱 3）"""
@@ -92,6 +108,16 @@ def measure_pair(ref_path, mine_path):
     return out["ref"], out["mine"]
 
 
+def measure_one(mine_path, ref_path=None):
+    """--ref：两张图归一到同尺寸再量；--profile：只量自己，不需要参考图。"""
+    if ref_path:
+        return measure_pair(ref_path, mine_path)
+    im = Image.open(mine_path).convert("RGB")
+    tmp = Path(tempfile.gettempdir()) / "_ac_solo.png"
+    im.save(tmp)
+    return None, measure(tmp)
+
+
 def deviation(ref_m, my_m):
     dev = {}
     for k, v in my_m.items():
@@ -104,55 +130,214 @@ def deviation(ref_m, my_m):
     return dev
 
 
+def deviation_profile(prof_style, my_m, target_size=None):
+    """
+    ★ 无参考图时的目标：用【风格档案的区间】而不是一张图。
+
+    为什么需要它：`--ref` 是必填的，于是**复现任务能自动收敛、创作任务完全不能**
+    ——草图为输入的卡通图没有参考图可比，这条路整个走不通。
+
+    偏离的度量与 delivery_gate 保持一致：相对【最近的区间边界】归一。
+    踩过的坑（见 delivery_gate）：用区间宽度做分母会掩盖"整个量级都不对"。
+    """
+    dev = {}
+    for k, v in my_m.items():
+        if k == "aspect" or not METRIC_ROBUST.get(k, True):
+            continue
+        ent = prof_style.get(k)
+        if not isinstance(ent, dict):
+            continue
+        lo, hi = ent.get("p25"), ent.get("p75")
+        if lo is None or hi is None:
+            continue
+        if v > hi:
+            dev[k] = (v - hi) / max(hi, 1e-9)
+        elif v < lo:
+            dev[k] = (v - lo) / max(lo, 1e-9)      # 负号表示"偏低"
+        else:
+            dev[k] = 0.0
+    return dev
+
+
 def loss(dev):
     return sum(WEIGHT.get(k, 1.0) * abs(v) for k, v in dev.items())
 
 
+def composition_gate(png_path, enabled=True):
+    """
+    对候选跑**局部构图审计**，返回问题列表（空 = 通过）。
+
+    ★ 为什么必须加这一步（实测踩到的）：
+      拿 --ref 对着 T3-02 跑跨图收敛，loss 从 4.24 降到 2.50，
+      优化器把 label_scale 顶到上界 1.6 —— 结果标签压成一团、
+      底部说明跑出画布。**loss 降了，图坏了。**
+      而 auto_converge 当时**完全不知道**，还把那轮报成"最好的一轮"，
+      直到下游门禁才发现，8 处问题、阻断交付。
+      → 优化循环必须自己看得见"这张图能不能交付"，否则就是在往坑里迭代。
+
+    审计读的是 PDF 几何。驱动脚本自己出 PDF 最好；只出 SVG 时用 cairosvg
+    转一份临时 PDF（两个驱动脚本都出 SVG，所以这条路总是通的）。
+    """
+    if not enabled:
+        return []
+    import subprocess
+    import sys as _sys
+    here = Path(__file__).resolve().parent
+    audit = here / "audit_composition.py"
+    if not audit.exists():
+        return []
+    pdf = Path(png_path).with_suffix(".pdf")
+    tmp_pdf = None
+    if not pdf.exists():
+        svg = Path(png_path).with_suffix(".svg")
+        if not svg.exists():
+            return []                      # 没有 PDF 也没有 SVG → 无法审计，放行
+        try:
+            import cairosvg
+            tmp_pdf = Path(tempfile.gettempdir()) / (Path(png_path).stem + "_audit.pdf")
+            cairosvg.svg2pdf(url=str(svg), write_to=str(tmp_pdf))
+            pdf = tmp_pdf
+        except Exception:
+            return []
+    try:
+        r = subprocess.run([_sys.executable, str(audit), str(pdf)],
+                           capture_output=True, text=True, timeout=180)
+    except Exception:
+        return []
+    if r.returncode == 0:
+        return []
+    # 从输出里抠出失败项（"   ✗ xxx"）
+    fails = [ln.strip()[2:].strip()
+             for ln in r.stdout.splitlines() if ln.strip().startswith("✗")]
+    return fails or ["构图审计未通过"]
+
+
 def render(script, params, tag, workdir):
+    # ★ 必须把脚本路径**解析成绝对路径**再调用：
+    #   这里会把 cwd 切到脚本所在目录，如果 script 传的是相对路径，
+    #   切换之后它就指向了错误的位置（实测：报
+    #   ".../scripts/hep-nature-figure/scripts/repro_T3-03_param.py: No such file"）。
+    script = Path(script).resolve()
     pf = Path(workdir) / f"{tag}.json"
     pf.write_text(json.dumps(params), encoding="utf-8")
-    r = subprocess.run([sys.executable, script, "--params", str(pf), "--tag", tag],
-                       capture_output=True, text=True, cwd=str(Path(script).parent))
+    r = subprocess.run([sys.executable, str(script), "--params", str(pf),
+                        "--tag", tag],
+                       capture_output=True, text=True, cwd=str(script.parent))
     if r.returncode != 0:
         raise RuntimeError(f"渲染失败:\n{r.stderr[-500:]}")
-    return Path(script).parent / "repro" / "auto" / f"{tag}.png"
+    return script.parent / "repro" / "auto" / f"{tag}.png"
 
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("--ref", required=True)
+    g = ap.add_mutually_exclusive_group(required=True)
+    g.add_argument("--ref", help="参考图（复现任务：判'离它多远'）")
+    g.add_argument("--profile",
+                   help="风格档案 JSON（**创作任务**：没有参考图，用类内区间当目标）")
+    ap.add_argument("--class", dest="want_class", default=None,
+                    help="--profile 指向合并档案时，指定用哪个子类")
     ap.add_argument("--script", required=True)
     ap.add_argument("--max-iter", type=int, default=20)
     ap.add_argument("--step", type=float, default=0.35,
                     help="初始步长（相对调整幅度）")
+    ap.add_argument("--no-composition-gate", dest="composition_gate",
+                    action="store_false", default=True,
+                    help="关掉每轮的构图审计（默认开）。只在驱动脚本"
+                         "既不出 PDF 也不出 SVG 时才需要关")
+    ap.add_argument("--include-ink-metrics", action="store_true",
+                    help="把 dark_ratio / edge_density 也当优化目标。"
+                         "⚠️ 默认关：它们本质是文字密度代理，调它们会把字越调越大")
     a = ap.parse_args()
+
+    # ★ 卡通/创作任务走 --profile：目标是一段【区间】，不是某一张图。
+    #   这样"草图 → 卡通图"这条线才第一次有了自动收敛能力。
+    prof_style = None
+    if a.profile:
+        pdata = json.loads(Path(a.profile).read_text(encoding="utf-8"))
+        if a.want_class:
+            pdata = pdata.get(a.want_class, {})
+        elif "style" not in pdata:
+            # 传进来的是整个档案文件（多个类）→ 取第一个，并提示可用 --class
+            print(f"⚠️ 档案含多个类：{list(pdata)[:6]}；"
+                  f"默认取「{list(pdata)[0]}」，可用 --class 指定")
+            pdata = pdata[list(pdata)[0]]
+        prof_style = pdata.get("style", pdata)
 
     # 初始参数：从被驱动脚本的 DEFAULTS 读
     sys.path.insert(0, str(Path(a.script).parent))
     mod_name = Path(a.script).stem
     mod = __import__(mod_name)
     params = dict(mod.DEFAULTS)
+    # ★ 映射表是"这张图的专家知识"，应该跟着脚本走而不是写死在这里。
+    #   被驱动脚本若导出了 RULES，就用它的；否则退回内置的那张
+    #   （内置那张是 repro_T3-03_param.py 实测标定出来的，只对那张图有效）。
+    global RULES
+    if hasattr(mod, "RULES"):
+        RULES = mod.RULES
+        print(f"映射表: 用 {mod_name}.RULES（{len(RULES)} 条）")
+    else:
+        print(f"映射表: 用 auto_converge 内置的（{len(RULES)} 条）"
+              f"——被驱动脚本可导出 RULES 覆盖")
 
     workdir = Path(tempfile.mkdtemp(prefix="autoconv_"))
     print("=" * 74)
     print("自动收敛")
     print("=" * 74)
-    print(f"参考图: {a.ref}")
+    _target = a.ref if a.ref else f"{a.profile}（风格档案区间）"
+    print(f"目标: {_target}")
     print(f"渲染脚本: {a.script}")
     print(f"初始参数: {json.dumps({k: round(v,3) if isinstance(v,float) else v for k,v in params.items()})}\n")
 
     step = a.step
     best = None
     history = []
+    comp_rejected = []   # 被构图门禁否掉的迭代
     cur_params = dict(params)
 
     for it in range(1, a.max_iter + 1):
         png = render(a.script, cur_params, f"it{it:02d}", workdir)
-        ref_m, my_m = measure_pair(a.ref, png)
-        dev = deviation(ref_m, my_m)
+        ref_m, my_m = measure_one(png, a.ref)
+        dev = (deviation(ref_m, my_m) if a.ref
+               else deviation_profile(prof_style, my_m))
+        if not a.ref and not a.include_ink_metrics:
+            dev = {k: v for k, v in dev.items() if k not in INK_PROXY_METRICS}
         L = loss(dev)
         worst = max(dev.items(), key=lambda kv: abs(kv[1]))
         history.append(L)
+
+        # ── ★ 构图门禁：坏了构图的候选一律作废 ──
+        # 实测证据：跨图收敛时优化器把 label_scale 顶到上界，loss 降了
+        # 但标签压成一团、文字出界。如果不在这里拦，它会一路"收敛"到
+        # 一张会被下游门禁拒绝的图，白烧迭代。
+        comp = composition_gate(png, a.composition_gate)
+        if comp:
+            print(f"[{it:02d}] loss={L:.3f}  ✗ 构图审计 {len(comp)} 处问题 → 候选作废")
+            for x in comp[:3]:
+                print(f"       ✗ {x}")
+            if len(comp) > 3:
+                print(f"       … 另有 {len(comp)-3} 处")
+            comp_rejected.append((it, len(comp)))
+            if best is not None:
+                cur_params = dict(best["params"])
+                step *= 0.5
+                print(f"       → 回退到第 {best['it']} 轮参数，步长减半为 {step:.3f}")
+                if step < 0.01:
+                    print("   步长过小，停止搜索")
+                    break
+            else:
+                # 连第一个候选都坏构图 → **基准参数本身**就不合格。
+                # ★ 这里必须【立刻停】，不能 continue：
+                #   best 还是 None 时参数不会变，下一轮会渲出**一模一样**的东西、
+                #   被同一个理由再否一次 —— 空转到 max_iter，白烧时间。
+                #   （实测：repro_T3-03_param 的基准就出界 3 处，
+                #     原来会连着否 3 轮。）
+                print("       ⚠️ 基准参数就不过构图门禁 —— "
+                      "这是**参数起点的问题**，不是搜索能修的。")
+                print("          收敛的每一轮都是从基准派生出来的，基准不干净，"
+                      "搜不出干净的解。")
+                print("          → 先手工把基准构图调到通过，再来跑收敛。")
+                break
+            continue
 
         # ── 回溯：变差就回退参数并把步长减半 ──
         # ★ 第一版漏了这一条（文档写了但代码没写），导致 loss 单调恶化 2.59→5.33。
@@ -224,11 +409,25 @@ def main():
     # 汇总
     print("\n" + "=" * 74)
     print(f"最好的一轮: 第 {best['it']} 轮, loss={best['loss']:.3f}")
-    ref_m, my_m = measure_pair(a.ref, best["png"])
-    dev = deviation(ref_m, my_m)
-    print(f"\n{'指标':<18}{'参考':>10}{'最终':>10}{'差':>8}")
-    for k, v in dev.items():
-        print(f"{k:<18}{ref_m[k]:>10.4f}{my_m[k]:>10.4f}{v*100:>7.0f}%")
+    ref_m, my_m = measure_one(best["png"], a.ref)
+    dev = deviation(ref_m, my_m) if a.ref else deviation_profile(prof_style, my_m)
+    if not a.ref and not a.include_ink_metrics:
+        print("\n注：dark_ratio / edge_density 未参与优化（它们是文字密度代理，"
+              "调它们只会把字越调越大）。\n    要看它们请加 --include-ink-metrics，"
+              "或用 delivery_gate 当诊断量看。")
+        dev_show = deviation_profile(prof_style, my_m)
+    else:
+        dev_show = dev
+    if a.ref:
+        print(f"\n{'指标':<18}{'参考':>10}{'最终':>10}{'差':>8}")
+        for k, v in dev.items():
+            print(f"{k:<18}{ref_m[k]:>10.4f}{my_m[k]:>10.4f}{v*100:>7.0f}%")
+    else:
+        print(f"\n{'指标':<18}{'目标区间':>20}{'最终':>10}{'偏离':>8}")
+        for k, v in dev_show.items():
+            e = prof_style[k]
+            print(f"{k:<18}[{e['p25']:>8.4f},{e['p75']:>8.4f}]"
+                  f"{my_m[k]:>10.4f}{v*100:>7.0f}%")
 
     outp = Path("repro/auto_best.png")
     shutil.copy(best["png"], outp)
@@ -240,6 +439,12 @@ def main():
 
     # 迭代轨迹
     print("\nloss 轨迹:", " ".join(f"{v:.2f}" for v in history))
+    if comp_rejected:
+        n = sum(c for _, c in comp_rejected)
+        iters = ", ".join(f"第{i}轮({c}处)" for i, c in comp_rejected[:8])
+        print(f"构图门禁否掉了 {len(comp_rejected)} 个候选，共 {n} 处问题：{iters}")
+        print("  → 如果否掉的多，说明**参数空间里没有既降 loss 又不破坏构图的解**，"
+              "换个参数或改构图再跑，别硬搜。")
 
 
 if __name__ == "__main__":

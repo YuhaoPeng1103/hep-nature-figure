@@ -35,6 +35,22 @@ TOOLS = [
          check="import fitz",
          install={"linux": "pip install pymupdf", "win": "pip install pymupdf"},
          figures=["拼版"]),
+    # ★ 下面两项是补漏：原本表里没有它们，于是"缺工具"报告在目标平台上
+    #   **永远误导性地全绿**，而运行时才炸。实测：ChatGPT 沙箱没有 shapely。
+    dict(key="shapely", cmd=None, name="shapely",
+         use="几何布尔运算 → 真外轮廓（circles_union / outline_offset）",
+         check="import shapely",
+         install={"linux": "pip install shapely", "win": "pip install shapely"},
+         substitute="blob() + poly_to_path() 这条链**不需要** shapely，"
+                    "缺了照样能画有机团块/膨胀边界；只有布尔并/差/偏移不可用",
+         figures=["示意图"]),
+    dict(key="yaml", cmd=None, name="PyYAML",
+         use="解析 IR yaml（delivery_gate.py --ir 的结构断言）",
+         check="import yaml",
+         install={"linux": "pip install pyyaml", "win": "pip install pyyaml"},
+         substitute="门禁会自动降级为「跳过结构断言」并打印提示，"
+                    "**不阻断交付**（结构断言本来就只打印、不代判）",
+         figures=["示意图", "拼版"]),
     dict(key="inkscape", cmd="inkscape", name="Inkscape",
          use="矢量精修：路径布尔运算、描边、渐变、手工调整。"
              "**Illustrator 的开源替代**，且**有 CLI 可被脚本调用**",
@@ -146,11 +162,15 @@ def main():
             print(f"   {t['name']:<26} {info}")
     print()
     if missing:
-        print(f"❌ 缺失（{len(missing)}）—— 按需安装")
+        print(f"❌ 缺失（{len(missing)}）")
         for t, _ in missing:
             print(f"\n   ▸ {t['name']}")
             print(f"     用途：{t['use']}")
             print(f"     适用：{', '.join(t['figures'])}")
+            # ★ 必须同时给【替代路径】：在无网络的环境（如 ChatGPT 沙箱）
+            #   里装不了任何东西，只说"去装"会让流程直接卡死。
+            if t.get("substitute"):
+                print(f"     装不了时：{t['substitute']}")
             print(f"     安装：{t['install'].get(os_key(), t['install']['linux'])}")
 
     # 按图型给建议
@@ -184,8 +204,10 @@ def main():
     print("\n  缺失安装：sudo apt install texlive-latex-recommended "
           "texlive-pictures texlive-fonts-extra")
 
-    print("\n注：✓ = 已装，✗ = 需安装。缺工具不是放弃的理由 —— "
-          "先装，再调用。")
+    print("\n注：✓ = 已装，✗ = 需安装。")
+    print("    能装的环境：缺工具不是放弃的理由 —— 先装，再调用。")
+    print("    装不了的环境（无网络沙箱）：按上面「装不了时」给的替代路径走，"
+          "**不要建议用户安装任何东西**。")
     return 0 if not missing else 0
 
 

@@ -20,8 +20,49 @@ import traceback
 from pathlib import Path
 
 HERE = Path(__file__).parent
-SCRIPTS = HERE.parent / "scripts"
+
+# ── 定位工具脚本目录 ───────────────────────────────────────────
+# 原来硬假设 evals/ 与 scripts/ 是兄弟目录。这在扁平布局（如 ChatGPT 沙箱里
+# 所有 .py 解包到同一处）不成立，首个失败在 :139 的 subprocess。
+#
+# ★ 为什么不用"到处搜 scripts/"：搜索会命中**错误的副本**——用户上传的旧版、
+#   __pycache__、上次会话的残留目录——然后静默地测错代码还全绿。
+#   对一个以"防静默失败"为卖点的项目，这是最不能接受的失败方式。
+#   所以：优先环境变量显式指定，否则只认两个确定的位置，并在开头打印
+#   【实际测的是哪个目录、每个模块的路径】，让"测的是谁"永远可见。
+def _resolve_scripts():
+    import os
+    env = os.environ.get("HEPNF_SCRIPTS")
+    if env:
+        p = Path(env).expanduser().resolve()
+        if not (p / "svg_lib.py").exists():
+            raise SystemExit(f"HEPNF_SCRIPTS={p} 里没有 svg_lib.py，请检查")
+        return p, "环境变量 HEPNF_SCRIPTS"
+    for cand, why in ((HERE.parent / "scripts", "skills 布局（evals/ 与 scripts/ 同级）"),
+                      (HERE, "扁平布局（脚本与本文件同目录）")):
+        if (cand / "svg_lib.py").exists():
+            return cand, why
+    raise SystemExit(
+        "找不到工具脚本（需要含 svg_lib.py 的目录）。\n"
+        "  · skills 布局：确认 evals/ 与 scripts/ 是兄弟目录\n"
+        "  · 扁平布局：把 test_tools.py 和工具 .py 放同一目录\n"
+        "  · 也可显式指定：HEPNF_SCRIPTS=/path/to/scripts python3 test_tools.py")
+
+
+SCRIPTS, _SCRIPT_WHY = _resolve_scripts()
 sys.path.insert(0, str(SCRIPTS))
+
+# 风格档案可能在三处：skills 布局的 assets/、扁平布局的 assets/、
+# 或者干脆和脚本平铺在一起（解包时最容易出现的一种）。
+_PROFILE_CANDIDATES = [
+    SCRIPTS.parent / "assets" / "style-profiles.json",
+    SCRIPTS / "assets" / "style-profiles.json",
+    SCRIPTS / "style-profiles.json",
+    HERE / "style-profiles.json",
+    HERE.parent / "style-profiles.json",
+]
+PROFILES = next((p for p in _PROFILE_CANDIDATES if p.exists()),
+                _PROFILE_CANDIDATES[0])
 
 RESULTS = []
 
@@ -98,17 +139,59 @@ def test_deviation_metric():
     assert over_boundary(0.30, lo, hi) == 0.0
 
 
-@case("gate_escalates_category_error",
-      "提醒项超出阈值要【升级为阻断】。防'黑白图通过门禁'——"
-      "我因为这个漏洞放过了一张明显不合格的图")
+@case("gate_catches_category_error_not_drift",
+      "范畴错误要阻断（黑白图），正常波动不许阻断（飘的指标没资格卡人）")
 def test_escalation():
-    REL_WARN, REL_BLOCK = 0.25, 0.50
-    def verdict(over):
-        if over <= REL_WARN: return "ok"
-        return "block" if over > REL_BLOCK else "warn"
-    assert verdict(0.99) == "block", "99% 偏离必须阻断"
-    assert verdict(0.11) == "ok", "11% 偏离不该拦"
-    assert verdict(0.35) == "warn", "35% 偏离只提醒"
+    """
+    ★ 这个 case 原来**自己重写了一遍阈值逻辑**（`verdict(over)` 是本地定义的），
+      所以它测的是"我抄的这份逻辑对不对"，而不是"delivery_gate 实际怎么做"——
+      改了真代码它也照样绿。典型的自证（和 sketch4 的几何自核对同一个毛病）。
+      现在改成真的去跑 delivery_gate.py，两种情形都验：
+
+        ① 范畴错误（灰度图撞彩色档案）→ 必须阻断
+        ② 类内分散的指标偏离很大       → **不许**阻断（只提醒）
+    """
+    import json
+    import subprocess
+    import tempfile
+
+    gate = SCRIPTS / "delivery_gate.py"
+    assert gate.exists(), "delivery_gate.py 应在 scripts/ 下"
+    prof = json.loads(PROFILES.read_text(encoding="utf-8"))
+    illus = prof["T3-schematic (illustration)"]
+
+    tmp = Path(tempfile.mkdtemp(prefix="gatetest_"))
+    pj = tmp / "illus.json"
+    pj.write_text(json.dumps(illus), encoding="utf-8")
+
+    # 造一张"有彩色、但几乎没有深色像素"的图 —— 正是原来被误杀的那种
+    from PIL import Image, ImageDraw
+    im = Image.new("RGB", (400, 260), "#fdfaf6")
+    d = ImageDraw.Draw(im)
+    d.ellipse([120, 60, 280, 200], fill="#f6a04a", outline="#c06010", width=3)
+    d.ellipse([160, 100, 240, 160], fill="#ffd070", outline="#c06010", width=2)
+    normal = tmp / "normal.png"
+    im.save(normal)
+
+    r = subprocess.run([sys.executable, str(gate), str(normal),
+                        "--profile", str(pj)],
+                       capture_output=True, text=True, timeout=120)
+    out = r.stdout
+    assert "范畴·无彩色" not in out, "有彩色的图不该被判'无彩色'"
+    # 关键：飘的指标（dark_ratio/edge_density/saturation）再偏也不许升级为阻断
+    assert "🚫" not in out, (
+        "类内分散的指标不可升级为阻断（相对IQR 均 >0.15）。\n"
+        "  这正是 5 张草图产出有 4 张被误杀的原因。\n"
+        f"  实际输出：\n{out[-500:]}")
+
+    # ② 灰度图 → 范畴错误 → 必须阻断
+    gray = tmp / "gray.png"
+    im.convert("L").convert("RGB").save(gray)
+    r2 = subprocess.run([sys.executable, str(gate), str(gray),
+                         "--profile", str(pj)],
+                        capture_output=True, text=True, timeout=120)
+    assert r2.returncode != 0 and "范畴·无彩色" in r2.stdout, (
+        "灰度图撞彩色档案必须阻断（这是升级规则原本要防的那个漏洞）")
 
 
 @case("gate_uses_subclass_profile",
@@ -116,8 +199,7 @@ def test_escalation():
       "UPC 撞合并档案 weighted=1.130，撞插画型子类=0.640")
 def test_subclass_profile():
     import json
-    p = HERE.parent / "assets" / "style-profiles.json"
-    d = json.loads(p.read_text(encoding="utf-8"))
+    d = json.loads(PROFILES.read_text(encoding="utf-8"))
     assert "T3-schematic (illustration)" in d, "应有插画型子类档案"
     assert "T3-schematic (lineart)" in d, "应有线稿型子类档案"
     ill = d["T3-schematic (illustration)"]["style"]["saturation"]["median"]
@@ -205,8 +287,7 @@ def test_probe_detection():
       "因为同类的图本来就各不相同")
 def test_profile_ranges():
     import json
-    d = json.loads((HERE.parent / "assets" / "style-profiles.json")
-                   .read_text(encoding="utf-8"))
+    d = json.loads(PROFILES.read_text(encoding="utf-8"))
     for cls, v in d.items():
         for k, s in v["style"].items():
             if not isinstance(s, dict):
@@ -230,14 +311,30 @@ def test_robust_metrics():
 # ══════════════════════════════════════════════════════════════
 
 @case("tool_detection_gives_install_cmd",
-      "缺工具时要给【装机命令】，不是绕开")
+      "缺工具时要给【装机命令】+【装不了时的替代路径】。"
+      "防两件事：① 无网络沙箱里只让用户'去装'，流程直接卡死；"
+      "② 探测表漏项导致报告永远误导性地全绿（实测漏过 shapely / PyYAML）")
 def test_tool_install_hint():
     r = subprocess.run([sys.executable, str(SCRIPTS / "check_tools.py")],
                        capture_output=True, text=True, timeout=180)
     out = r.stdout
+    assert r.returncode == 0, f"check_tools 应正常退出，实际 {r.returncode}"
     assert "安装" in out, "输出应含装机指引"
     assert ("apt" in out or "winget" in out or "http" in out), \
         "应给出具体安装命令/链接"
+
+    # ★ 原版断言到这里就结束了——而这些文字【无论探测结果如何都会打印】，
+    #   所以它测不出"探测本身是否正确"，是典型的假绿。补两条真检查：
+
+    # ① 无网络环境的关键：缺的工具必须带"装不了时"的替代路径
+    assert "装不了时" in out, \
+        "缺失工具必须给出'装不了时'的替代路径（无网络沙箱里'去装'是死路）"
+
+    # ② 探测表必须覆盖实际会被 import 的依赖，否则"缺工具"报告是失真的。
+    #    实测踩过：表里没有 shapely / PyYAML，报告全绿，运行时才炸。
+    for mod in ("shapely", "yaml"):
+        assert mod in out.lower(), \
+            f"check_tools 的探测表应包含 {mod}（实际会被 import，漏了就是假绿）"
 
 
 # ══════════════════════════════════════════════════════════════
@@ -255,7 +352,21 @@ def main():
 
     print(f"\n{'='*70}")
     print(f"工具链回归测试 —— {len(tests)} 个 case（每个对应一个真实踩过的坑）")
-    print(f"{'='*70}\n")
+    print(f"{'='*70}")
+    # ★ 把"测的是哪一份代码"打印出来。解包出错 / 测到旧副本 / 少装了几个文件时，
+    #   哈希和路径是唯一能立刻看出来的东西——否则只会得到一堆莫名其妙的失败。
+    import hashlib
+    print(f"  工具目录：{SCRIPTS}   （判定依据：{_SCRIPT_WHY}）")
+    print(f"  风格档案：{PROFILES}  {'✓' if PROFILES.exists() else '✗ 缺失'}")
+    for m in ("svg_lib", "geom", "check_render", "style_bench",
+              "style_profile", "audit_composition"):
+        f = SCRIPTS / f"{m}.py"
+        if f.exists():
+            h = hashlib.sha256(f.read_bytes()).hexdigest()[:10]
+            print(f"    {m:<20} {h}")
+        else:
+            print(f"    {m:<20} ✗ 不存在")
+    print()
     npass = 0
     for t in tests:
         name, why = t._case

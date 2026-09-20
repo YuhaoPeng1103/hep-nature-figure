@@ -26,8 +26,13 @@ import sys
 from pathlib import Path
 
 import fitz
+import numpy as np
 
 MM = 72.0 / 25.4
+
+# 文字可读性的对比度下限（笔画亮度 vs 背景亮度之差，0–1）。
+# 0.35 是实测定的：正常黑字白底 ≈ 0.85；被同色系色带压住 ≈ 0.15–0.30。
+MIN_TEXT_CONTRAST = 0.35
 
 
 def boxes(page):
@@ -44,8 +49,14 @@ def boxes(page):
     for dr in page.get_drawings():
         r = dr["rect"]
         if r.width > 0.4 or r.height > 0.4:      # 忽略极小点
-            draws.append({"bbox": r, "type": dr.get("type", "?")})
+            draws.append({"bbox": r, "type": dr.get("type", "?"),
+                          "fill": dr.get("fill"),
+                          "fill_opacity": dr.get("fill_opacity", 1.0),
+                          "stroke": dr.get("color"),
+                          "stroke_opacity": dr.get("stroke_opacity", 1.0)})
     return texts, draws
+
+
 
 
 def overlap_area(a, b):
@@ -69,24 +80,57 @@ def check_text_text(texts, page_area):
     return bad
 
 
-def check_line_through_text(texts, draws):
+def check_line_through_text(page, texts):
     """
-    ② 线条穿过文字：绘制块与文字 bbox 交叠，且绘制块是细长条
-       （细长 = 线；粗大 = 底色块，不算）
+    ② 图形压字：**直接量文字和它身后背景的对比度**。
+
+    ★ 这里试错过三版，值得记下来：
+
+      第一版（`thin = 宽或高 < 3pt`，只认细线）
+        → **漏检**。实测：一张图的 `hard scattering` 被喷注色带压掉
+          91% 的文字面积（放大量能看见 h 压在色带边上），
+          而审计报「✅ 局部构图无问题」。色带/箭头/半透明块都不是"细线"。
+
+      第二版（任何非底色块交叠 >15% 就报）
+        → **误报满屏**。"nucleus A" 这类标签坐在介质色块【上方】，
+          色块从文字背后穿过根本不影响阅读，而 bbox 交叠分不出前后。
+
+      第三版（本版）：不猜几何关系，**量可读性本身**——
+        把文字 bbox 渲染出来，最暗的一小撮像素当"字的笔画"，
+        其余当"背景"。两者亮度差就是对比度。差太小 = 字被吃掉。
+
+      这条判据不依赖前后顺序、不依赖形状，直接对应"人能不能读出来"。
     """
     bad = []
     for t in texts:
-        tb = t["bbox"]
-        for d in draws:
-            db = d["bbox"]
-            ov = overlap_area(tb, db)
-            if ov <= 0:
-                continue
-            thin = (db.height < 3.0 or db.width < 3.0)
-            # 交叠超过文字面积 15% 且是细线 → 线压在字上
-            if thin and ov / max(tb.get_area(), 1e-6) > 0.15:
-                bad.append((t["text"], round(ov / tb.get_area() * 100)))
-                break
+        r = t["bbox"]
+        clip = fitz.Rect(r.x0 - 1.0, r.y0 - 1.0, r.x1 + 1.0, r.y1 + 1.0)
+        if clip.is_empty or clip.width <= 0.5 or clip.height <= 0.5:
+            continue
+        try:
+            pix = page.get_pixmap(
+                clip=clip, matrix=fitz.Matrix(4, 4), colorspace=fitz.csGRAY)
+        except Exception:
+            continue
+        try:
+            a = np.frombuffer(pix.samples, dtype=np.uint8).reshape(
+                pix.height, pix.width).astype(np.float32) / 255.0
+        except Exception:
+            continue
+        if a.size < 24:
+            continue
+        # ★ 笔画取 2% 分位而不是 8%：实测一个连字符 "-"（3.2×10.5pt）
+        #   的笔画只占 bbox 像素的极小一部分，8% 分位整个落在白底上
+        #   → 对比度算成 0.000，误报"字被压住"。取 2% 才落得到笔画上。
+        #   背景取中位数（比 75% 分位更稳，不受大片色块影响）。
+        n_ink = int((a < (a.min() + a.max()) / 2).sum())
+        if n_ink < 3:
+            continue                        # 几乎没有笔画 → 量不准，跳过
+        fg = float(np.percentile(a, 2))
+        bg = float(np.median(a))
+        contrast = bg - fg
+        if contrast < MIN_TEXT_CONTRAST:
+            bad.append((t["text"], round(contrast, 2)))
     return bad
 
 
@@ -153,7 +197,7 @@ def main():
         print(f"   ❌ 「{x}」×「{y}」重叠 {pct}%")
         fails.append(f"文字重叠: {x} × {y}")
 
-    lt = check_line_through_text(texts, draws)
+    lt = check_line_through_text(page, texts)
     print(f"\n② 线条穿过文字: {len(lt)} 处")
     for x, pct in lt[:8]:
         print(f"   ❌ 「{x}」被线穿过 {pct}%")

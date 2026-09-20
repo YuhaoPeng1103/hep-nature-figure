@@ -12,7 +12,7 @@ import math
 import sys
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).parent / "hep-nature-figure" / "scripts"))
+sys.path.insert(0, str(Path(__file__).resolve().parent))
 from svg_lib import SVG
 
 OUT = Path(__file__).parent / "repro" / "auto"

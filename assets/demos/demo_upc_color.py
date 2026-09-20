@@ -15,7 +15,19 @@ v2 的修正：
 """
 import math, random, sys
 from pathlib import Path
-sys.path.insert(0,'hep-nature-figure/scripts')
+
+# 陈旧路径：原为相对路径 'hep-nature-figure/scripts'，只在 cwd 恰好是 skills/
+# 时有效。改成往上找含 svg_lib.py 的目录，找不到就退回脚本自己的目录
+# （扁平沙箱里所有 .py 平铺一处，此时脚本目录就是对的）。
+_here = Path(__file__).resolve().parent
+for _c in [_here, _here.parent, _here.parent.parent,
+           _here.parent / "scripts", _here.parent.parent / "scripts"]:
+    if (_c / "svg_lib.py").exists():
+        sys.path.insert(0, str(_c))
+        break
+else:
+    sys.path.insert(0, str(_here))
+
 from svg_lib import SVG
 import geom
 

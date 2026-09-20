@@ -4,3 +4,9 @@ _demo_out/
 repro/auto/
 *.png.tmp
 .DS_Store
+
+# 运行产物：repro_T3-03_param.py 等驱动脚本会往脚本目录写 repro/
+scripts/repro/
+scripts/__pycache__/
+_demo_out/
+_selftest_out/

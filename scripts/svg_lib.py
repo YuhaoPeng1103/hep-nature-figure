@@ -25,9 +25,67 @@ from pathlib import Path
 # ---------------------------------------------------------------- 字体规则
 # ⚠️ cairosvg 不做字体回退，font-family 只认第一个。
 #    DejaVu Sans：含希腊字母 ε η φ 和 Unicode 下标 ₁₂₃ —— 纯英文期刊图用它。
-#    SimHei：含中文字形 —— 需要中文标注时换它（但它没有 Unicode 下标）。
+#    中文字体：含中文字形 —— 需要中文标注时用（但都没有 Unicode 下标）。
+#
+# ★ 中文字体名不能写死。实测教训：
+#   原本硬编码 FONT_CJK = "SimHei"，在只有 Noto Sans CJK 的环境
+#   （如 ChatGPT 沙箱）里，字体名解析不到 + cairosvg 不做回退
+#   → 中文**静默变豆腐块**，而且自检的"墨迹像素数"检查照样全绿——
+#     因为豆腐块也是有墨的。这正是本库存在的意义（防静默失败）被反噬。
+#   所以改成运行时探测：按优先级挑第一个系统里真的有的。
+_CJK_CANDIDATES = [
+    "Noto Sans CJK SC", "Noto Sans CJK JP", "Source Han Sans SC",
+    "Noto Sans SC", "SimHei", "WenQuanYi Zen Hei", "WenQuanYi Micro Hei",
+    "Microsoft YaHei", "Droid Sans Fallback", "PingFang SC",
+]
+# 探测不到中文字体时的兜底名（保证有值；但会在 stderr 警告）
+_CJK_FALLBACK = "Noto Sans CJK SC"
+
+
+def _detect_cjk_font() -> str:
+    """
+    挑一个当前系统真的装了的中文字体。
+
+    cairosvg 走 fontconfig，所以用 fc-list 探测最准；
+    fc-list 不可用时退回 matplotlib 的字体表。
+    两者都拿不到时返回兜底名并警告（不静默）。
+    """
+    def _pick(have):
+        for c in _CJK_CANDIDATES:
+            if c and c in have:
+                return c
+        return None
+
+    # ① fontconfig —— cairosvg 实际用的就是它
+    try:
+        import subprocess
+        r = subprocess.run(["fc-list", ":", "family"],
+                           capture_output=True, text=True, timeout=10)
+        if r.returncode == 0:
+            got = _pick(r.stdout)
+            if got:
+                return got
+    except Exception:
+        pass
+
+    # ② matplotlib 的字体表
+    try:
+        import matplotlib.font_manager as fm
+        got = _pick({f.name for f in fm.fontManager.ttflist})
+        if got:
+            return got
+    except Exception:
+        pass
+
+    import sys
+    print(f"[svg_lib] 警告：找不到可用的中文字体，退回 '{_CJK_FALLBACK}'。"
+          f"若图中有中文标注，会渲染成豆腐块。候选：{_CJK_CANDIDATES}",
+          file=sys.stderr)
+    return _CJK_FALLBACK
+
+
 FONT_LATIN = "DejaVu Sans"
-FONT_CJK = "SimHei"
+FONT_CJK = _detect_cjk_font()
 
 
 def sub(s: str, rest: str = "", base: float = 13.0) -> str:

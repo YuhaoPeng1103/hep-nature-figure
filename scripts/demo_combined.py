@@ -19,6 +19,7 @@
   所以：**一张图，两个后端，拼版层合成。**
 """
 import math
+import shutil
 import subprocess
 import sys
 from pathlib import Path
@@ -27,8 +28,9 @@ import fitz
 
 HERE = Path(__file__).parent / "_demo_out"
 HERE.mkdir(exist_ok=True)
-SKILL = HERE.parent / "hep-nature-figure" / "scripts"
-sys.path.insert(0, str(SKILL))
+# 陈旧路径：原为 HERE.parent/"hep-nature-figure"/"scripts"（指向不存在的目录，
+# 靠 sys.path[0] 兜底才没炸）。本脚本和 svg_lib 同在 scripts/ 下，直接用自己所在目录。
+sys.path.insert(0, str(Path(__file__).resolve().parent))
 from svg_lib import SVG
 
 MM = 72.0 / 25.4
@@ -114,8 +116,26 @@ def assemble(cartoon_pdf, formula_pdf, out_pdf):
 
 
 def main():
+    # ★ 前置检查：本 demo 的"公式"部分依赖外部命令 pdflatex / pdftops。
+    #   实测这类环境下它们**不存在**：ChatGPT 沙箱（无网络、无 TeX）、
+    #   任何没装 TeX Live 的机器。原来会一路跑到 pdflatex 才失败，
+    #   报错还是 subprocess 的干瘪信息。这里提前说清楚，并指明替代路径。
+    need = [x for x in ("pdflatex", "pdftops") if shutil.which(x) is None]
+    if need:
+        print(f"   ⚠️ 缺外部命令：{', '.join(need)} —— 本 demo 的 TikZ 公式部分跳过。")
+        print("      · 装：sudo apt install texlive-latex-recommended "
+              "texlive-pictures poppler-utils")
+        print("      · 装不了时（无网络沙箱）：**公式改用 Unicode 直接写进 SVG** ——"
+              "svg_lib 的 s.text() 用 DejaVu Sans 能出 ε η φ ϕ 和下标 ₁₂₃，")
+        print("        覆盖期刊图绝大多数标注需求；复杂分式才需要 TikZ。")
+        print("      · 卡通部分（svg_lib）不依赖它们，继续跑。\n")
+
     c = build_cartoon(HERE / "cartoon.pdf")
     print(f"  ✓ 卡通  svg_lib → {c.name}")
+    if need:
+        print(f"  ⏭  公式  TikZ    → 跳过（缺 {', '.join(need)}）")
+        print(f"  ⏭  合成  PyMuPDF → 跳过")
+        return
     # ★ 路径修正：.tex 必须拷进编译目录，否则 pdflatex 找不到源文件
     #   （实测：只设 cwd 不够，源文件在父目录里 pdflatex 会直接失败并留下 texput.log）
     tex_src = Path(__file__).parent / "demo_formulas.tex"

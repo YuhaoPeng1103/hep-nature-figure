@@ -25,6 +25,56 @@ try:
 except ImportError:
     HAVE_SHAPELY = False
 
+# ══════════════════════════════════════════════════════════════
+#  无 shapely 时的降级路径
+#
+#  实测教训：blob() 原本无条件 `return Polygon(pts)`。在没有 shapely 的环境
+#  （如 ChatGPT 沙箱）里，Polygon 这个名字根本不存在 → NameError，
+#  而且报的是「name 'Polygon' is not defined」，完全指不到"缺 shapely"。
+#  demo_timeline / demo_jet_quenching 都走这条路径，于是"开箱即崩"。
+#
+#  实际只用到 blob() → poly_to_path()，不需要布尔运算。
+#  所以这里给一个纯 Python 的环状多边形替身，让这条链路在无 shapely 时照样通。
+#  真正需要布尔运算的三个函数（circles_union / discs_union_with_holes /
+#  outline_offset）保持"缺 shapely 就明确报错"，不假装能用。
+# ══════════════════════════════════════════════════════════════
+
+class _SimplePolygon:
+    """shapely.geometry.Polygon 的最小替身：只满足 _rings() 的需要。"""
+
+    geom_type = "Polygon"
+
+    def __init__(self, pts):
+        self._pts = [(float(x), float(y)) for x, y in pts]
+
+    @property
+    def exterior(self):
+        class _Ring:
+            def __init__(self, coords):
+                self.coords = coords
+        # 闭合环：首尾同点，与 shapely 的 coords 行为一致
+        return _Ring(self._pts + [self._pts[0]] if self._pts else [])
+
+    @property
+    def interiors(self):
+        return []
+
+    @property
+    def area(self):
+        """鞋带公式，仅供 check() 打印。"""
+        p = self._pts
+        s = sum(p[i][0] * p[(i + 1) % len(p)][1] - p[(i + 1) % len(p)][0] * p[i][1]
+                for i in range(len(p))) if len(p) >= 3 else 0.0
+        return abs(s) / 2.0
+
+
+def _need_shapely(what):
+    raise RuntimeError(
+        f"{what} 需要 shapely，但当前环境没有。\n"
+        f"  装：pip install shapely\n"
+        f"  （若在无法安装包的环境里——例如 ChatGPT 沙箱——请改用 blob() + "
+        f"poly_to_path()，那条路径不需要 shapely。）")
+
 
 def _rings(geom):
     """从 shapely 几何里取出所有外环坐标（支持 Polygon / MultiPolygon）"""
@@ -52,12 +102,16 @@ def poly_to_path(geom, precision=2, invert_y=False):
 
 def circles_union(circles):
     """多个圆求并集。circles = [(cx, cy, r), ...]"""
+    if not HAVE_SHAPELY:
+        _need_shapely("circles_union（圆的布尔并集）")
     return unary_union([Point(cx, cy).buffer(r, resolution=24)
                         for cx, cy, r in circles])
 
 
 def discs_union_with_holes(outer, holes):
     """外轮廓 - 内洞。outer/holes 都是 shapely 几何。"""
+    if not HAVE_SHAPELY:
+        _need_shapely("discs_union_with_holes（差集）")
     return outer.difference(unary_union(holes))
 
 
@@ -67,6 +121,8 @@ def outline_offset(geom, width):
     配合 even-odd 填充规则可以画出均匀粗细的外轮廓 ——
     这正是 Nature 图里那种干净边线的做法（等价于描边转路径）。
     """
+    if not HAVE_SHAPELY:
+        _need_shapely("outline_offset（描边偏移）")
     return geom.buffer(width, join_style=2, mitre_limit=3.0)
 
 
@@ -87,13 +143,23 @@ def blob(cx, cy, rx, ry, wobble=0.0, n=48, seed=0):
                            + 0.3 * math.sin(3 * t + ph[1])
                            + 0.1 * math.sin(5 * t + ph[2]))
         pts.append((cx + rx * k * math.cos(t), cy + ry * k * math.sin(t)))
-    return Polygon(pts)
+    # 无 shapely 时退回纯 Python 替身 —— blob→poly_to_path 这条链不需要布尔运算，
+    # 不应该因为环境里没有 shapely 就崩掉（ChatGPT 沙箱实测就缺它）。
+    return Polygon(pts) if HAVE_SHAPELY else _SimplePolygon(pts)
 
 
 def check():
     if not HAVE_SHAPELY:
-        print("❌ 缺 shapely。安装：pip install shapely")
-        return False
+        # 不报"❌"——因为 blob→poly_to_path 这条最常用的链在无 shapely 时仍然可用。
+        # 真正不可用的是三个布尔运算函数。必须说清楚，否则用户以为整个 geom 废了。
+        print("⚠️  缺 shapely：布尔运算（circles_union / discs_union_with_holes / "
+              "outline_offset）不可用")
+        print("   ✅ 但 blob() + poly_to_path() 仍然可用（纯 Python 替身）")
+        print("   装：pip install shapely")
+        b = blob(0, 0, 60, 40, wobble=0.10, seed=3)
+        print(f"   验证有机团块 → {b.geom_type}, 面积 {b.area:.0f}")
+        print(f"   验证转 path   → {poly_to_path(b)[:60]}…")
+        return True
     print(f"✅ shapely {__import__('shapely').__version__}")
     a = circles_union([(0, 0, 40), (50, 0, 40), (25, 30, 30)])
     print(f"   三圆并集 → {a.geom_type}, 面积 {a.area:.0f}")

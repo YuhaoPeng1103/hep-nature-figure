@@ -282,3 +282,75 @@ assertions:
 | 物理约束 | 无（它不需要） | **physics_role 强制填写** |
 | 后端 | Python/R 二选一 | **多后端路由** |
 | 元素级 | 无（到 panel 层） | **到图元层，含 z 序** |
+
+---
+
+## params 可执行化（v1.2 新增）
+
+**问题**：原来 `elements[].params` 写的是中文散文 ——
+`"约 0.34 画布宽"`、`"偏向右上，距介质中心约 0.21 介质半径"`。
+→ **不可执行**，所以 `IR → 图` 这一步无法自动化，每张图都要人从零写脚本。
+
+这跟当年 `geometry_constraints` 遇到的是**同一个问题**，同一种修法：
+**把模糊描述逼成可计算的数值。**
+
+### 新要求
+
+```yaml
+elements:
+  - id: E1
+    name: QGP 介质
+    physics_role: >              # 散文留在这里（它的价值是解释，不是执行）
+      碰撞产生的夸克胶子等离子体，喷注在其中传播并损失能量。
+    primitive: qgp_blob          # ★ 必须是 cartoon_lib.PRIMITIVES 里的注册名
+    params: {cx: 0.44, cy: 0.50, R: 0.185, ry: 0.78, seed: 5}
+                                 # ★ 归一化数值，不是散文
+    z: 1
+```
+
+### 归一化约定
+
+| 参数 | 单位 |
+|---|---|
+| `cx` / `x` / `x0` / `x1` / `ox` | × 画布**宽** |
+| `cy` / `y` / `y0` / `y1` / `oy` | × 画布**高** |
+| `R` / `r` / `rx` / `w` / `L` | × 画布**宽** |
+| `ry` / `h` | × 画布**高** |
+| `seed` / `n` / `sep` / `glow` 等 | 原样传递 |
+
+⚠️ **同名参数在不同图元里单位可能不同**。实测踩过：`ry` 在 `qgp_blob` 里是
+**扁平比**（0.78），在 `lorentz_nucleus` 里是**纵向半径**（0.13）。
+所以 `ir_to_scene.py` 的单位表是**按图元**声明的（`PARAM_UNITS`），不能按名字一刀切。
+
+### 校验与生成
+
+```bash
+# 校验：primitive 在不在注册表、params 是不是数值、参数名在不在签名里
+python3 scripts/ir_to_scene.py ir/xxx.ir.yaml --check
+
+# 生成可运行的构图骨架（坐标已换算、按 z 序排好、图层已开）
+python3 scripts/ir_to_scene.py ir/xxx.ir.yaml -o build_xxx.py
+python3 build_xxx.py
+```
+
+`--check` 会报三类问题，每类都是实测踩过的：
+1. `primitive` 不在注册表 → 生成时会调不存在的方法
+2. `params` 是散文 → 无法换算
+3. **参数名不在该图元的签名里** → 生成的调用会 TypeError
+   （实测：`jet` 的签名是 `(x0,y0,x1,y1)`，IR 里写成了 `(x1,y1,x2,y2)`）
+
+### 分层：图元 vs 构图
+
+IR 里要分清两种元素：
+
+- **图元层**（`primitive` 用注册名 + 数值 params）→ 可自动生成
+- **构图层**（多元素的相对排布、阶段划分、面板布局）→ 仍需人/AI 写
+
+`stage_*`、`spacetime_panel` 这类**是构图代码不是图元**，不该进图元库。
+但可以把里面的算法母题抽成图元（已经抽了 `radial_rays` / `radial_arrows` /
+`poisson_discs` / `light_cone` / `proper_time_family`）。
+
+### 参考实现
+
+`ir/sketch3_jet.exec.ir.yaml` —— 由散文版 `sketch3_jet.ir.yaml` 改写而来，
+`--check` 通过，生成的骨架能直接跑出图。

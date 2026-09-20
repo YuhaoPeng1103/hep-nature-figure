@@ -47,6 +47,7 @@ import argparse
 import json
 import math
 import sys
+import tempfile
 from pathlib import Path
 
 import numpy as np
@@ -160,7 +161,8 @@ def measure(path):
 def _measure_at(path, size):
     """把图缩放到指定尺寸后再量。用于消除两张图分辨率不同带来的偏差。"""
     im = Image.open(path).convert("RGB").resize(size, Image.LANCZOS)
-    tmp = Path("/tmp/_sb_norm.png")
+    # 用系统临时目录，不硬编码 /tmp —— ChatGPT 沙箱等环境未必有写权限
+    tmp = Path(tempfile.gettempdir()) / "_sb_norm.png"
     im.save(tmp)
     return measure(tmp)
 
