@@ -2,25 +2,23 @@
 """
 ir_to_genbrief —— IR → 给图像生成模型的**约束简报**
 =========================================================================
-## 这条路的分工（2026-09-20 定型）
+## 两条路径（2026-09-20 定型）
 
-    ① skill 给约束      ← 本脚本
-    ② 图像模型按约束出位图
-    ③ 模型看着位图【临摹】成 SVG   ← 注意：是"看懂再重画"，不是像素描摹
-    ④ skill 验收 + 返修            ← repair_brief.py
+    路径 1（基础）
+      草图/描述 ──生图──▶ 【更好的草图】 ──绘画──▶ 矢量
+                                    ↑
+                        这一步只求"构图清晰、元素齐全"，
+                        不追求质感；质感由最后的绘画那步负责
 
-**为什么 ③ 不能交给像素描摹脚本**：实测过（`raster_to_vector.py`）——
-像素描摹没有"理解"这一步，所以文字碎成色块、渐变退化成色阶台阶、
-图层只能按颜色分。而模型看图后重画，能给出真 `<text>`、真 `<gradient>`、
-语义图层。**这是方法的差别，不是调参能补的。**
+    路径 2（在路径 1 基础上加一段）
+      草图/描述 ──生图──▶ 更好的草图 ──检查──▶ 成品位图 ──绘画──▶ 矢量
 
-## ★ 必须钉死的一条：位图的物理不可信
+★ 为什么把生图的产物定位成"**更好的草图**"而不是"成品"：
+  成品一旦出来，下一步就变成**照抄**，位图里的物理错误会被一起抄进矢量。
+  定位成草图 → 绘画那步仍要按 IR 的 `geometry_constraints` **正确地执行**，
+  物理约束留在了它该在的位置。
 
-图像模型不知道物理。它可能把喷注画反、把 b=0 画成中心碰撞、
-把光锥斜率画歪。**③ 临摹时必须拿 IR 的 `geometry_constraints` 校正，
-不能对着位图照抄** —— 否则"好看但物理错"会从位图传染到矢量。
-
-本脚本会把几何约束**单独列成一节**，就是给 ③ 那一步看的。
+## 用法
 
 ## 用法
 
@@ -85,16 +83,26 @@ def load_style(profile_path, want_class):
     }
 
 
-def build(ir: dict, style: dict | None) -> str:
+def build(ir: dict, style: dict | None, stage: str = "sketch") -> str:
     fig = ir.get("figure", {})
     elems = sorted(ir.get("elements", []), key=lambda e: e.get("z", 0))
     cv = fig.get("canvas") or {}
     W, H = cv.get("w", 1400), cv.get("h", 560)
 
     L = []
-    L.append("【任务】生成一张高能核物理论文示意图的位图。")
-    L.append("这张位图下一步会被**临摹成矢量**，所以形体和布局要清楚、可辨认，")
-    L.append("不要靠模糊和噪点营造氛围。")
+    if stage == "sketch":
+        L.append("【任务】把下面这份物理构图**画成一张清晰的草图稿**。")
+        L.append("")
+        L.append("★ 这一步**只求构图对、元素齐、位置准**，")
+        L.append("  **不要求质感、光影、渲染效果** —— 那些下一步做。")
+        L.append("  把它当成『给画师看的构图稿』：布局一眼能看懂，")
+        L.append("  每个元素是什么、在哪、多大，一目了然。")
+    else:
+        L.append("【任务】按下面这份构图，出一张**高质量成品位图**。")
+        L.append("")
+        L.append("★ 这一步要求**质感和光影到位**（上一步只出了构图稿）。")
+        L.append("  但仍然：形体要清楚可辨认，不要靠模糊和噪点营造氛围 ——")
+        L.append("  因为下一步还要把它转成矢量。")
     L.append("")
     L.append(f"画布比例：{W}×{H}（宽高比 {W/H:.2f}）。白底。")
     L.append("")
@@ -200,13 +208,21 @@ def build(ir: dict, style: dict | None) -> str:
         L.append("")
 
     # ── 风格 ──
-    L.append("═══ 四、风格 ═══")
-    L.append("目标是**期刊矢量插画风**，不是 3D 渲染图。具体：")
-    L.append("  · 形体用清晰的**深色描边**勾出来（参考图的描边是实的，不是发光的）")
-    L.append("  · 体积感来自**明暗渐变**，不是靠投影滤镜")
-    L.append("  · **先定一个全局光源**（比如左上方 45°），"
-             "所有高光、阴影、投影都从它推导 —— 不要每个物体各拍一个方向")
-    if style:
+    if stage == "sketch":
+        L.append("═══ 四、风格（这一步不用管）═══")
+        L.append("**这一步只要形体清楚、能看出是什么。**")
+        L.append("平涂、细描边、不用打光都行 —— 质感留给下一步。")
+        L.append("唯一要求：**形体边界要清晰**，别用模糊边缘，"
+                 "否则下一步看不出形体在哪。")
+        L.append("")
+    else:
+        L.append("═══ 四、风格 ═══")
+        L.append("目标是**期刊矢量插画风**，不是 3D 渲染图。具体：")
+        L.append("  · 形体用清晰的**深色描边**勾出来（参考图的描边是实的，不是发光的）")
+        L.append("  · 体积感来自**明暗渐变**，不是靠投影滤镜")
+        L.append("  · **先定一个全局光源**（比如左上方 45°），"
+                 "所有高光、阴影、投影都从它推导 —— 不要每个物体各拍一个方向")
+    if style and stage == "render":
         L.append(f"  · 风格类的量测参考（{style['class']}，"
                  f"n={style['n_sources']}）：")
         if style.get("palette"):
@@ -228,9 +244,20 @@ def build(ir: dict, style: dict | None) -> str:
     L.append(f"  · 文字清晰可读（尺寸不能太小，否则临摹时认不出）")
     L.append("")
     L.append("─" * 60)
-    L.append("★ 下一步（不在本次任务里）：把这张位图**看懂后重画**成 SVG。")
-    L.append("  重画时以第三节的几何约束为准，**不要照抄位图的几何**；")
-    L.append("  文字要写成真 <text>，渐变要写成真 <gradient>。")
+    if stage == "sketch":
+        L.append("★ 下一步（不在本次任务里）：")
+        L.append("  ① 拿这张草图**对着第三节的几何约束逐条核对** ——")
+        L.append("     图像模型不知道物理，这是最容易画错的地方。")
+        L.append("     核对了才能往下走；错了就改 prompt 重出。")
+        L.append("  ② 核对通过后，可以再调一次图像模型出**成品位图**（要质感），")
+        L.append("     也可以直接照着这张草图**绘画成矢量**。")
+        L.append("  ③ 出矢量时：文字写成真 <text>、渐变写成真 <gradient>、")
+        L.append("     几何以第三节的约束为准，**不要照抄图上的几何**。")
+    else:
+        L.append("★ 下一步（不在本次任务里）：把这张位图**看懂后重画**成 SVG。")
+        L.append("  · 重画时以第三节的几何约束为准，**不要照抄位图的几何**；")
+        L.append("  · 文字写成真 <text>，渐变写成真 <gradient>；")
+        L.append("  · 图层按**语义**分（介质/核/喷注/标注），不是按颜色分。")
     return "\n".join(L)
 
 
@@ -239,6 +266,9 @@ def main():
     ap.add_argument("ir")
     ap.add_argument("--style-profile", default=None)
     ap.add_argument("--class", dest="want_class", default=None)
+    ap.add_argument("--stage", choices=("sketch", "render"), default="sketch",
+                    help="sketch=中间稿（只求构图，路径1 用）；"
+                         "render=成品位图（要质感，路径2 的第二段用）")
     ap.add_argument("-o", "--out", default=None)
     a = ap.parse_args()
 
@@ -247,7 +277,7 @@ def main():
         raise SystemExit(f"找不到 {p}")
     ir = load_ir(p)
     style = load_style(a.style_profile, a.want_class)
-    brief = build(ir, style)
+    brief = build(ir, style, a.stage)
 
     if a.out:
         Path(a.out).write_text(brief, encoding="utf-8")
