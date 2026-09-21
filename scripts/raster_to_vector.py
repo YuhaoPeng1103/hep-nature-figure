@@ -7,6 +7,27 @@ raster_to_vector —— 位图 → 分层矢量（"GPT 出图 → skill 精修"�
 模型用图像生成出的图**好看但不可编辑**（位图、文字不可选、不能改字号）。
 本脚本把它转成**可分层的矢量**，交出"可编辑"。
 
+## ★ 混合临摹：图形逐像素 + 文字重建（2026-09-21）
+
+**为什么必须混合**：Nature 硬性要求**文字可编辑**。
+纯临摹出来的文字是**轮廓路径** —— `check_delivery.py` 会判"文字不可提取"= 不合规。
+
+所以流程是：
+
+   ① 模型看图 → 标出「哪些区域是文字」+「写的是什么」（它读得出来）
+   ② 本脚本：**文字区域先用周围底色擦掉**，其余部分逐像素临摹
+   ③ 文字用真 <text> 写回去（位置/字号/内容照模型标的）
+
+**这样既拿到像素级忠实，又保住文字可编辑。**
+
+用法：
+    python3 raster_to_vector.py fig.png -o fig.svg --text-spec texts.yaml
+
+texts.yaml（模型看图后写）：
+    texts:
+      - {content: "escaping jet", x: 0.62, y: 0.10, size: 13, anchor: start}
+      - {content: "QGP medium",   x: 0.35, y: 0.78, size: 15}
+
 ## ★ 本质权衡（必须先说清，否则会失望）
 
 **描摹是"压平成色块"** —— 它会把渐变、柔和光影、抗锯齿过渡
@@ -20,7 +41,7 @@ raster_to_vector —— 位图 → 分层矢量（"GPT 出图 → skill 精修"�
 ## 它做不了、必须人/模型补的三件事
 
 脚本会在报告里逐条列出：
-  1. **文字被转成了路径** —— 描摹不认识字。需要人/模型照原图重写成 `<text>`
+  1. **文字** —— 若**没给 `--text-spec`**，文字会被转成路径（描摹不认识字）。需要人/模型照原图重写成 `<text>`
      （不做这一步的话，`check_delivery.py` 会判"文字不可提取"= 不合规）
   2. **图层是"按颜色"分的，不是按语义** —— 需要重新归组成
      「介质/核/喷注/标注」这类有含义的图层
@@ -96,6 +117,74 @@ def trace_mask(mask, backend, mod, tol):
     return polys
 
 
+def load_spec(p: Path) -> dict:
+    txt = p.read_text(encoding="utf-8")
+    try:
+        import yaml
+        return yaml.safe_load(txt)
+    except ImportError:
+        pass
+    try:
+        return json.loads(txt)
+    except json.JSONDecodeError:
+        raise SystemExit(f"读不了 {p.name}：无 PyYAML 且不是 JSON")
+
+
+def _box(tx, W, H):
+    """文字项 → 像素 bbox。给了 w/h 就用，否则按内容长度×字号估。"""
+    cx, cy = float(tx.get("x", 0.5)) * W, float(tx.get("y", 0.5)) * H
+    size = float(tx.get("size", 13))
+    n = len(str(tx.get("content", "")))
+    w = float(tx.get("w")) * W if tx.get("w") else n * size * 0.62
+    h = float(tx.get("h")) * H if tx.get("h") else size * 1.6
+    anchor = tx.get("anchor", "middle")
+    x0 = cx - w / 2 if anchor == "middle" else (cx if anchor == "start" else cx - w)
+    return int(x0 - 3), int(cy - h * 0.78), int(x0 + w + 3), int(cy + h * 0.26)
+
+
+def erase_text_regions(img: Image.Image, texts) -> Image.Image:
+    """
+    把文字区域用**周围底色**填掉 —— 这样描摹时不会描出文字轮廓。
+    底色从区域外圈一圈像素取中位数（比取全图背景稳，应付渐变背景）。
+    """
+    a = np.asarray(img.convert("RGB")).copy()
+    H, W = a.shape[:2]
+    for tx in texts:
+        x0, y0, x1, y1 = _box(tx, W, H)
+        x0, y0 = max(0, x0), max(0, y0)
+        x1, y1 = min(W, x1), min(H, y1)
+        if x1 - x0 < 2 or y1 - y0 < 2:
+            continue
+        m = 3
+        ring = np.concatenate([
+            a[max(0, y0 - m):y0, x0:x1].reshape(-1, 3),
+            a[y1:min(H, y1 + m), x0:x1].reshape(-1, 3),
+            a[y0:y1, max(0, x0 - m):x0].reshape(-1, 3),
+            a[y0:y1, x1:min(W, x1 + m)].reshape(-1, 3),
+        ]) if True else None
+        if ring is None or ring.size == 0:
+            continue
+        bg = np.median(ring, axis=0).astype(np.uint8)
+        a[y0:y1, x0:x1] = bg
+    return Image.fromarray(a)
+
+
+def text_el(tx, W, H, i):
+    """一条文字 → SVG <text>。字体按字符集自动选（见 svg_lib）。"""
+    import svg_lib
+    content = str(tx.get("content", ""))
+    x = float(tx.get("x", 0.5)) * W
+    y = float(tx.get("y", 0.5)) * H
+    size = float(tx.get("size", 13))
+    anchor = tx.get("anchor", "middle")
+    color = tx.get("color", "#0d0d0d")
+    cjk = any("　" <= c <= "鿿" for c in content)
+    fam = svg_lib.FONT_CJK if cjk else svg_lib.FONT_LATIN
+    return (f'<text id="txt{i}" x="{x:.1f}" y="{y:.1f}" font-size="{size}" '
+            f'font-family="{fam}" fill="{color}" text-anchor="{anchor}">'
+            f'{svg_lib.esc(content)}</text>')
+
+
 def poly_area(pts):
     s = 0.0
     n = len(pts)
@@ -117,6 +206,9 @@ def main():
                     help="路径简化容差（px）。越大越简洁（默认 1.0）")
     ap.add_argument("--min-area", type=float, default=12.0,
                     help="丢掉小于此面积的多边形（px²），防噪点路径（默认 12）")
+    ap.add_argument("--text-spec", default=None,
+                    help="文字清单（yaml/json）：模型看图后标的文字位置与内容。"
+                         "给了它就做混合临摹 —— 文字区域擦掉、用真 <text> 重写")
     ap.add_argument("--bg-tolerance", type=float, default=8.0,
                     help="与最外层颜色相差小于此值的色阶并进背景（默认 8）")
     a = ap.parse_args()
@@ -128,6 +220,19 @@ def main():
     W, H = img.size
 
     backend, mod = get_tracer()
+
+    # ── ★ 混合临摹：先用周围底色擦掉文字区域 ──
+    texts = []
+    if a.text_spec:
+        sp = Path(a.text_spec)
+        if not sp.exists():
+            raise SystemExit(f"找不到 {sp}")
+        spec = load_spec(sp)
+        texts = spec.get("texts") or []
+        if texts:
+            img = erase_text_regions(img, texts)
+            print(f"混合临摹：擦掉 {len(texts)} 处文字区域，改用真 <text> 重写")
+
     colors, idx = quantize(img, a.levels)
 
     # 统计每色占比
@@ -166,6 +271,13 @@ def main():
                     f'fill-rule="evenodd"/>')
         body.append('</g>')
 
+    # ── ★ 文字层：真 <text>，可编辑（Nature 硬要求）──
+    if texts:
+        body.append('<g inkscape:label="ZZ 文字（可编辑）">')
+        for i, tx in enumerate(texts, 1):
+            body.append(text_el(tx, W, H, i))
+        body.append('</g>')
+
     svg = "\n".join([
         f'<svg xmlns="http://www.w3.org/2000/svg" '
         f'xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape" '
@@ -185,7 +297,7 @@ def main():
 ────────────────────────────────────────────────────────────────
 ⚠️  描摹只完成了一半。以下三件必须人/模型补，否则过不了门禁：
 
-1. **文字被转成了路径** —— 描摹不认识字。
+1. **文字** —— 若**没给 `--text-spec`**，文字会被转成路径（描摹不认识字）。
    → 照原图把标题/标签重写成真正的 <text>，否则
      check_delivery.py 会判「文字不可提取」= 不合规（Nature 要求可编辑文字）。
 
