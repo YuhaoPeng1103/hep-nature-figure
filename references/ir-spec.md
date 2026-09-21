@@ -354,3 +354,75 @@ IR 里要分清两种元素：
 
 `ir/sketch3_jet.exec.ir.yaml` —— 由散文版 `sketch3_jet.ir.yaml` 改写而来，
 `--check` 通过，生成的骨架能直接跑出图。
+
+---
+
+## Scene Graph —— 位图 → 矢量的第三条路（2026-09-21）
+
+### 问题
+
+GPT/图像模型能从草图画出不错的**位图**，但**位图 → 矢量这一步它做不好**。
+试过的两条路都不行：
+
+| 路 | 为什么不行 |
+|---|---|
+| 像素描摹（`raster_to_vector.py`） | **没有理解**：文字碎成色块、渐变退化成色阶台阶 |
+| 让模型看着位图重画 | **有理解但不忠实、不确定**：会漂移、会自己发明、两次不一样 |
+
+### 第三条路
+
+```
+看懂这张图  →  建 Scene Graph  →  【确定性重组】  →  矢量
+ （模型）      （模型，结构化）      scene_render.py
+```
+
+**理解力来自模型**（所以文字、公式、渐变、对象认得出），
+**忠实度与可复现性来自"重组是代码"**。
+
+### ★ 可复现性因此成立（且不是"同 prompt 两次一样"）
+
+**同一份 Scene Graph → 逐字节相同的 SVG**（已实测验证）。
+参考图库里的图只要 Scene Graph 定了，重组结果永远一致。
+
+### 格式：在可执行 IR 上扩三样
+
+```yaml
+layers:                       # ★ 层级：有名字的组
+  - {id: medium, name: "QGP 介质"}
+  - {id: labels, name: "标注"}
+
+elements:
+  - id: E1
+    layer: medium            # ★ 归属哪个层（不再靠 z 推）
+    primitive: qgp_blob
+    params: {cx: 0.44, cy: 0.50, R: 0.185, ry: 0.78, seed: 5}
+    z: 1
+
+  - id: T1
+    layer: labels
+    primitive: text          # ★ 文字是独立类型
+    params: {x: 0.5, y: 0.08, t: "Global spin polarization", size: 17}
+
+  - id: F1
+    layer: labels
+    primitive: formula       # ★ 公式：Unicode 直写，不用 LaTeX
+    params: {x: 0.5, y: 0.9, t: "P_H = 0.052 ± 0.003", size: 13}
+```
+
+### 用法
+
+```bash
+python3 scripts/scene_render.py scene.yaml -o fig.svg --png fig.png --pdf fig.pdf
+python3 scripts/scene_render.py scene.yaml --check
+```
+
+**校验会查**：primitive 认不认识、参数名在不在签名里、**必填参数漏没漏**、
+`layer` 在不在 `layers` 里、id 有没有重复、有没有 `physics_role`。
+
+### 提取 Scene Graph 的纪律
+
+1. **几何量必须【量】，禁止【看】** —— 位置/尺寸从图上扫出来，不目测
+2. **文字必须逐字抄对** —— 改成真 `<text>`，拼写数值不能错
+3. **公式用 Unicode 直写** —— `ε₂(η) dN/dη ± ≈ ⟨⟩` DejaVu Sans 都有
+4. **层级按语义分** —— 「介质/入射核/喷注/标注」，不是按颜色
+5. **不确定的标出来** —— 看不清的地方宁可标 `# TODO: 待确认`，不要编
