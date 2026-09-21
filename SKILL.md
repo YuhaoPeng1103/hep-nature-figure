@@ -71,6 +71,36 @@ python3 scripts/scene_render.py scene.yaml --check
 
 格式见 `references/ir-spec.md` 末尾（`layers` / `text` / `formula`）。
 
+### ★★ 重组**不天然保结构** —— 必须往返回检
+
+**三个会改变结构的机制**：
+
+| 机制 | 例子 |
+|---|---|
+| **图元表达力不足** | 原图是任意形状；`qgp_blob(cx,cy,R,ry,seed)` **表达不了**，只能近似 → 轮廓变了 |
+| **分解损失** | 复杂对象拆成多个图元，拼回去轮廓未必复原 |
+| **层级放错** | 遮挡关系变了 |
+
+**保证办法**（`verify_scene.py`，Scene Graph → 渲染 → 量渲染 → 与声明对账）：
+
+```bash
+python3 scripts/verify_scene.py scene.yaml fig.svg --pdf fig.pdf
+```
+
+- **① 元素有没有丢** —— 每个图层声明几个、渲染出几个
+- **② 文字逐字对** —— 重组最容易坏的地方（XML 转义、丢字、串位）
+- **③ 几何约束** —— 逐条列出，需实现自证或人工核
+
+> ⚠️ 它只证明「**重组忠实于 Scene Graph**」，
+> **不证明「Scene Graph 忠实于原图」** —— 后者要人看。
+
+### ★ 库里有的图 vs 没有的图
+
+| | 要求 | 怎么保证 |
+|---|---|---|
+| **库里已有的图** | **完美复现** | Scene Graph 定死后 `scene_render.py` 逐字节可复现 + `verify_scene.py` 回检 |
+| **库里没有的图** | **自由创作** | 走 A/B 任一路线；但同一份 Scene Graph 仍保证重组一致 |
+
 ### 三条路线怎么选
 
 |  | **A：模型写 SVG** | **B1：生图当草图** | **B2：B1 + 成品位图** |
