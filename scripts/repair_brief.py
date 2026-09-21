@@ -52,6 +52,38 @@ EDGE_MARGIN = 2.0       # 元素离页面边缘至少留这么多
 
 
 # ══════════════════════════════════════════════════════════════
+def check_svg_xml(svg_path: Path):
+    """
+    查 SVG 是不是**合法的 XML**。
+
+    ★ 为什么必须查（实测踩到）：模型的 SVG 根元素把 viewBox 写了两遍 ——
+      浏览器宽容能渲染，但 **cairosvg / Illustrator / 印刷管线会直接拒绝**。
+      而 Nature 要求图能在 Illustrator 里打开，所以这是**会挡投稿的缺陷**，
+      却是"看着好好的"那一类，只有严格解析器才发现。
+
+    返回问题列表（空 = 合法）。
+    """
+    import re
+    import xml.etree.ElementTree as ET
+    problems = []
+    text = svg_path.read_text(encoding="utf-8", errors="replace")
+    # 重复属性（ET 会直接抛，先自己找出来给可读的定位）
+    for m in re.finditer(r"<([a-zA-Z:][\w:.-]*)((?:\s+[\w:.-]+\s*=\s*\"[^\"]*\")+)\s*/?>",
+                         text):
+        attrs = re.findall(r"([\w:.-]+)\s*=\s*\"", m.group(2))
+        dup = sorted({a for a in attrs if attrs.count(a) > 1})
+        if dup:
+            line = text[:m.start()].count("\n") + 1
+            problems.append(f"元素 <{m.group(1)}> 有重复属性 {dup}（第 {line} 行）")
+    # 已经找到重复属性就别再报一遍通用的解析错误 —— 同一个根因，报两次是噪声
+    if not problems:
+        try:
+            ET.fromstring(text)
+        except ET.ParseError as e:
+            problems.append(f"XML 解析失败：{e}")
+    return problems
+
+
 def to_pdf(fig: Path) -> tuple[Path, bool]:
     """svg → 临时 PDF（cairosvg）。返回 (pdf 路径, 是否为临时文件)。"""
     if fig.suffix.lower() == ".pdf":
@@ -63,7 +95,12 @@ def to_pdf(fig: Path) -> tuple[Path, bool]:
             raise SystemExit("需要 cairosvg 才能从 SVG 转 PDF 做几何审计："
                              "pip install cairosvg")
         tmp = Path(tempfile.gettempdir()) / (fig.stem + "_brief.pdf")
-        cairosvg.svg2pdf(url=str(fig), write_to=str(tmp))
+        try:
+            cairosvg.svg2pdf(url=str(fig), write_to=str(tmp))
+        except Exception as e:
+            # 严格解析器拒绝 → 多半是 XML 不合法。**不要崩**，
+            # 把这个当成一条"必须修"报出去（几何检查确实做不了，要说清）。
+            return None, True
         return tmp, True
     raise SystemExit(f"不支持的格式 {fig.suffix}：几何审计需要 svg 或 pdf")
 
@@ -88,14 +125,37 @@ def gap_between(a, b):
 
 # ══════════════════════════════════════════════════════════════
 def analyze(fig: Path, profile=None, want_class=None, ir=None):
+    hard, soft = [], []      # hard = 必须修（阻断）；soft = 建议改
+
+    # ── ⓪ SVG 合法性（严格解析器能不能打开）──
+    if fig.suffix.lower() == ".svg":
+        xml_problems = check_svg_xml(fig)
+        for pr in xml_problems:
+            hard.append({
+                "kind": "SVG 非法", "who": Path(fig).name, "how_bad": pr,
+                "where": None,
+                "fix": "这是非法 XML：浏览器宽容能渲染，但 **Illustrator / "
+                       "cairosvg / 印刷管线会直接拒绝**，会挡投稿。"
+                       "按上面指出的位置改掉（多为重复属性），确保能被严格解析器打开",
+            })
+
     pdf, is_tmp = to_pdf(fig)
+    if pdf is None:
+        # SVG 解析不了 → 几何检查做不了，但上面的 XML 问题已经报出来了
+        soft.append({
+            "kind": "几何检查跳过", "who": Path(fig).name,
+            "how_bad": "SVG 无法被严格解析器打开，几何审计做不了",
+            "where": None,
+            "fix": "先修好上面的 XML 问题，再重跑本脚本",
+        })
+        style_note = style_deviation(fig, profile, want_class) if profile else None
+        return hard, soft, style_note
+
     doc = fitz.open(pdf)
     page = doc[0]
     pr = page.rect
     texts, draws = boxes(page)
     page_area = pr.get_area()
-
-    hard, soft = [], []      # hard = 必须修（阻断）；soft = 建议改
 
     # ── ① 文字互相重叠 ──
     for x, y, pct in check_text_text(texts, page_area):
