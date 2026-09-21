@@ -185,6 +185,40 @@ def text_el(tx, W, H, i):
             f'{svg_lib.esc(content)}</text>')
 
 
+def point_in_poly(pt, poly):
+    """射线法：点是否在多边形内。"""
+    x, y = pt
+    n, inside = len(poly), False
+    j = n - 1
+    for i in range(n):
+        xi, yi = poly[i]
+        xj, yj = poly[j]
+        if (yi > y) != (yj > y):
+            if x < (xj - xi) * (y - yi) / (yj - yi + 1e-12) + xi:
+                inside = not inside
+        j = i
+    return inside
+
+
+def assign_group(poly, groups, W, H):
+    """
+    给一条描摹路径定归属。**最内层优先** ——
+    否则"介质里的核"会被介质那层吃掉。
+    返回 (组名, 该组面积) 或 (None, inf)。
+    """
+    best, best_area = None, float("inf")
+    for g in groups:
+        pts = g.get("at") or []
+        if pts and isinstance(pts[0], (int, float)):
+            pts = [pts]                       # 允许 [x,y] 简写
+        area = poly_area(poly)
+        for p in pts:
+            px, py = float(p[0]) * W, float(p[1]) * H
+            if point_in_poly((px, py), poly) and area < best_area:
+                best, best_area = g.get("name"), area
+    return best, best_area
+
+
 def poly_area(pts):
     s = 0.0
     n = len(pts)
@@ -206,6 +240,13 @@ def main():
                     help="路径简化容差（px）。越大越简洁（默认 1.0）")
     ap.add_argument("--min-area", type=float, default=12.0,
                     help="丢掉小于此面积的多边形（px²），防噪点路径（默认 12）")
+    ap.add_argument("--groups", default=None,
+                    help="语义分组标注（yaml/json）：模型看图后给每个语义对象一个"
+                         "代表点，工具把描摹出的路径按归属打标。"
+                         "★ 默认**不改绘制顺序** —— 渲染逐像素不变，只加归属信息")
+    ap.add_argument("--regroup", action="store_true",
+                    help="真正按语义重排图层顺序。⚠️ 会改变遮挡关系，"
+                         "**必须人看图确认**（默认关）")
     ap.add_argument("--text-spec", default=None,
                     help="文字清单（yaml/json）：模型看图后标的文字位置与内容。"
                          "给了它就做混合临摹 —— 文字区域擦掉、用真 <text> 重写")
@@ -220,6 +261,17 @@ def main():
     W, H = img.size
 
     backend, mod = get_tracer()
+    group_hits, group_map = {}, []
+
+    groups = []
+    if a.groups:
+        gp = Path(a.groups)
+        if not gp.exists():
+            raise SystemExit(f"找不到 {gp}")
+        groups = (load_spec(gp).get("groups") or [])
+        if groups and a.regroup:
+            print("⚠️ --regroup：按语义重排图层顺序 —— "
+                  "**会改变遮挡关系，必须人看图确认**")
 
     # ── ★ 混合临摹：先用周围底色擦掉文字区域 ──
     texts = []
@@ -267,6 +319,16 @@ def main():
         for p in keep:
             d = "M " + " L ".join(f"{x:.1f},{y:.1f}" for x, y in p) + " Z"
             d_all.append(d)
+            if groups:
+                gname, _ = assign_group(p, groups, W, H)
+                key = gname or "（未归属）"
+                group_hits[key] = group_hits.get(key, 0) + 1
+                group_map.append((rank, len(d_all) - 1, gname or "（未归属）"))
+        # ★ 必须**合并成一个 <path>**：`fill-rule="evenodd"` 靠同色多边形
+        #   互相抵消来产生洞（环形就是这么描出来的）。
+        #   拆成独立 <path> 各自填充 → **洞会消失**，图就变了。
+        #   （实测：拆开后最大像素差 255。）
+        #   所以归属信息不能挂在 path 上，改用旁路索引（见文件末尾的 <metadata>）。
         body.append(f'<path d="{" ".join(d_all)}" fill="#{r:02x}{g:02x}{b:02x}" '
                     f'fill-rule="evenodd"/>')
         body.append('</g>')
@@ -277,6 +339,18 @@ def main():
         for i, tx in enumerate(texts, 1):
             body.append(text_el(tx, W, H, i))
         body.append('</g>')
+
+    # ── 语义归属索引（旁路，不改绘制结构）──
+    if groups and group_map:
+        import json as _json
+        body.append("<metadata>")
+        body.append("<!-- 语义归属索引：[颜色序, 该颜色内第几个子路径, 组名]")
+        body.append("     为什么不做成 <g> 分组：合并路径的 evenodd 靠同色多边形")
+        body.append("     互相抵消产生洞，拆开洞就没了。所以归属只能旁路记录。 -->")
+        body.append(_json.dumps({"group_index": group_map,
+                                 "groups": [g.get("name") for g in groups]},
+                                ensure_ascii=False))
+        body.append("</metadata>")
 
     svg = "\n".join([
         f'<svg xmlns="http://www.w3.org/2000/svg" '
@@ -291,6 +365,15 @@ def main():
           f" / {size_kb:.0f} KB")
     if dropped:
         print(f"（丢弃 {dropped} 个小多边形，< {a.min_area}px²）")
+    if groups:
+        print("\n语义归属（**只打标，未改绘制顺序** —— 渲染与不归组时相同）：")
+        for g in groups:
+            n = group_hits.get(g.get("name"), 0)
+            print(f"  · {g.get('name')}: {n} 条路径")
+        un = group_hits.get("（未归属）", 0)
+        if un:
+            print(f"  · （未归属）: {un} 条 —— 代表点没落进去，"
+                  f"补个点或调位置即可")
 
     # ══ 报告：脚本做不到、必须补的三件事 ══
     print("""
