@@ -8,7 +8,9 @@ Nature 硬性要求可编辑矢量（美术团队要重排版、换字体）。
 用法：
     python3 check_delivery.py fig.pdf
     python3 check_delivery.py fig.pdf fig.eps
+    python3 check_delivery.py --svg fig.svg      # 顺带查 SVG 合法性
 """
+import argparse
 import sys
 from pathlib import Path
 
@@ -80,11 +82,39 @@ def check_eps(path):
 
 
 def main():
-    if len(sys.argv) < 2:
-        sys.exit("用法: python3 check_delivery.py <fig.pdf|fig.eps> [...]")
+    # ★ 改成 argparse：原来直接读 sys.argv，`--help` 会被当成文件名 ——
+    #   与其余 20 多个工具不一致，别人上手会踩。
+    ap = argparse.ArgumentParser(
+        description="投稿前检查：矢量？文字可编辑？字号达标？")
+    ap.add_argument("files", nargs="*", help="PDF / EPS 文件（可多个）")
+    ap.add_argument("--svg", action="append", default=[],
+                    help="顺带查这些 SVG 是不是合法 XML（浏览器能开不等于 "
+                         "Illustrator 能开）")
+    a = ap.parse_args()
+
     allok = True
-    for a in sys.argv[1:]:
-        p = Path(a)
+    # SVG 合法性（有 --svg 时）
+    if a.svg:
+        from repair_brief import check_svg_xml
+        for s in a.svg:
+            sp = Path(s)
+            if not sp.exists():
+                print(f"找不到 {s}")
+                allok = False
+                continue
+            probs = check_svg_xml(sp)
+            print(f"\n{'='*66}\n{sp.name}（SVG 合法性）\n{'='*66}")
+            if probs:
+                for x in probs:
+                    print(f"  ❌ {x}")
+                print("  → 浏览器宽容能渲染，但 Illustrator / cairosvg 会拒绝，"
+                      "会挡投稿")
+                allok = False
+            else:
+                print("  ✅ 合法 XML，能被严格解析器打开")
+
+    for a_ in a.files:
+        p = Path(a_)
         if not p.exists():
             print(f"找不到 {a}")
             allok = False
@@ -93,8 +123,10 @@ def main():
             allok &= check_pdf(p)
         elif p.suffix.lower() in (".eps", ".ps"):
             allok &= check_eps(p)
+        elif p.suffix.lower() == ".svg":
+            print(f"（{p.name} 是 SVG —— 请用 --svg {p.name} 查合法性）")
         else:
-            print(f"跳过 {a}（只查 PDF / EPS）")
+            print(f"跳过 {p.name}（只查 PDF / EPS / --svg）")
     print(f"\n{'='*66}")
     print("结论:", "全部通过" if allok else "有项目需处理")
     return 0 if allok else 1

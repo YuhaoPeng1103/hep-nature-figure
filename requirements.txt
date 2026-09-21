@@ -1,15 +1,28 @@
-# 核心（必需）—— 这套是自包含的，不装任何东西也能生成 SVG
-# 只是渲染/审计需要下面这些
-matplotlib>=3.7
-numpy>=1.24
-scipy>=1.10
-Pillow>=10.0
-cairosvg>=2.7          # SVG → PNG/PDF 渲染（必须；PyMuPDF 渲染 SVG 会丢渐变）
-pymupdf>=1.24          # PDF 几何审计、拼版、从论文切图
-shapely>=2.0           # 布尔运算 → 真外轮廓（替代 Inkscape 的几何功能）
+# hep-nature-figure 依赖
+#
+# ★ 生成 SVG 本身是零依赖的（纯字符串拼接）。
+#   下面这些是"渲染 / 审计 / 度量"需要的。
+#
+# 实测环境：ChatGPT Code Interpreter 自带 numpy/matplotlib/scipy/pandas/
+# Pillow/PyMuPDF/CairoSVG；**没有**网络，装不了包。
 
-# 按图型选装（见 check_tools.py）
-#   LaTeX (pdflatex)   TikZ / 公式        sudo apt install texlive-latex-recommended texlive-pictures
-#   Inkscape           人工精修矢量       sudo apt install inkscape
-#   Blender            真 3D              https://www.blender.org/download/
-#   ROOT               .root 文件         https://root.cern/install/
+# ── 核心（几乎所有工具都要）──
+numpy>=1.24
+Pillow>=10.0
+cairosvg>=2.7          # SVG → PNG/PDF 渲染。★必须用它，PyMuPDF 渲 SVG 会丢渐变
+pymupdf>=1.24          # PDF 几何审计、拼版、从论文切图
+
+# ── 按用途选装 ──
+matplotlib>=3.7        # 定量图（T1/T2）
+scipy>=1.10            # 统计、插值
+shapely>=2.0           # geom.py 的布尔运算（无它时 blob()/poly_to_path() 仍可用）
+PyYAML>=6.0            # 读 IR 的 yaml。无它时门禁自动跳过结构断言，不阻断
+opencv-python>=4.8     # raster_to_vector.py 描摹（无 skimage 时用它）
+scikit-image>=0.21     # raster_to_vector.py 描摹的备选后端（二选一即可）
+
+# ── 外部命令（按图型选装，见 scripts/check_tools.py）──
+#   LaTeX (pdflatex)   TikZ / 公式     sudo apt install texlive-latex-recommended texlive-pictures
+#   Inkscape           人工精修矢量    sudo apt install inkscape
+#   poppler-utils      pdftops → EPS   sudo apt install poppler-utils
+#   Blender            真 3D           https://www.blender.org/download/
+#   ROOT               .root 文件      https://root.cern/install/
