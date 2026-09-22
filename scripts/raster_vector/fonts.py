@@ -28,6 +28,38 @@ _CAND = {
 _cache = {}
 
 
+_CAND_MATH = [
+    ("HEP_VEC_FONT_MATH", None),
+    ("C:/Windows/Fonts/DejaVuSans.ttf", "DejaVu Sans"),
+    ("C:/Windows/Fonts/ARIALUNI.TTF", "Arial Unicode MS"),
+    ("C:/Windows/Fonts/seguisym.ttf", "Segoe UI Symbol"),
+    ("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", "DejaVu Sans"),
+]
+
+
+def pick_math():
+    """数学符号兜底字体 —— 主字体（Arial）没有 ⊥ ≳ ⟨⟩ 这类字符时用它。
+
+    实测：Arial 缺 U+22A5(⊥) / U+2273(≳) / U+27E8-9(⟨⟩)。缺字的标签会被
+    labels.has_glyph 静默丢掉，所以要么换字体、要么丢标签 —— 这里选换字体。
+    找不到就返回 (None, None)，调用方按「没有兜底」处理（照旧丢标签），不报错。
+    """
+    if "math" in _cache:
+        return _cache["math"]
+    for path, fam in _CAND_MATH:
+        if fam is None:
+            p = os.environ.get(path)
+            if p and os.path.exists(p):
+                _cache["math"] = (p, "DejaVu Sans")
+                return _cache["math"]
+            continue
+        if os.path.exists(path):
+            _cache["math"] = (path, fam)
+            return _cache["math"]
+    _cache["math"] = (None, None)
+    return _cache["math"]
+
+
 def pick(bold=False):
     """返回 (字体文件路径, SVG 里该写的 font-family 单值)。找不到就报错，不静默降级。"""
     if bold in _cache:

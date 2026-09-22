@@ -1,4 +1,4 @@
-# ocr_words.ps1 —— 用 Windows.Media.Ocr 出「词 + 坐标」词表
+﻿# ocr_words.ps1 —— 用 Windows.Media.Ocr 出「词 + 坐标」词表
 #   powershell -ExecutionPolicy Bypass -File ocr_words.ps1 原图.png > words.txt
 # 输出：x<TAB>y<TAB>w<TAB>h<TAB>text   （坐标为 **2 倍图** 坐标）
 #
@@ -18,7 +18,9 @@ function Await($op, $t) {
 # 1) 放大 2 倍（用 .NET，免得依赖 ImageMagick）
 Add-Type -AssemblyName System.Drawing
 $src = [System.Drawing.Image]::FromFile((Resolve-Path $Image).Path)
-$big = New-Object System.Drawing.Bitmap($src.Width * 2, $src.Height * 2)
+# ★ 必须用 -ArgumentList：`New-Object T($a*2, $b*2)` 在 Windows PowerShell 5.1 上
+#   会把参数当成 System.Object[]，报 "does not contain a method named 'op_Multiply'"
+$big = New-Object System.Drawing.Bitmap -ArgumentList ($src.Width * 2), ($src.Height * 2)
 $g = [System.Drawing.Graphics]::FromImage($big)
 $g.InterpolationMode = 'HighQualityBicubic'
 $g.DrawImage($src, 0, 0, $big.Width, $big.Height)

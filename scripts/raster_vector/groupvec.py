@@ -142,19 +142,28 @@ def main():
               % ("--no-text" if "--no-text" in av else "没有词表"))
     else:
         sw = V.read_words(wf, sc * 0.5)
+    # ★ FIX / DROP / MANUAL 是「每张图各不相同」的表：--panels 里定义了就用那张，
+    #   没定义才退回 labels.py 的 T3-01 默认表（否则换图必须去改包里的文件）
+    FIX = getattr(P, "FIX", LB.FIX)
+    DROP = getattr(P, "DROP", LB.DROP)
+    MANUAL = getattr(P, "MANUAL", LB.MANUAL)
     cand = []
     for x, y, w, h, t in sw:
-        if t in LB.DROP:
+        if t in DROP:
             continue
-        cand.append((x, y, w, h, LB.FIX.get(t, t), False, None, t))
-    for txt, x0, y0, x1, y1, bold in LB.MANUAL:
+        cand.append((x, y, w, h, FIX.get(t, t), False, None, t))
+    for txt, x0, y0, x1, y1, bold in MANUAL:
         cand.append((x0, y0, x1 - x0, y1 - y0, txt, True, y1, txt))
 
     kept = []
     for x, y, w, h, txt, bold, blh, raw in cand:
         runs = LB.parse(txt)
-        if any(not LB.has_glyph(c, bold) for c in LB.plain(runs)):
+        if not LB.can_render(runs, bold):
             continue
+        # 主字体缺字（⊥ ≳ 这类）→ 整条换数学兜底字体。★ 必须在 align() 之前 set：
+        #   align 靠字体度量 + cairo 栅格化选字号/字距，换字体会改这两样。
+        fam = LB.choose_fam(runs, bold)
+        LB.set_fam(*fam)
         raw_runs = None if bold else LB.parse(raw)
         res = LB.align(a, (x, y, w, h), runs, bold=bold, bl_hint=blh, raw_runs=raw_runs)
         if res is None:
@@ -165,15 +174,62 @@ def main():
         x0, y0, x1, y1 = LB.word_box((x, y, w, h), Wd, H)
         sub = a[y0:y1, x0:x1].reshape(-1, 3)
         col = sub[sub.mean(1).argmin()]
-        kept.append(dict(box=(x, y, w, h), runs=runs, bold=bold, res=res,
+        kept.append(dict(box=(x, y, w, h), runs=runs, bold=bold, res=res, fam=fam,
                          color="#%02x%02x%02x" % tuple(int(v) for v in col), raw=raw))
     print("  文字对象 %d 个（OCR+手工候选 %d，逐词自校验通过）" % (len(kept), len(cand)))
 
+    # ---------- 1b. 旋转标签 ----------
+    #   labels.align() 的墨迹模型只认水平文字，旋转标签（斜排的箭头说明）
+    #   不能走那条路；改为在 panels.ROTATED 里手量「框 + 角度 + 字号」直接摆。
+    #   格式：[(text, x0, y0, x1, y1, angle_deg, size_px), ...]
+    LB.set_fam(None, None)
+    rot = []
+    for (t, x0, y0, x1, y1, ang, sz) in getattr(P, "ROTATED", []):
+        runs = LB.parse(t)
+        fam = LB.choose_fam(runs, False)
+        LB.set_fam(*fam)
+        box = (x0, y0, x1 - x0, y1 - y0)
+        r = dict(txt=t, box=box, ang=ang, size=sz, fam=fam[1],
+                 fampath=fam[0], runs=runs)
+        got = LB.align_rot(a, box, ang, runs)
+        if got is not None:
+            res, ang_fit = got
+                    # 斜排标签的验收比水平文字更严：拟合是「转正后再拟合」，
+                    # 万一被平行的长直线带偏，字号会整条放大（实测 19->27），
+                    # 这种必须退回原图色块，宁可不改成 <text>。
+            if res is not None and res[0] <= max(0.14, 0.55 * res[7]["ink"]) \
+                    and res[7]["dh"] <= 5:
+                r["ang"] = ang_fit
+                r["size"] = res[1]
+                r["fit"] = (res[2], res[3], res[4], res[5], res[6])
+                r["box"] = LB.rot_box_fit(box, ang_fit, res[7]["rect"])
+                rr = res[7]["rect"]; oi = res[7].get("irect") or rr
+                r["mrect"] = (min(rr[0], oi[0]), min(rr[1], oi[1]),
+                              max(rr[2], oi[2]), max(rr[3], oi[3]))
+                r["ok"] = True
+        rot.append(r)
+    nbad = [r["txt"] for r in rot if not r.get("ok")]
+    if nbad:
+        print("  ⚠ %d 条斜排标签拟合不过关，保留原图色块不改成 <text>：%s"
+              % (len(nbad), " / ".join(nbad)))
+    if rot:
+        print("  旋转标签 %d 个（%d 个自动拟合通过，其余退手量摆位）"
+              % (len(rot), sum(1 for r in rot if r.get("fit"))))
+
     # ---------- 2. 擦掉被替换成真文字的原字笔画 ----------
     if erase:
+        # 水平文字用轴对齐框；斜排标签必须用「旋转后的四边形」掩码 —— 两条平行
+        # 标签的 AABB 必然互相重叠，用 AABB 擦会把旁边那条擦掉半截（实测留下
+        # "on" 碎片、另一条被擦穿导致文字画了两遍）。拟合不过关的标签整条不擦，
+        # 原样保留成色块（宁可不改成 <text>，也不能把原来对的东西擦掉）。
         boxes = [k["box"] for k in kept]
         mm = V.text_mask((H, Wd), [(x, y, w, h, ".") for x, y, w, h in boxes], 1.0,
                          pad=2, ink=V.ink_map(a))
+        inkm = V.ink_map(a)
+        for r in rot:
+            if r.get("ok"):
+                mm |= LB.rot_mask((H, Wd), r["box"], r["ang"], r["mrect"],
+                                  ink=inkm, pad=2)
         # 还要擦掉"重写文字实际占用的范围"：如 'Area'->'Area:' 补的冒号会压在原图冒号上
         rb = [k["res"][7]["rect"] for k in kept if k["res"][7].get("rect")]
         if rb:
@@ -196,7 +252,7 @@ def main():
                     out_png=opt("--el_png", "_el_overlay.png"),
                     out_txt=opt("--el_txt", "_el_table.txt"))
         return
-    return emit(src, out, man, stats, a, H, Wd, kept, R, K, opt("--legend", ""))
+    return emit(src, out, man, stats, a, H, Wd, kept, R, K, opt("--legend", ""), rot=rot)
 
 
 # ------------------------------------------------------------------ 元素归组
@@ -204,6 +260,7 @@ def assign_elements(a, R, K):
     """两段式：自动切分定形状 + panels.ELEMENTS 定名字（按 bbox 的 IoU 匹配）
     返回 (per, labels, nleaf)：per[cid][eid][col] = [rect...]，labels[(cid,eid)] = 人读说明"""
     from . import elements as ELC
+    ELC.P = P  # elements.py 自己 import 的是包内默认表；--panels 换表后必须同步，否则元素划分用错表 KeyError
     H, W = a.shape[:2]
     res = ELC.discover(a)
     eid_full = np.full((H, W), -1, np.int32)
@@ -308,7 +365,8 @@ def dump_elements(a, R, K, out_png="_elem_overlay.png"):
 
 
 # ------------------------------------------------------------------ 输出
-def emit(src, out, man, stats, a, H, Wd, kept, R, K, legend=None):
+def emit(src, out, man, stats, a, H, Wd, kept, R, K, legend=None, rot=None):
+    rot = rot or []
     idx = P.cell_index(H, Wd)
     meta, order = P.meta(), P.order()
     per, labels, nleaf = assign_elements(a, R, K)
@@ -320,7 +378,8 @@ def emit(src, out, man, stats, a, H, Wd, kept, R, K, legend=None):
     print("  叶块 %d -> 色块 %d 条 -> <path> %d 条 | 面板 %d | 物理元素 %d"
           % (nleaf, nrun, npath, len(order), nelem))
 
-    title = meta["title"]["desc"]
+    # 图可以不设总标题：panels 里没有 title 单元时用输出文件名兜底（否则 KeyError）
+    title = (meta.get("title") or {}).get("desc") or os.path.basename(out)
     L = ['<?xml version="1.0" encoding="UTF-8"?>',
          '<svg xmlns="http://www.w3.org/2000/svg" '
          'xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape" '
@@ -337,6 +396,7 @@ def emit(src, out, man, stats, a, H, Wd, kept, R, K, legend=None):
           "图层树：`面板 panel` → `物理元素 element` → `颜色族 color family`。",
           "在 Illustrator 里打开「图层」面板即可按下面的名字点选；在 Inkscape 里是子图层。", "",
           "| 面板 | 物理元素 | 说明 | 包围盒 (x0,y0,x1,y1) | 路径数 | 像素 |", "|---|---|---|---|---|---|"]
+    text_layers = []
     for cid in order:
         m = meta[cid]
         L.append('<g id="%s" data-role="%s" data-panel="%s" data-label="%s" '
@@ -379,20 +439,36 @@ def emit(src, out, man, stats, a, H, Wd, kept, R, K, legend=None):
             md.append("| `%s` | `%s-%s` | %s | %d,%d,%d,%d | %d | %d |"
                       % (cid, cid, eid, elab, bbox[0], bbox[1], bbox[2], bbox[3], en, epx))
         mine = [k for k in kept if P.CELLS[cell_of(k["box"], idx)][0] == cid]
-        if mine:
+        mrot = [r for r in rot if r.get("ok")
+                and P.CELLS[cell_of(r["box"], idx)][0] == cid]
+        if mine or mrot:
+            text_layers.append((cid, mine, mrot))
+            ntxt += len(mine) + len(mrot)
+            pinfo["texts"] = len(mine) + len(mrot)
+            md.append("| `%s` | `%s-text` | text layer (%d editable <text>) | - | %d | - |"
+                      % (cid, cid, len(mine) + len(mrot), len(mine) + len(mrot)))
+        L.append('</g>')
+        manifest["panels"].append(pinfo)
+    # ★ 文字层统一放到所有面板之后：文字框常跨面板边界，留在面板内时
+    #   后面面板的不透明背景色块会盖住它的尾巴（实测 "Pressure-driven" 在
+    #   x=950 处被切断、"Low-energy method" 在 x=320 处被切断）
+    if text_layers:
+        L.append('<g id="text-layer" data-role="text" '
+                 'inkscape:groupmode="layer" inkscape:label="Text (all panels)">')
+        for cid, mine, mrot in text_layers:
             L.append('<g id="%s-text" data-role="text" data-count="%d" '
-                     'inkscape:groupmode="layer" inkscape:label="%s (text)">' % (cid, len(mine), cid))
+                     'inkscape:groupmode="layer" inkscape:label="%s (text)">'
+                     % (cid, len(mine) + len(mrot), cid))
             for i, k in enumerate(mine, 1):
+                LB.set_fam(*k["fam"])
                 L.append(LB.svg(k["res"], k["runs"], k["color"], k["bold"],
                                 elem_id="%s-t%d" % (cid, i),
                                 extra=' data-plain="%s"' % LB.xml_esc(LB.plain(k["runs"]))))
+            for j, r in enumerate(mrot, 1):
+                LB.set_fam(r["fampath"], r["fam"])   # rot_el 要按这条标签的字体排版
+                L.append(LB.rot_el(r, elem_id="%s-r%d" % (cid, j)))
             L.append('</g>')
-            ntxt += len(mine)
-            pinfo["texts"] = len(mine)
-            md.append("| `%s` | `%s-text` | text layer (%d editable <text>) | - | %d | - |"
-                      % (cid, cid, len(mine), len(mine)))
         L.append('</g>')
-        manifest["panels"].append(pinfo)
     L.append('</g>')
     L.append('</svg>')
     open(out, "w", encoding="utf-8").write("\n".join(L))

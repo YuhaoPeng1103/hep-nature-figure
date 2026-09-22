@@ -21,7 +21,9 @@ def read_words(path, sc):
         x, y, w, h = (float(v) * sc for v in p[:4])
         t = p[4]
         # 过滤 OCR 垃圾框 / 非文字框：正常文字高 8~40px（工作分辨率下）
-        if h < 6 or h > 40 or w < 4 or w > 400 or w * h > 3000:
+        # 只按单边尺寸过滤：长的正文行（"Pressure-driven hydrodynamic expansion"
+        # 这类）框面积必然大，用 w*h 上限会把整条都丢掉
+        if h < 6 or h > 40 or w < 4 or w > 400:
             continue
         if not any(ch.isalnum() for ch in t):
             continue

@@ -1,0 +1,14 @@
+2066.4	62.8	1164.5	59.1	Quantum fluctuations in orientations
+2140.4	562.0	1083.1	88.0	Time scale: τ ≥ l/ħ ~ 10^{3}–10^{4} fm/c
+3593.2	602.6	839.1	66.5	Coherent superposition of
+3426.8	687.6	1009.2	66.5	wavefunctions probed at low en
+0.0	1319.7	757.8	59.1	Prolate-deformed nucleus
+1282.7	1822.5	362.3	66.5	Body–body
+1249.5	1903.8	417.7	70.2	configuration
+1312.3	2890.8	240.3	73.9	Tip–tip
+1201.4	2972.1	462.1	77.6	configuration
+1696.8	2066.4	358.6	62.8	Boosted to
+1471.3	2177.3	802.2	66.5	relativistic speed Γ ≥ 100
+3097.8	2066.4	554.5	59.1	Pressure-driven
+2931.5	2169.9	887.2	77.6	hydrodynamic expansion
+0.0	3097.8	794.8	70.2	fm/c = 3 × 10^{-24} seconds

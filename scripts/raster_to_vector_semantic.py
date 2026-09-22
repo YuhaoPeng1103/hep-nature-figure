@@ -140,8 +140,12 @@ def main():
         sys.argv = old
 
     if a.check:
-        print("\n自检（cairosvg 回渲染 vs 源图）：")
-        selfcheck(a.out, a.image, a.W, words_given)
+        if not Path(a.out).exists():
+            print("\n（本次只跑了诊断子命令 --elmap/--npz/--segs，没有产出 %s；"
+                  "去掉它们再回渲染自检）" % a.out)
+        else:
+            print("\n自检（cairosvg 回渲染 vs 源图）：")
+            selfcheck(a.out, a.image, a.W, words_given)
 
     print("""
 ────────────────────────────────────────────────────────────────

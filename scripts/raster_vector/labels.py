@@ -23,6 +23,7 @@ import cairocffi as cairo
 from . import fonts
 FONT_R, FAM_R = fonts.pick(False)      # 量字宽用的字体 == SVG 里 font-family 的单值
 FONT_B, FAM_B = fonts.pick(True)
+FONT_M, FAM_M = fonts.pick_math()      # 数学符号兜底字体（⊥ ≳ 这类主字体没有的字）
 SUB_S, SUB_Y = 0.66, 0.20       # 下标：字号比例 / 下移(em)
 SUP_S, SUP_Y = 0.66, 0.34       # 上标：字号比例 / 上移(em)
 
@@ -77,13 +78,31 @@ def plain(runs):
 
 
 _hm = {}
+_CUR = [None, None]     # 当前标签用的 [字体文件, font-family]；None,None = 用主字体
 
 
-def _metrics(bold):
-    if bold not in _hm:
-        t = TTFont(FONT_B if bold else FONT_R)
-        _hm[bold] = (t.getBestCmap(), t["hmtx"], t["head"].unitsPerEm)
-    return _hm[bold]
+def set_fam(path, fam):
+    """切换「当前标签」用的字体。主字体缺字时由 groupvec 调成兜底字体。"""
+    _CUR[0], _CUR[1] = path, fam
+
+
+def _font(bold=False):
+    if _CUR[0]:
+        return _CUR[0], _CUR[1]
+    return (FONT_B, FAM_B) if bold else (FONT_R, FAM_R)
+
+
+def _cmap(path):
+    """按**字体文件**缓存度量 —— 主字体与兜底字体的 hmtx 不能混用，
+       否则「量字宽的字体 != SVG 里写的字体」，字距会歪（fonts.py 里记的那个坑）。"""
+    if path not in _hm:
+        t = TTFont(path)
+        _hm[path] = (t.getBestCmap(), t["hmtx"], t["head"].unitsPerEm)
+    return _hm[path]
+
+
+def _metrics(bold=False):
+    return _cmap(_font(bold)[0])
 
 
 def char_em(c, bold=False):
@@ -94,6 +113,24 @@ def char_em(c, bold=False):
 
 def has_glyph(c, bold=False):
     return ord(c) in _metrics(bold)[0]
+
+
+def can_render(runs, bold=False):
+    """主字体全有 -> True；主字体缺字但兜底字体全有 -> True；都缺 -> False"""
+    txt = plain(runs)
+    if all(ord(c) in _cmap(FONT_B if bold else FONT_R)[0] for c in txt):
+        return True
+    return bool(FONT_M) and all(ord(c) in _cmap(FONT_M)[0] for c in txt)
+
+
+def choose_fam(runs, bold=False):
+    """这个标签该用的 (字体文件, font-family 单值)。主字体缺字就换兜底字体。"""
+    txt = plain(runs)
+    if all(ord(c) in _cmap(FONT_B if bold else FONT_R)[0] for c in txt):
+        return (FONT_B, FAM_B) if bold else (FONT_R, FAM_R)
+    if FONT_M and all(ord(c) in _cmap(FONT_M)[0] for c in txt):
+        return FONT_M, FAM_M
+    return (FONT_B, FAM_B) if bold else (FONT_R, FAM_R)
 
 
 def width_em(runs, bold=False, ss=SUB_S):
@@ -126,7 +163,7 @@ def text_el(runs, size, x, y, ls, ss, sy, bold, fill="#000000", eid=None, extra=
         cur = off
     ida = ' id="%s"' % eid if eid else ""
     fw = ' font-weight="bold"' if bold else ""
-    fam = FAM_B if bold else FAM_R
+    fam = _font(bold)[1]
     return ('<text%s x="%.2f" y="%.2f"%s%s font-family="%s" font-size="%.2f" '
             'letter-spacing="%.3f" fill="%s">%s</text>'
             % (ida, x, y, fw, extra, fam, size, ls * size, fill, "".join(parts)))
@@ -135,6 +172,168 @@ def text_el(runs, size, x, y, ls, ss, sy, bold, fill="#000000", eid=None, extra=
 def svg(res, runs, color, bold=False, elem_id=None, extra=""):
     _, size, xl, bl, ls, ss, sy = res[:7]
     return text_el(runs, size, xl, bl, ls, ss, sy, bold, color, elem_id, extra)
+
+
+def rot_el(r, elem_id=None, fill="#000000"):
+    """旋转标签 → 真 <text>（带 rotate 变换，仍可编辑、可重排）。
+
+    ★ 两条路径：
+      - r["fit"] 存在（align_rot 拟合成功）：位置/字距/上下标全部交给 text_el，
+        用的就是「转正坐标系」的拟合值。SVG 是「先按 x/y 排版、再整体 rotate」，
+        与「先把图转正、再拟合」完全等价，所以坐标可以直接拿来用。
+      - 没有 fit：退回手量摆位 —— 文字居中放在框心 + 0.35em，再绕框心转过去。
+    ★ 不用 dominant-baseline（cairosvg 会忽略，和 baseline-shift 一个毛病）。
+    """
+    x0, y0, w, h = r["box"]
+    cx, cy = x0 + w / 2.0, y0 + h / 2.0
+    size = float(r["size"])
+    txt = xml_esc(r["txt"])
+    ida = ' id="%s"' % elem_id if elem_id else ""
+    fit = r.get("fit")
+    if fit:
+        xl, bl, ls, ss, sy = fit
+        runs = r.get("runs") or parse(r["txt"])
+        return text_el(runs, size, xl, bl, ls, ss, sy, r.get("bold", False),
+                       fill=fill, eid=elem_id,
+                       extra=' transform="rotate(%.2f %.2f %.2f)"'
+                             ' data-plain="%s"' % (r["ang"], cx, cy, txt))
+    runs = r.get("runs") or parse(r["txt"])
+    # 按字宽把文字水平居中到框心；上下标仍走 text_el 的 <tspan>，
+    # 否则 "Large ε_{2} small d_{⊥}" 会把 _{2} 字面画出来（实测大坑）
+    half = width_em(runs, r.get("bold", False)) * size / 2.0
+    return text_el(runs, size, cx - half, cy + 0.35 * size, 0.0, SUB_S, SUB_Y,
+                   r.get("bold", False), fill=fill, eid=elem_id,
+                   extra=' transform="rotate(%.2f %.2f %.2f)"'
+                         ' data-plain="%s"' % (r["ang"], cx, cy, txt))
+
+
+def derotate(a, cx, cy, ang):
+    """绕 (cx,cy) 把图画 ang 度（PIL 逆时针为正），让「SVG 里 rotate(ang) 排出的
+       斜排文字」变回水平 —— 这样才能借用 align() 的水平墨迹模型。"""
+    from PIL import Image
+    im = Image.fromarray(np.clip(a, 0, 255).astype(np.uint8))
+    r = im.rotate(ang, center=(cx, cy), resample=Image.BICUBIC,
+                  fillcolor=(255, 255, 255))
+    return np.asarray(r).astype(np.float32)
+
+
+def _text_band(prof, hband):
+    """在行剖面里挑出「文字所在的行带」：固定高度的滑窗取墨迹总量最大的一窗。
+
+    斜排标签常紧挨着同角度的长直线（箭头 / 等离子体板边），转正后它们正好落在
+    同一段行里。长直线只有 2~3 行、单行计数极高，但 15 行文字的总墨迹量更大，
+    所以按「窗内总墨迹」而不是「单行峰值」来选，就能把直线排除掉。
+    """
+    n = int(len(prof))
+    if n <= hband:
+        lo, hi = 0, n
+    else:
+        csum = np.concatenate([[0.0], np.cumsum(prof.astype(float))])
+        best, lo, hi = -1.0, 0, hband
+        for y in range(0, n - hband + 1):
+            s = csum[y + hband] - csum[y]
+            if s > best:
+                best, lo, hi = s, y, y + hband
+    thr = 0.30 * max(1.0, float(prof[lo:hi].max()))
+    while lo > 0 and prof[lo - 1] >= thr:
+        lo -= 1
+    while hi < n and prof[hi] >= thr:
+        hi += 1
+    return lo, hi
+
+
+def align_rot(a, box, ang, runs, bold=False, half=30.0, extra=80.0, hband=17,
+              ascan=6.0, astep=2.0):
+    """斜排标签对齐：先把图绕框心转正，再用 align() 同一套三段式拟合。
+
+    转正后文字水平，align 的「字号<-墨迹高 / 字距<-墨迹宽 / 位置<-残差」三段式
+    才成立。两个必须做的预处理：
+
+    ① 角度微调：手量的角度常有 2~6° 误差（同一张图上两条「平行」标签实测差了
+       3.4°）。角度一歪，长文字会被「摊」成十几行，字号随之被估大。
+       ★ 判据直接用 align() 的实际墨迹残差（外加 dh 惩罚），不要用几何启发式 ——
+       「行带最矮」和「行带墨迹最多」会互相打架，实测把 43° 带偏到 50°。
+    ② 行带检测：斜排标签紧挨着同角度的长直线（箭头 / 等离子体板边），转正后
+       落在同一段行里，会把墨迹高 oh 撑大。用 _text_band() 按「窗内总墨迹」
+       挑出文字那十几行，把直线排掉。
+
+    返回 (res, ang_used)：res 与 align() 相同，(xl, bl) 在「转正坐标系」，
+    等价于 SVG 里 <text x=xl y=bl transform="rotate(ang_used cx cy)"> 的排版坐标。
+    """
+    x0, y0, w, h = box
+    cx, cy = x0 + w / 2.0, y0 + h / 2.0
+    H, W = a.shape[:2]
+    L = max(w, h) + extra
+    bx0, by0 = max(0, int(cx - L / 2.0)), max(0, int(cy - half))
+    bx1, by1 = min(W, int(cx + L / 2.0)), min(H, int(cy + half))
+    if bx1 <= bx0 or by1 <= by0:
+        return None
+    best = None
+    for da in np.arange(-ascan, ascan + 0.001, astep):
+        ag = float(ang + da)
+        a_rot = derotate(a, cx, cy, ag)
+        m = ((255.0 - a_rot[by0:by1, bx0:bx1].mean(2)) / 255.0) > THR
+        if not m.any():
+            continue
+        lo, hi = _text_band(m.sum(1), hband)
+        nz = np.nonzero(m[lo:hi].sum(0))[0]
+        if len(nz) == 0:
+            continue
+        px0, py0 = bx0 + int(nz.min()) - 5, by0 + lo - 3
+        px1, py1 = bx0 + int(nz.max()) + 6, by0 + hi + 3
+        res = align(a_rot, (px0, py0, px1 - px0, py1 - py0), runs, bold=bold)
+        if res is None:
+            continue
+        score = res[0] + 0.004 * res[7]["dh"]
+        if best is None or score < best[0]:
+            best = (score, res, ag)
+    if best is None:
+        return None
+    return best[1], best[2]
+
+
+
+def rot_mask(shape, box, ang, rect, ink=None, pad=2):
+    """把「转正坐标系里的墨迹矩形」映射回原图，得到**旋转后的四边形**掩码。
+
+    斜排标签的擦除必须用它，不能用轴对齐包围盒：两条平行标签的 AABB 必然互相
+    重叠，用 AABB 去擦会把旁边那条擦掉半截（实测在 Low-energy 旁边留下一个
+    "on" 碎片，另一条则被整个擦掉、文字画了两遍）。
+    """
+    from PIL import Image
+    H, W = shape
+    x0, y0, w, h = box
+    cx, cy = x0 + w / 2.0, y0 + h / 2.0
+    m = np.zeros((H, W), np.uint8)
+    ry0, ry1 = max(0, int(rect[1]) - pad), min(H, int(rect[3]) + pad)
+    rx0, rx1 = max(0, int(rect[0]) - pad), min(W, int(rect[2]) + pad)
+    if ry1 <= ry0 or rx1 <= rx0:
+        return np.zeros((H, W), bool)
+    m[ry0:ry1, rx0:rx1] = 255
+    m = np.asarray(Image.fromarray(m).rotate(-ang, center=(cx, cy),
+                                            resample=Image.NEAREST, fillcolor=0))
+    out = m > 127
+    if ink is not None:
+        from scipy import ndimage
+        out = out & ndimage.binary_dilation(ink, iterations=1)
+    return out
+
+
+
+def rot_box_fit(box, ang, rect):
+    """把「转正坐标系」里拟合出的墨迹矩形映射回原图的轴对齐包围盒（擦除用）；
+       保证擦掉的正是拟合后的实际位置，而不是手量框的位置。"""
+    x0, y0, w, h = box
+    cx, cy = x0 + w / 2.0, y0 + h / 2.0
+    th = np.radians(ang)
+    c, s = float(np.cos(th)), float(np.sin(th))
+    xs, ys = [], []
+    for px, py in ((rect[0], rect[1]), (rect[2], rect[1]),
+                   (rect[2], rect[3]), (rect[0], rect[3])):
+        dx, dy = px - cx, py - cy
+        xs.append(cx + dx * c - dy * s)
+        ys.append(cy + dx * s + dy * c)
+    return (min(xs), min(ys), max(xs) - min(xs), max(ys) - min(ys))
 
 
 # ================================================================ 栅格化 / 度量
@@ -284,6 +483,10 @@ def align(a, box, runs, bold=False, bl_hint=None, raw_runs=None):
     if fb is None:
         return None
     fw, fh = fb[2] - fb[0] + 1, fb[3] - fb[1] + 1
+    # rect = 渲染文字的墨迹框；irect = **原图**文字的墨迹框。擦字必须用两者的并集：
+    # 只擦 rect 的话，拟合文字比原字略窄时，原字右侧的笔画会整段留下（实测在
+    # "Low-energy method" 右端留下一个像 "!" 的残影）。
     meta = dict(dw=abs(fw - ow), dh=abs(fh - oh), ink=float(ink.mean()),
-                rect=(x0 + fb[0], y0 + fb[1], x0 + fb[2] + 1, y0 + fb[3] + 1))
+                rect=(x0 + fb[0], y0 + fb[1], x0 + fb[2] + 1, y0 + fb[3] + 1),
+                irect=(x0 + ob[0], y0 + ob[1], x0 + ob[2] + 1, y0 + ob[3] + 1))
     return float(d), float(size), float(xl), float(bl), float(ls), float(ss), float(sy), meta
