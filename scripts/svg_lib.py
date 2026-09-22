@@ -60,7 +60,13 @@ def _detect_cjk_font() -> str:
     try:
         import subprocess
         r = subprocess.run(["fc-list", ":", "family"],
-                           capture_output=True, text=True, timeout=10)
+                           capture_output=True, timeout=10,
+                           # ★ 必须显式指定 utf-8：中文 Windows 上 text=True 会用
+                           #   本地编码(gbk)去解 fc-list 的 utf-8 输出，读取线程抛
+                           #   UnicodeDecodeError 并把整段 traceback 打到 stderr ——
+                           #   每次 import svg_lib 都刷一屏红字（实测），而这里明明
+                           #   有 except 兜底，用户看到却以为坏了。
+                           encoding="utf-8", errors="replace")
         if r.returncode == 0:
             got = _pick(r.stdout)
             if got:

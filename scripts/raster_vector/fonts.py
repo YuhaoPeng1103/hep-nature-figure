@@ -37,6 +37,41 @@ _CAND_MATH = [
 ]
 
 
+def _family_of(path):
+    """从 TTF/OTF 里读**真正的** family name。
+
+    ★ 实测坑：环境变量覆盖分支原来写死
+      `"Arial" if "arial" in p.lower() else "Liberation Sans"`，
+      于是 `HEP_VEC_FONT=DejaVuSans.ttf` 会在 SVG 里写
+      `font-family="Liberation Sans"`，而量字宽用的是 DejaVuSans.ttf ——
+      两者字宽不同，**文字整体错位，而且完全静默**。
+      本模块的头号纪律就是「量字宽的字体必须和 SVG 里写的族名一致」，
+      所以族名只能从字体文件本身读，不能靠文件名猜。
+    fontTools 本来就是本包的依赖（labels.py 用它读 hmtx），这里不新增依赖。
+    """
+    try:
+        from fontTools.ttLib import TTFont
+        t = TTFont(path, fontNumber=0, lazy=True)
+        try:
+            for rec in t["name"].names:
+                if rec.nameID == 1:
+                    fam = rec.toUnicode().split("\x00")[0].strip()
+                    if fam:
+                        for suf in (" Bold Italic", " Bold Oblique", " Bold",
+                                    " Italic", " Oblique", " Regular", " Light",
+                                    " Medium", " SemiBold"):
+                            if fam.endswith(suf):
+                                fam = fam[: -len(suf)]
+                        return fam
+        finally:
+            t.close()
+    except Exception as e:
+        raise SystemExit("读不出 %s 的 family name（%s）。"
+                         "族名必须和字体文件一致，不能猜 —— 换个字体文件，"
+                         "或修好它的 name 表。" % (path, e))
+    raise SystemExit("%s 的 name 表里没有 family name。" % path)
+
+
 def pick_math():
     """数学符号兜底字体 —— 主字体（Arial）没有 ⊥ ≳ ⟨⟩ 这类字符时用它。
 
@@ -50,7 +85,7 @@ def pick_math():
         if fam is None:
             p = os.environ.get(path)
             if p and os.path.exists(p):
-                _cache["math"] = (p, "DejaVu Sans")
+                _cache["math"] = (p, _family_of(p))
                 return _cache["math"]
             continue
         if os.path.exists(path):
@@ -68,8 +103,7 @@ def pick(bold=False):
         if fam is None:                       # 环境变量覆盖
             p = os.environ.get(path)
             if p and os.path.exists(p):
-                f = "Arial" if "arial" in p.lower() else "Liberation Sans"
-                _cache[bold] = (p, f)
+                _cache[bold] = (p, _family_of(p))
                 return _cache[bold]
             continue
         if os.path.exists(path):

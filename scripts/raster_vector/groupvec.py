@@ -107,6 +107,19 @@ def cell_of(box, idx):
     return int(idx[min(H - 1, int(y + h / 2)), min(W - 1, int(x + w / 2))])
 
 
+def cid_of(box, idx):
+    """框心所在的面板 id；框心不落在任何面板里 → None。
+
+    ★ 实测坑：原来直接写 `P.CELLS[cell_of(...)][0]`。cell_of 在未被面板覆盖的
+      位置返回 -1，而 Python 的负索引会**绕到最后一个面板** —— 文字被静默塞进
+      错误的图层，而且 id 是合法的（`d-t1`），从产物上根本看不出错。
+      实测暴露：把工作分辨率从 1080 提到 2160、但 layers 表仍是 1080 版时，
+      6 条标签全部被塞进最后一个面板 d。
+    """
+    ci = cell_of(box, idx)
+    return P.CELLS[ci][0] if 0 <= ci < len(P.CELLS) else None
+
+
 def main():
     av = sys.argv[1:]
     src, out, wf = av[0], av[1], av[2]
@@ -155,6 +168,28 @@ def main():
     for txt, x0, y0, x1, y1, bold in MANUAL:
         cand.append((x0, y0, x1 - x0, y1 - y0, txt, True, y1, txt))
 
+    # ★ 去重：同一条标签同时出现在词表和 MANUAL 里时（人工修 OCR 错字的常见做法），
+    #   两个候选都会通过逐词自校验 → **同一句话画两遍**，肉眼就是 "Eollision" 这种
+    #   重影（实测由「直出矢量 vs 位图临摹」那张草图对照暴露）。
+    #   MANUAL 是人手写的、更权威，保留它，丢掉与它显著重叠的词表候选。
+    #   阈值 0.35 很宽：两条**不同**的标签不会重叠 35%。
+    def _iou_box(A, B):
+        ax1, ay1 = A[0] + A[2], A[1] + A[3]
+        bx1, by1 = B[0] + B[2], B[1] + B[3]
+        ix = max(0.0, min(ax1, bx1) - max(A[0], B[0]))
+        iy = max(0.0, min(ay1, by1) - max(A[1], B[1]))
+        inter = ix * iy
+        un = A[2] * A[3] + B[2] * B[3] - inter
+        return 0.0 if un <= 0 else inter / un
+
+    mboxes = [(x0, y0, x1 - x0, y1 - y0) for _, x0, y0, x1, y1, _ in MANUAL]
+    if mboxes:
+        n0 = len(cand)
+        cand = [c for c in cand if c[5] or not any(
+            _iou_box((c[0], c[1], c[2], c[3]), mb) > 0.35 for mb in mboxes)]
+        if len(cand) < n0:
+            print("  词表里 %d 条与 MANUAL 重叠，已丢弃（同一句只画一遍）" % (n0 - len(cand)))
+
     kept = []
     for x, y, w, h, txt, bold, blh, raw in cand:
         runs = LB.parse(txt)
@@ -169,7 +204,8 @@ def main():
         if res is None:
             continue
         # 验收：重叠残差要明显优于「不画字」，且渲染墨迹高度与原图一致
-        if res[0] > max(0.14, 0.70 * res[7]["ink"]) or res[7]["dh"] > 2:
+        # dh 的门限按字号缩放 —— 写死 2px 会在高工作分辨率下误杀好拟合（见 labels.dh_lim）
+        if res[0] > max(0.14, 0.70 * res[7]["ink"]) or res[7]["dh"] > LB.dh_lim(res[7]):
             continue
         x0, y0, x1, y1 = LB.word_box((x, y, w, h), Wd, H)
         sub = a[y0:y1, x0:x1].reshape(-1, 3)
@@ -438,9 +474,8 @@ def emit(src, out, man, stats, a, H, Wd, kept, R, K, legend=None, rot=None):
             pinfo["elements"].append(einfo)
             md.append("| `%s` | `%s-%s` | %s | %d,%d,%d,%d | %d | %d |"
                       % (cid, cid, eid, elab, bbox[0], bbox[1], bbox[2], bbox[3], en, epx))
-        mine = [k for k in kept if P.CELLS[cell_of(k["box"], idx)][0] == cid]
-        mrot = [r for r in rot if r.get("ok")
-                and P.CELLS[cell_of(r["box"], idx)][0] == cid]
+        mine = [k for k in kept if cid_of(k["box"], idx) == cid]
+        mrot = [r for r in rot if r.get("ok") and cid_of(r["box"], idx) == cid]
         if mine or mrot:
             text_layers.append((cid, mine, mrot))
             ntxt += len(mine) + len(mrot)
