@@ -12,13 +12,19 @@ Pillow>=10.0
 cairosvg>=2.7          # SVG → PNG/PDF 渲染。★必须用它，PyMuPDF 渲 SVG 会丢渐变
 pymupdf>=1.24          # PDF 几何审计、拼版、从论文切图
 
+# ── 位图 → 矢量（scripts/raster_to_vector_semantic.py）──
+#   numpy + scipy + Pillow + cairosvg + cairocffi + fonttools
+#   ★ 不需要 cv2 / skimage —— 那是下面逐像素描摹（raster_to_vector.py）才要的
+cairocffi>=1.6         # labels.py 栅格化文字做逐词对齐（★必须与成品同渲染器）
+fonttools>=4.40        # labels.py 读字体度量表 —— 量字宽的字体必须与 SVG 写的族名一致
+
 # ── 按用途选装 ──
 matplotlib>=3.7        # 定量图（T1/T2）
-scipy>=1.10            # 统计、插值
+scipy>=1.10            # 统计、插值；raster_vector 的连通域/元素切分也用它
 shapely>=2.0           # geom.py 的布尔运算（无它时 blob()/poly_to_path() 仍可用）
 PyYAML>=6.0            # 读 IR 的 yaml。无它时门禁自动跳过结构断言，不阻断
-opencv-python>=4.8     # raster_to_vector.py 描摹（无 skimage 时用它）
-scikit-image>=0.21     # raster_to_vector.py 描摹的备选后端（二选一即可）
+opencv-python>=4.8     # raster_to_vector.py 逐像素描摹（无 skimage 时用它）
+scikit-image>=0.21     # raster_to_vector.py 逐像素描摹的备选后端（二选一即可）
 
 # ── 外部命令（按图型选装，见 scripts/check_tools.py）──
 #   LaTeX (pdflatex)   TikZ / 公式     sudo apt install texlive-latex-recommended texlive-pictures

@@ -1,0 +1,419 @@
+# -*- coding: utf-8 -*-
+"""groupvec.py —— 位图 -> 「按物理语义分组」的全矢量 SVG
+
+产物结构（Illustrator 图层面板可直接按名字点选/改色/改字）:
+
+  <g id="figure">
+    <rect id="canvas-background"/>
+    <g id="title"> ... </g>
+    <g id="panel-a" data-panel="a" data-role="transverse" data-label="...">
+      <g id="panel-a-gray"   data-family="gray">   <path id="panel-a-gray1" data-color="#c1c2c4"/> </g>
+      <g id="panel-a-orange" data-family="orange"> <path id="panel-a-orange1"/> </g>
+      <g id="panel-a-text"   data-role="text">     <text id="panel-a-t1">...</text> </g>
+    </g>
+
+用法:
+  python groupvec.py src.png out.svg _words.txt [--W 1200] [--R 16] [--K 7]
+                      [--erase] [--manifest out.json] [--stats]
+"""
+import sys, os, json, colorsys
+import numpy as np
+from PIL import Image, ImageDraw, ImageFont
+from . import quadtree as Q
+from . import raster_ops as V
+from . import labels as LB
+from . import panels as P
+
+_FAM = [(0, 16, "red"), (16, 45, "orange"), (45, 70, "yellow"), (70, 165, "green"),
+        (165, 200, "cyan"), (200, 262, "blue"), (262, 300, "purple"),
+        (300, 345, "magenta"), (345, 361, "red")]
+
+
+def cname(r, g, b):
+    """RGB -> 人读颜色族名（用于图层命名）"""
+    h, s, v = colorsys.rgb_to_hsv(r / 255.0, g / 255.0, b / 255.0)
+    if v >= 0.99 and s < 0.02:
+        return "white"
+    if v <= 0.10:
+        return "black"
+    if s < 0.10:
+        return "gray"
+    deg = h * 360.0
+    base = "misc"
+    for lo, hi, nm in _FAM:
+        if lo <= deg < hi:
+            base = nm
+            break
+    if v < 0.38:
+        base = "dk" + base
+    elif v > 0.92 and s < 0.30:
+        base = "lt" + base
+    return base
+
+
+def _dbg_font(sz):
+    """自检图上写标签用的字体（找不到就退回 PIL 默认）"""
+    try:
+        from . import fonts
+        return ImageFont.truetype(fonts.pick(True)[0], sz)
+    except Exception:
+        return ImageFont.load_default()
+
+
+def hexs(c):
+    return "#%02x%02x%02x" % tuple(c)
+
+
+def runs_cells(a, R, K, cells):
+    """四叉树叶块 -> 同色水平合并的矩形条 -> 按 (cell 索引, 颜色) 归并"""
+    from itertools import groupby
+    me, leaves = Q.build(a, R, K)
+    H, W = a.shape[:2]
+    out, nleaf = {}, 0
+    rects_cells = [(c[3][0], c[3][1], c[3][2], c[3][3]) for c in cells]
+    for k in range(K + 1):
+        if not leaves[k]:
+            continue
+        s = 1 << k
+        m = me[k]
+        nleaf += len(leaves[k])
+        for r, grp in groupby(sorted(leaves[k]), key=lambda t: t[0]):
+            row = [j for _, j in grp]
+            start = 0
+            for t in range(1, len(row) + 1):
+                # 必须「列相邻 + 同色」才合并：保证矩形严格不相交 => 渲染与出图顺序无关
+                if (t == len(row) or row[t] != row[t - 1] + 1
+                        or not np.array_equal(m[r, row[t]], m[r, row[t - 1]])):
+                    j0, j1 = row[start], row[t - 1] + 1
+                    x0, x1 = min(j0 * s, W), min(j1 * s, W)
+                    y0, y1 = min(r * s, H), min((r + 1) * s, H)
+                    if x1 > x0 and y1 > y0:
+                        c = m[r, row[start]]
+                        key = (int(round(c[0])), int(round(c[1])), int(round(c[2])))
+                        # 粗块可能跨出所属面板：按面板边界切开，避免后画的组盖住别组的文字
+                        for ci, (cx0, cy0, cx1, cy1) in enumerate(rects_cells):
+                            ax0, ay0 = max(x0, cx0), max(y0, cy0)
+                            ax1, ay1 = min(x1, cx1), min(y1, cy1)
+                            if ax1 > ax0 and ay1 > ay0:
+                                out.setdefault((ci, key), []).append(
+                                    (ax0, ay0, ax1 - ax0, ay1 - ay0))
+                    start = t
+    return out, nleaf
+
+
+def cell_of(box, idx):
+    x, y, w, h = box
+    H, W = idx.shape
+    return int(idx[min(H - 1, int(y + h / 2)), min(W - 1, int(x + w / 2))])
+
+
+def main():
+    av = sys.argv[1:]
+    src, out, wf = av[0], av[1], av[2]
+
+    def opt(name, dflt):
+        return type(dflt)(av[av.index(name) + 1]) if name in av else dflt
+
+    W = opt("--W", 1200); R = opt("--R", 16.0); K = opt("--K", 7)
+    erase = "--erase" in av
+    man = opt("--manifest", "t301_grouped.json")
+    stats = "--stats" in av
+
+    # 版式表可以外挂：--panels my_panels.py（不传就用包里的 T3-01 示例）
+    pmod = opt("--panels", "")
+    if pmod:
+        import importlib.util
+        spec = importlib.util.spec_from_file_location("user_panels", pmod)
+        mod = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(mod)
+        globals()["P"] = mod
+        print("  版式表: %s" % pmod)
+
+    im = Image.open(src).convert("RGB"); OW, OH = im.size
+    im = im.resize((W, int(round(im.height * W / im.width))), Image.LANCZOS)
+    a = np.asarray(im).astype(np.float32); H, Wd = a.shape[:2]
+    sc = Wd / OW
+    print("图像 %dx%d | 四叉树 R=%s 最粗 %dpx | 源 %dx%d" % (Wd, H, R, 1 << K, OW, OH))
+
+    # ---------- 1. 文字：OCR + 修正表 + 手工标签 -> 对齐 + 自校验 ----------
+    if "--no-text" in av or wf == "-" or not os.path.exists(wf):
+        sw = []
+        print("  跳过文字层（%s）—— 原字笔画会留在色块矢量里"
+              % ("--no-text" if "--no-text" in av else "没有词表"))
+    else:
+        sw = V.read_words(wf, sc * 0.5)
+    cand = []
+    for x, y, w, h, t in sw:
+        if t in LB.DROP:
+            continue
+        cand.append((x, y, w, h, LB.FIX.get(t, t), False, None, t))
+    for txt, x0, y0, x1, y1, bold in LB.MANUAL:
+        cand.append((x0, y0, x1 - x0, y1 - y0, txt, True, y1, txt))
+
+    kept = []
+    for x, y, w, h, txt, bold, blh, raw in cand:
+        runs = LB.parse(txt)
+        if any(not LB.has_glyph(c, bold) for c in LB.plain(runs)):
+            continue
+        raw_runs = None if bold else LB.parse(raw)
+        res = LB.align(a, (x, y, w, h), runs, bold=bold, bl_hint=blh, raw_runs=raw_runs)
+        if res is None:
+            continue
+        # 验收：重叠残差要明显优于「不画字」，且渲染墨迹高度与原图一致
+        if res[0] > max(0.14, 0.70 * res[7]["ink"]) or res[7]["dh"] > 2:
+            continue
+        x0, y0, x1, y1 = LB.word_box((x, y, w, h), Wd, H)
+        sub = a[y0:y1, x0:x1].reshape(-1, 3)
+        col = sub[sub.mean(1).argmin()]
+        kept.append(dict(box=(x, y, w, h), runs=runs, bold=bold, res=res,
+                         color="#%02x%02x%02x" % tuple(int(v) for v in col), raw=raw))
+    print("  文字对象 %d 个（OCR+手工候选 %d，逐词自校验通过）" % (len(kept), len(cand)))
+
+    # ---------- 2. 擦掉被替换成真文字的原字笔画 ----------
+    if erase:
+        boxes = [k["box"] for k in kept]
+        mm = V.text_mask((H, Wd), [(x, y, w, h, ".") for x, y, w, h in boxes], 1.0,
+                         pad=2, ink=V.ink_map(a))
+        # 还要擦掉"重写文字实际占用的范围"：如 'Area'->'Area:' 补的冒号会压在原图冒号上
+        rb = [k["res"][7]["rect"] for k in kept if k["res"][7].get("rect")]
+        if rb:
+            rb = [(x0 - 2, y0 - 2, x1 + 2, y1 + 2) for x0, y0, x1, y1 in rb]
+            mm |= V.text_mask((H, Wd), [(x0, y0, x1 - x0, y1 - y0, ".") for x0, y0, x1, y1 in rb],
+                              1.0, pad=1, ink=V.ink_map(a))
+        a = V.inpaint(a, mm, sig=3.0)
+        print("  已擦除原字笔画 %.2f%%（补背景后重建色块）" % (100 * mm.mean()))
+    if "--elmap" in av:
+        dump_elements(a, R, K, opt("--elmap", "_elem_overlay.png"))
+        return
+    if "--npz" in av:
+        p = opt("--npz", "_prep.npz")
+        np.savez_compressed(p, a=np.clip(a, 0, 255).astype(np.uint8))
+        print("  已缓存预处理结果(擦字后) -> %s" % p)
+        return
+    if "--segs" in av:
+        from . import segsem
+        segsem.dump(a, P.CELLS, gap=int(opt("--gap", 6)), tol=float(opt("--tol", 52)),
+                    out_png=opt("--el_png", "_el_overlay.png"),
+                    out_txt=opt("--el_txt", "_el_table.txt"))
+        return
+    return emit(src, out, man, stats, a, H, Wd, kept, R, K, opt("--legend", ""))
+
+
+# ------------------------------------------------------------------ 元素归组
+def assign_elements(a, R, K):
+    """两段式：自动切分定形状 + panels.ELEMENTS 定名字（按 bbox 的 IoU 匹配）
+    返回 (per, labels, nleaf)：per[cid][eid][col] = [rect...]，labels[(cid,eid)] = 人读说明"""
+    from . import elements as ELC
+    H, W = a.shape[:2]
+    res = ELC.discover(a)
+    eid_full = np.full((H, W), -1, np.int32)
+    flat = []
+    for cid in P.order():
+        el, elems = res[cid]
+        for k, e in enumerate(elems):
+            eid, label = P.element_of(cid, e["bbox"], e["color"])
+            if eid is None:
+                eid, label = "graphics", "Panel graphics"
+            flat.append((cid, eid, label))
+            eid_full[el == k] = len(flat) - 1
+    # 已命名元素内部再按颜色切细（曲面上的坐标轴 / 引线这类细线）
+    for (cid, eid), subs in P.SPLIT.items():
+        if eid == "*":          # 整个面板范围（可从未被正确命名的元素里捞出红箭头等）
+            cidx = P.cell_index(H, W)
+            gi = [i for i, c in enumerate(P.CELLS) if c[0] == cid]
+            mask = np.isin(cidx, gi)
+        else:
+            ids = [v for v, (c, e, l) in enumerate(flat) if c == cid and e == eid]
+            if not ids:
+                continue
+            mask = np.isin(eid_full, ids)
+        for (eid2, label2, spec) in subs:
+            m2 = mask & P.pixel_pred(a, spec)
+            if not m2.any():
+                continue
+            flat.append((cid, eid2, label2))
+            eid_full[m2] = len(flat) - 1
+            mask = mask & ~m2
+    bg = {}
+    for v, (cid, eid, label) in enumerate(flat):
+        if eid == "background" or eid == "graphics":
+            bg[cid] = v
+    groups, nleaf = runs_cells(a, R, K, P.CELLS)
+    per, labels = {}, {}
+    for (ci, col), rects in groups.items():
+        cid = P.CELLS[ci][0]
+        for r in rects:
+            cx = min(W - 1, int(r[0] + r[2] / 2.0))
+            cy = min(H - 1, int(r[1] + r[3] / 2.0))
+            v = int(eid_full[cy, cx])
+            if v < 0:
+                v = bg.get(cid, -1)
+            if v < 0:
+                continue
+            _, eid, label = flat[v]
+            per.setdefault(cid, {}).setdefault(eid, {}).setdefault(col, []).append(r)
+            labels[(cid, eid)] = label
+    return per, labels, nleaf
+
+
+def elem_order(cid, per):
+    """元素输出顺序 = panels.ELEMENTS 的语义顺序；表外元素按像素量降序排最后"""
+    tbl = [e[0] for e in P.ELEMENTS.get(cid, [])]
+    have = list(per.get(cid, {}).keys())
+    out = [e for e in tbl if e in have]
+    extra = sorted([e for e in have if e not in out],
+                   key=lambda e: -sum(len(v) for v in per[cid][e].values()))
+    return out + extra
+
+
+def elem_bbox(per_cid_e):
+    x0 = y0 = 10 ** 9; x1 = y1 = -1
+    for col, rects in per_cid_e.items():
+        for (x, y, w, h) in rects:
+            x0 = min(x0, x); y0 = min(y0, y)
+            x1 = max(x1, x + w); y1 = max(y1, y + h)
+    return (x0, y0, x1, y1)
+
+
+def dump_elements(a, R, K, out_png="_elem_overlay.png"):
+    """元素归组自检图：每个物理元素一种颜色 + 名字（画的是最终 SVG 的元素划分）"""
+    per, labels, nleaf = assign_elements(a, R, K)
+    H, W = a.shape[:2]
+    vis = np.full((H, W, 3), 255, np.uint8)
+    rng = np.random.RandomState(17)
+    rows = []
+    for cid in P.order():
+        for eid in elem_order(cid, per):
+            col = rng.randint(60, 256, 3)
+            for c, rects in per[cid][eid].items():
+                for (x, y, w, h) in rects:
+                    vis[y:y + h, x:x + w] = col
+            npx = sum(w * h for rs in per[cid][eid].values() for (_, _, w, h) in rs)
+            nrect = sum(len(rs) for rs in per[cid][eid].values())
+            rows.append("%-14s %-20s px=%-8d rects=%-6d %s"
+                        % (cid, eid, npx, nrect, labels.get((cid, eid), "")))
+    im = Image.fromarray(vis)
+    d = ImageDraw.Draw(im)
+    f = _dbg_font(15)
+    for cid in P.order():
+        for eid in elem_order(cid, per):
+            x0, y0, x1, y1 = elem_bbox(per[cid][eid])
+            cx, cy = (x0 + x1) // 2, (y0 + y1) // 2
+            d.text((cx + 1, cy + 1), eid, fill=(0, 0, 0), font=f)
+            d.text((cx, cy), eid, fill=(255, 255, 0), font=f)
+    im.save(out_png)
+    open("_elem_table.txt", "w", encoding="utf-8").write("\n".join(rows))
+    print("写出 %s / _elem_table.txt" % out_png)
+    return rows
+
+
+# ------------------------------------------------------------------ 输出
+def emit(src, out, man, stats, a, H, Wd, kept, R, K, legend=None):
+    idx = P.cell_index(H, Wd)
+    meta, order = P.meta(), P.order()
+    per, labels, nleaf = assign_elements(a, R, K)
+    for cid in order:
+        per.setdefault(cid, {})
+    nrun = sum(len(rs) for cid in order for e in per[cid].values() for rs in e.values())
+    npath = sum(len(e) for cid in order for e in per[cid].values())
+    nelem = sum(len(per[cid]) for cid in order)
+    print("  叶块 %d -> 色块 %d 条 -> <path> %d 条 | 面板 %d | 物理元素 %d"
+          % (nleaf, nrun, npath, len(order), nelem))
+
+    title = meta["title"]["desc"]
+    L = ['<?xml version="1.0" encoding="UTF-8"?>',
+         '<svg xmlns="http://www.w3.org/2000/svg" '
+         'xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape" '
+         'width="%d" height="%d" viewBox="0 0 %d %d">' % (Wd, H, Wd, H),
+         '<title>%s</title>' % LB.xml_esc(title),
+         '<desc>全矢量图：文字为可编辑的真 text 元素，其余为逐像素临摹的色块矢量。'
+         '图层 = 面板(panel) -> 物理元素(element) -> 颜色族(color family)；'
+         '每个面板另有 text 子层。元素命名见 panels.py 的 ELEMENTS 表。</desc>',
+         '<g id="figure" data-role="figure" inkscape:groupmode="layer" inkscape:label="Figure">',
+         '<rect id="canvas-background" x="0" y="0" width="%d" height="%d" fill="#ffffff"/>' % (Wd, H)]
+    manifest = {"source": os.path.basename(src), "canvas": [Wd, H], "panels": []}
+    ntxt = 0
+    md = ["# 图层清单 — %s" % os.path.basename(out), "",
+          "图层树：`面板 panel` → `物理元素 element` → `颜色族 color family`。",
+          "在 Illustrator 里打开「图层」面板即可按下面的名字点选；在 Inkscape 里是子图层。", "",
+          "| 面板 | 物理元素 | 说明 | 包围盒 (x0,y0,x1,y1) | 路径数 | 像素 |", "|---|---|---|---|---|---|"]
+    for cid in order:
+        m = meta[cid]
+        L.append('<g id="%s" data-role="%s" data-panel="%s" data-label="%s" '
+                 'inkscape:groupmode="layer" inkscape:label="%s">'
+                 % (cid, m["role"], m["panel"] or "-", LB.xml_esc(m["desc"]), LB.xml_esc(cid)))
+        L.append('<title>%s</title>' % LB.xml_esc(m["desc"]))
+        L.append('<desc>%s</desc>' % LB.xml_esc(m["desc"]))
+        pinfo = {"id": cid, "panel": m["panel"], "role": m["role"], "label": m["desc"],
+                 "rects": m["rects"], "elements": []}
+        for eid in elem_order(cid, per):
+            elab = labels.get((cid, eid), eid)
+            epx = sum(w * h for rs in per[cid][eid].values() for (_, _, w, h) in rs)
+            en = sum(len(rs) for rs in per[cid][eid].values())
+            bbox = elem_bbox(per[cid][eid])
+            L.append('<g id="%s-%s" data-element="%s" data-label="%s" data-px="%d" '
+                     'data-paths="%d" data-bbox="%d,%d,%d,%d" '
+                     'inkscape:groupmode="layer" inkscape:label="%s">'
+                     % (cid, eid, eid, LB.xml_esc(elab), epx, en, bbox[0], bbox[1], bbox[2], bbox[3],
+                        LB.xml_esc(elab)))
+            L.append('<title>%s</title>' % LB.xml_esc(elab))
+            einfo = {"id": eid, "label": elab, "bbox": list(bbox), "px": epx,
+                     "paths": en, "families": []}
+            fams = {}
+            for col, rects in per[cid][eid].items():
+                fams.setdefault(cname(*col), []).append((col, rects))
+            for fam in sorted(fams, key=lambda f: -sum(len(r) for _, r in fams[f])):
+                items = sorted(fams[fam], key=lambda t: -sum(w * h for _, _, w, h in t[1]))
+                L.append('<g id="%s-%s-%s" data-family="%s" data-paths="%d" data-px="%d">'
+                         % (cid, eid, fam, fam, len(items), sum(len(r) for _, r in items)))
+                for i, (col, rects) in enumerate(items, 1):
+                    d = "".join("M%d %dh%dv%dh-%dz" % (x, y, w, h, w) for x, y, w, h in rects)
+                    px = sum(w * h for _, _, w, h in rects)
+                    L.append('<path id="%s-%s-%s%d" data-color="%s" data-px="%d" fill="%s" d="%s"/>'
+                             % (cid, eid, fam, i, hexs(col), px, hexs(col), d))
+                L.append('</g>')
+                einfo["families"].append({"name": fam, "paths": len(items),
+                                          "px": sum(len(r) for _, r in items)})
+            L.append('</g>')
+            pinfo["elements"].append(einfo)
+            md.append("| `%s` | `%s-%s` | %s | %d,%d,%d,%d | %d | %d |"
+                      % (cid, cid, eid, elab, bbox[0], bbox[1], bbox[2], bbox[3], en, epx))
+        mine = [k for k in kept if P.CELLS[cell_of(k["box"], idx)][0] == cid]
+        if mine:
+            L.append('<g id="%s-text" data-role="text" data-count="%d" '
+                     'inkscape:groupmode="layer" inkscape:label="%s (text)">' % (cid, len(mine), cid))
+            for i, k in enumerate(mine, 1):
+                L.append(LB.svg(k["res"], k["runs"], k["color"], k["bold"],
+                                elem_id="%s-t%d" % (cid, i),
+                                extra=' data-plain="%s"' % LB.xml_esc(LB.plain(k["runs"]))))
+            L.append('</g>')
+            ntxt += len(mine)
+            pinfo["texts"] = len(mine)
+            md.append("| `%s` | `%s-text` | text layer (%d editable <text>) | - | %d | - |"
+                      % (cid, cid, len(mine), len(mine)))
+        L.append('</g>')
+        manifest["panels"].append(pinfo)
+    L.append('</g>')
+    L.append('</svg>')
+    open(out, "w", encoding="utf-8").write("\n".join(L))
+    manifest["stats"] = {"paths": npath, "rects": nrun, "texts": ntxt,
+                         "leaves": nleaf, "elements": nelem}
+    json.dump(manifest, open(man, "w", encoding="utf-8"), ensure_ascii=False, indent=1)
+    if legend:
+        md += ["", "## 怎么改", "",
+               "- 改某个物理内容（火球 / 核子 / 流箭头 / 曲面 / 坐标轴 / 介质管…）：选中对应 `panel-element` 图层改颜色或形状。",
+               "- 改文字：选中 `panel-text` 里的真 `<text>`，字体、字号、内容都可直接编辑。",
+               "- 要重命名/调整元素范围：编辑 `panels.py` 的 `ELEMENTS`（框 + 颜色条件）与 `SPLIT`，再重跑 groupvec.py。"]
+        open(legend, "w", encoding="utf-8", newline="\n").write("\n".join(md) + "\n")
+        print("  %s 图层清单(可读版)" % legend)
+    print("  %s %.2f MB | <path> %d | <text> %d | <image> 0"
+          % (out, os.path.getsize(out) / 1048576.0, npath, ntxt))
+    print("  %s 图层清单" % man)
+    if stats:
+        for p in manifest["panels"]:
+            top = ", ".join('%s(%d)' % (e["id"], e["paths"]) for e in p["elements"][:8])
+            print("    %-16s 元素 %2d  %s" % (p["id"], len(p["elements"]), top))
+
+
+if __name__ == "__main__":
+    main()

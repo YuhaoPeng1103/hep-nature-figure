@@ -20,6 +20,60 @@ except ImportError:
     sys.exit("需要 PyMuPDF：pip install pymupdf")
 
 
+# ── 位图门禁 ───────────────────────────────────────────────────────
+# 位图本身不违规（照片、3D 渲染、SEM 图本来就是位图），Nature 也收。
+# 违规的是「**本该是矢量却被栅格化**」。所以门禁分三条，缺一即失败：
+#   ① 位图只能出现在受控区域 —— 单张盖住整页 = 整页被栅格化，拒收
+#   ② 有效 dpi 有下限 —— 拿像素数 ÷ 物理尺寸实算，不看"标称 dpi"
+#   ③ 必须有矢量轮廓 —— 位图之外页面还得有可编辑的矢量内容
+DPI_MIN = 300        # Nature 对连续调位图的下限
+DPI_LINE = 600       # 线条图 / 半调图建议下限
+COVER_FAIL = 0.90    # 单张位图占页比例 ≥ 它就判失败（受控区域原则）
+COVER_WARN = 0.50
+
+
+def check_bitmaps(page, n_draw, n_xobj):
+    """位图只允许在受控区域 + dpi 达标 + 有矢量轮廓。返回是否通过。"""
+    infos = page.get_image_info()
+    if not infos:
+        return True
+    pw, ph = page.rect.width, page.rect.height
+    area = max(pw * ph, 1e-6)
+    print("  ── 位图逐张 ──")
+    ok = True
+    for k, inf in enumerate(infos):
+        bb = fitz.Rect(inf["bbox"])
+        w_px, h_px = inf.get("width", 0), inf.get("height", 0)
+        w_in = bb.width / 72
+        # ★ 有效 dpi 必须实算：PDF 里的 /Width 只说明像素数，与版面上
+        #   放多大无关。同一张 600px 图放 1cm 是 1524dpi，放 20cm 只有 76dpi。
+        dpi = (w_px / w_in) if w_in > 1e-6 else 0.0
+        cover = (bb.width * bb.height) / area
+        flag = "✅"
+        if dpi < DPI_MIN:
+            flag = "❌"
+            ok = False
+        elif dpi < DPI_LINE:
+            flag = "⚠️"
+        print(f"   #{k}  {bb.width/72*25.4:.0f}×{bb.height/72*25.4:.0f} mm  "
+              f"{w_px}×{h_px} px  →  有效 {dpi:.0f} dpi  "
+              f"占页 {cover*100:.0f}%  {flag}")
+        if dpi < DPI_MIN:
+            print(f"        ❌ 有效 dpi {dpi:.0f} < {DPI_MIN} —— "
+                  f"低于 Nature 下限，印出来会糊")
+        elif dpi < DPI_LINE:
+            print(f"        ⚠️  有效 dpi {dpi:.0f} < {DPI_LINE} —— "
+                  f"连续调图够用；若是线条/半调图会被质疑")
+        if cover > COVER_FAIL:
+            print(f"        ❌ 这一张就盖住 {cover*100:.0f}% 的页面 —— "
+                  f"等于整页被栅格化，美术团队改不动任何东西")
+            ok = False
+        elif cover > COVER_WARN:
+            print(f"        ⚠️  大幅面位图（占页 {cover*100:.0f}%）—— "
+                  f"确认它不是「本该是矢量」的部分")
+    return ok
+
+
 def check_pdf(path):
     p = Path(path)
     doc = fitz.open(p)
@@ -40,18 +94,21 @@ def check_pdf(path):
         print(f"  嵌入位图  {n_img} 个")
         print(f"  可提取文字 {len(txt)} 字符")
 
-        # 判定
-        if n_img > 0:
-            print(f"  ⚠️  含 {n_img} 个位图 —— 确认这是故意的高 dpi 图，"
-                  f"不是被栅格化的矢量")
+        # 判定 —— 位图要过三道闸，不是"提醒一下"就放行
+        raster_ok = check_bitmaps(page, n_draw, n_xobj)
         if n_draw < 5 and n_xobj == 0:
             print("  ❌ 几乎没有矢量内容 —— 可能整页被栅格化")
             ok = False
         elif not txt:
             print("  ⚠️  提取不到文字 —— 文字可能被转成了轮廓，"
                   "美术团队无法重新排版")
+            ok &= raster_ok
+        elif not raster_ok:
+            ok = False
         else:
-            print("  ✅ 矢量 + 文字可编辑")
+            print("  ✅ 矢量轮廓齐全"
+                  + (" + 位图在受控区域" if n_img else "（纯矢量）")
+                  + " + 文字可编辑")
         # 字号下限
         sizes = set()
         for b in page.get_text("dict")["blocks"]:

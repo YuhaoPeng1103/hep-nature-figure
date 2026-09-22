@@ -72,6 +72,39 @@ texts:
   - {content: "escaping jet", x: 0.62, y: 0.10, size: 13, anchor: start}
 ```
 
+### ★ 临摹的两种粒度：逐像素 vs 先理解
+
+③ 有两个实现，**按图的类型选**：
+
+| | `raster_to_vector.py`（逐像素描摹） | `raster_to_vector_semantic.py`（先理解再临摹） |
+|---|---|---|
+| 文字 | 模型写 `--text-spec` → 擦掉重写 | **OCR 词表 + 逐词对齐**（字号/字距/位置自动估） |
+| 图层 | `--groups`（模型给代表点） | `panels.py` 的 **ELEMENTS 表** → 面板/元素/颜色族三层树 |
+| 忠实度 | 高 | 非文字区 MAE **0.227**、>32 色阶像素 **0.00%** |
+| 误差验收 | 要自己量 | **自带** MAE / PSNR / `--check` 回渲染 |
+| 依赖 | cv2 / skimage | numpy / scipy / Pillow / cairosvg / cairocffi / fontTools |
+| 适合 | 通用 | 色块 + 硬边的渲染示意图 |
+
+**要「人能直接点选某个物理元素改它」→ 用 semantic 那条** —— 它出的是
+panel → element → color family 的**命名图层树**，`--legend` 给可读清单，
+`--elmap` 出元素划分自检图（人眼确认名字有没有贴对物体）。
+
+代价：**要人写两张每图各不相同的表** —— `words.txt`（OCR 词表）和
+`panels.py`（面板框 + 物理元素框 + 颜色条件）。自动切分只定"形状"，
+**"这块叫什么物理名字"必然要人来写**。这是它比纯描摹贵、也比纯描摹准的地方。
+
+```bash
+# ① 出词表（Windows.Media.Ocr，自动 2× 放大）
+powershell -File scripts/raster_vector/ocr_words.ps1 -Image fig.png -Out words.txt
+# ② 照 scripts/raster_vector/panels.py 改出这张图的 CELLS / ELEMENTS / SPLIT
+# ③ 组装 + 自检
+python3 scripts/raster_to_vector_semantic.py fig.png -o fig.svg --words words.txt \
+        --panels my_panels.py --legend fig_layers.md --elmap fig_el.png --check
+```
+
+> ⚠️ 两条路都**做不出真渐变网格**。原图的连续渐变在矢量里只能是色阶台阶
+> （调小 `--R` 变细，代价是路径数/体积）或真 `<gradient>`（要求图能拆成图元）。
+
 ### ★ 物理检查要在【最终矢量】上做
 
 **位图对 ≠ 重画出来的对。** 实测（`sketch2nature_demo/`）：同一模型从位图重画时，
@@ -382,21 +415,23 @@ python3 scripts/repair_brief.py fig.svg --profile assets/style-profiles.json
 > 两次漂移机会；第二次是"看着第一次的图再画"，可能二次解释、进一步偏离。
 > **先用它跑一张对比，再决定要不要固化。**
 
-### ★ 为什么"临摹"必须由模型做，不能交给描摹脚本
+### ★ 「临摹」有两条实现，别混用
 
-实测过（`raster_to_vector.py`，拿真实期刊图跑的）：
+| | `raster_to_vector.py`（逐像素描摹） | `raster_to_vector_semantic.py`（先理解再临摹） | 模型看图重画 |
+|---|---|---|---|
+| 原理 | 等高线 → 填色路径，**没有"理解"** | 自动切分定形状 + 人写元素表命名 | 看懂"这是圆/这是字"再写 |
+| 文字 | 模型写 `--text-spec` 后擦掉重写 | **OCR + 逐词对齐**，自动定位 | 真 `<text>` |
+| 渐变 | 退化成色阶台阶 | 色阶台阶，但**误差可量化可调**（`--R`） | 真 `<gradient>` |
+| 图层 | 按**颜色**分，`--groups` 可归组 | 按**物理元素**分（命名图层树） | 按**语义**分 |
+| 复现 | 逐字节相同 | **逐字节相同**（已实测三次） | 两次不一样 |
 
-| | 像素描摹脚本 | 模型看图重画 |
-|---|---|---|
-| 原理 | 等高线 → 填色路径，**没有"理解"** | 看懂"这是圆/这是字/这是渐变"再写 |
-| 文字 | **碎成色块** | 真 `<text>` |
-| 渐变 | **退化成色阶台阶** | 真 `<gradient>` |
-| 图层 | 只能按**颜色**分 | 按**语义**分 |
+- 图**能拆成图元** → 模型写 IR / 直接写 SVG，渐变是真渐变
+- 图是**渲染质感** → 上面两条临摹，忠实度最高
+- **要人能直接改某个物理元素** → semantic 那条
 
-**这是方法的差别，不是调参能补的。** `raster_to_vector.py` 只当兜底。
-
-> 另外：描摹脚本依赖 `cv2`/`skimage`，而 **ChatGPT 沙箱里没有**——
-> 那条环境走模型重画。
+> 依赖：semantic 那条只要 `numpy scipy Pillow cairosvg cairocffi fontTools`，
+> **不需要 cv2/skimage**。`raster_to_vector.py` 才需要 `cv2`/`skimage`，
+> 而 **ChatGPT 沙箱里两者都没有** —— 那条环境只能走模型重画。
 
 
 ### ★ 参考图 vs 画法规律：**能直接给图就别提炼**
@@ -517,6 +552,7 @@ python3 scripts/auto_converge.py --ref 参考图.png \
 - ☐ 元素清单逐条对上，无遗漏无多余
 - ☐ 渲染无静默失败（渐变非纯黑、文字无豆腐块）
 - ☐ 导出矢量；单面板 `get_images()==0`；复合图看 `get_xobjects()>0`
+  （`check_delivery.py` 现在**阻断**：整页被位图覆盖、有效 dpi <300、位图之外无矢量轮廓）
 - ☐ 文字可提取（不是被转成轮廓）
 - ☐ 面板标号由拼版层加，面板内部不重复画
 
@@ -574,3 +610,5 @@ python3 scripts/auto_converge.py --ref 参考图.png \
 | `cartoon_lib.py` | **卡通图元库**（20 图元 + 全局光照模型）。做"草图→卡通图"这条线时用 |
 | `ir_to_scene.py` | **IR → 可运行构图骨架**，含 `--check` 校验（primitives/散文 params/签名不符） |
 | `repro_T3-03_param.py` | 参数化复现脚本（供 auto_converge 驱动），可作模板 |
+| `raster_to_vector.py` | **位图 → 矢量（临摹主路径）**：逐像素描摹 + 混合文字（`--text-spec`）+ 语义归组（`--groups`） |
+| `raster_to_vector_semantic.py` | **位图 → 语义分层的全矢量**（先理解再临摹）：真 `<text>`、物理元素图层树、误差可量化。库在 `scripts/raster_vector/`，用法见其 `README.md` |

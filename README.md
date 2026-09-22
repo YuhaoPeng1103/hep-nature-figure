@@ -72,16 +72,21 @@
 ② 选路线产生内容
    A  模型直接写 SVG         B1 生图当草图 → 检查 → 绘画         B2 B1 + 成品位图
    ↓
-③ ★ Scene Graph 提取 → 确定性重组（三条路在这里汇合）
-   模型看懂 → 写结构化描述 → scene_render.py 重组 → SVG
-   同一份 Scene Graph → 逐字节相同的 SVG
+③ ★ 确定性重组（三条路在这里汇合），两种粒度：
+   对象级：模型看懂 → 写 Scene Graph → scene_render.py 重组 → SVG
+   像素级：位图 → raster_to_vector_semantic.py（自动切分定形状 + 人写元素表命名）→ SVG
+   两者的同一份输入两次跑 → 逐字节相同的 SVG
    ↓
 ④ 三道门禁 + 返修单 → 交付（SVG 工作稿 + PDF 交付稿）
 ```
 
 **为什么要有第 ③ 环**：「位图 → 矢量」这一步，像素描摹**没有理解**
 （文字碎成色块、渐变退化成色阶），而让模型直接重画**不忠实、不确定**
-（漂移、自己发明）。所以拆开：**模型负责看懂，代码负责重组。**
+（漂移、自己发明）。所以拆开：**人/模型负责看懂，代码负责重组。**
+
+**两种粒度各管一摊**：图能拆成图元（圆/圆柱/箭头/轴）就用 Scene Graph，
+渐变是**真** `<gradient>`；图是渲染质感（光照/体积/有机纹理）就用
+`raster_to_vector_semantic.py`，忠实度最高但渐变换成色阶台阶。见下节。
 
 ---
 
@@ -89,7 +94,7 @@
 
 |  | **A：模型写 SVG** | **B1：生图当草图** | **B2：B1 + 成品位图** |
 |---|---|---|---|
-| 流程 | IR → 模型直接写 SVG → 门禁 | IR → 生图简报 → 草图 → 检查 → 绘画 | B1 + 成品位图 → 临摹 |
+| 流程 | IR → 模型直接写 SVG → 门禁 | IR → 生图简报 → 草图 → 检查 → 绘画 | B1 + 成品位图 → 先理解再临摹 |
 | 观感 | 教科书插画 | 中 | **最好** |
 | 可复现 | 较好 | 中 | **最差**（两次生图） |
 | 物理把关 | IR 全程 | 生图后要核 | 两道闸口 |
@@ -98,9 +103,51 @@
 - **默认走 A**：约束最紧、可复现最好
 - **要质感走 B1**：`ir_to_genbrief.py --stage sketch` → 生图 → `check_sketch.py`
 - **B2 只在 B1 明显不够时上**：多一次生图，也多一次漂移机会
+  （临摹那步本身是确定性的，漂移只来自生图）
 
 > ⚠️ **可复现性尚未验证**：同 prompt 两次输出是否一致，决定这条路能否做**交付**
 > 而不只是**出稿**。这是当前最大的未解问题。
+
+---
+
+## 位图 → 矢量（临摹）
+
+两条临摹路，**按图的类型选**：
+
+| | `raster_to_vector.py`（逐像素描摹） | **`raster_to_vector_semantic.py`（先理解再临摹）** |
+|---|---|---|
+| 文字 | 模型写 `--text-spec` → 擦掉重写 | **真 `<text>`**（OCR 词表 + 逐词对齐 + 擦原笔画） |
+| 图层 | 按**颜色**分，`--groups` 可归组 | 按**物理元素**分（fireball / nucleons / jets / surface …） |
+| 渐变 | 退化成色阶台阶 | 色阶台阶，但**误差可量化可调**（`--R`） |
+| 验收 | 要自己量 | MAE / PSNR / `--check` 回渲染 |
+| 复现 | 逐字节相同 | **逐字节相同**（已实测三次） |
+| 依赖 | cv2 / skimage | numpy / scipy / Pillow / cairosvg / cairocffi / fontTools |
+
+实测（T3-01 Jia2026 Fig.1，1200×1133，4.7 MB）：
+
+| 指标 | 值 |
+|---|---|
+| 非文字区（纯矢量色块）MAE / >32 色阶像素 | **0.227** / **0.00%** |
+| 整图 MAE / PSNR | 1.48 / 26.5 dB |
+| `<path>` / `<text>` / `<image>` | 37930 / 54 / **0** |
+| 图层 | 12 面板 / **50 物理元素** |
+
+```bash
+# ① 出词表（Windows.Media.Ocr，自动 2× 放大）
+powershell -File scripts/raster_vector/ocr_words.ps1 -Image fig.png -Out words.txt
+# ② 照着 scripts/raster_vector/panels.py 改出这张图的 CELLS / ELEMENTS / SPLIT
+# ③ 组装 + 自检
+python3 scripts/raster_to_vector_semantic.py fig.png -o fig.svg --words words.txt \
+        --panels my_panels.py --legend fig_layers.md --elmap fig_el.png --check
+```
+
+> ★ **要人写两张每图各不相同的表**：`words.txt`（OCR 词表）和 `panels.py`
+> （面板框 + 物理元素框 + 颜色条件）。自动切分只负责"形状对不对"，
+> **"这块叫什么物理名字"必须人来写** —— 这是它比纯描摹贵的地方，也是它准的地方。
+
+> ⚠️ **做不出真渐变网格**。原图的连续渐变在矢量里只能是色阶台阶
+> （调小 `--R` 变细，代价是路径数/体积）或真 `<gradient>`（要求图能拆成图元）。
+> 只适合「色块 + 硬边」类图（示意 / 三维渲染示意图）；照片、有机纹理不适合。
 
 ---
 
@@ -217,6 +264,9 @@ python3 scripts/demo_combined.py
 │   ├── check_tools.py           工具能力探测 + 装机指引
 │   ├── check_render.py          渲染静默失败检测（渐变失效/字体丢失都不报错）
 │   ├── check_delivery.py        投稿检查（矢量？文字可编辑？字号达标？）
+│   ├── raster_to_vector.py      位图 → 矢量（临摹主路径）：逐像素 + 混合文字 + --groups
+│   ├── raster_to_vector_semantic.py  ★ 位图 → 语义分层的全矢量 SVG（先理解再临摹）
+│   ├── raster_vector/           上面那条的库（quadtree/labels/elements/panels/groupvec）
 │   ├── compare_ref.py           参考图与成图并排对比
 │   ├── style_bench.py           风格度量与基准比对
 │   ├── auto_converge.py         自动收敛循环（量→定位→修正→复测）
@@ -287,6 +337,10 @@ python3 scripts/extract_figures.py 你的论文.pdf -o refs/
 | 保证投稿合规（矢量、字号、可编辑） | 替代人的审美判断 |
 
 **它提高下限、让失败可见，不替代人。** 最终质量判定仍需人看图。
+
+> 其中「精确复现位置」这一条，`raster_to_vector_semantic.py` 对**平色块图**已经做到
+> （非文字区 MAE 0.227、>32 色阶像素 0.00%）。它做不到的是**连续渐变的平滑**
+> —— 矢量里只能是色阶台阶，或真 `<gradient>`（后者要求图能拆成图元）。
 
 按 Nature 官方美术指南，本来就没有"一步到位的成品"：各面板在各自软件做，
 最后在矢量编辑器里合成，美术团队还可能重画。所以"能直接用"的准确含义是
