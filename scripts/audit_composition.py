@@ -64,7 +64,8 @@ def boxes(page):
                           "fill": fl,
                           "fill_opacity": dr.get("fill_opacity", 1.0),
                           "stroke": dr.get("color"),
-                          "stroke_opacity": dr.get("stroke_opacity", 1.0)})
+                          "stroke_opacity": dr.get("stroke_opacity", 1.0),
+                          "items": dr.get("items", [])})
     return texts, draws, n_bg
 
 
@@ -153,9 +154,47 @@ def check_out_of_bounds(texts, draws, page_rect, margin_pt=1.0):
       3 处「出界」，但 fill 全是白/近白，且 y1 仅超出 0.54pt（Edge 打印时
       像素对齐）。同时临摹稿 ① 文字重叠 0 处、② 线穿文字 0 处。
       不剔除的话，**每一张位图临摹稿都会被误判阻断**。
+
+    ★ 按 **subpath（item）** 判 + 越界部分要有面积 —— 2026-09-26 加。
+      两个实测证据（UPC 临摹稿 upc_q16.pdf，Edge print-to-pdf）：
+        ① 有一条淡紫 path 的 bbox 是 (0, 0, 461.30, 289.50)，看着像"盖住大半个
+           页面还出界"。但它 396 条子路径里**只有 3 条越界**，越界部分的并集是
+           (0.63, 289.19, **0.63**, 289.50) —— **宽为 0**，面积 0。
+           原因：`groupvec` 会把**同色矩形并成一条 path**（体积优化），bbox 是
+           全体子路径的并集。拿并集 bbox 判 =「一处贴边 ⇒ 整条 path 出界」。
+        ② 另一条 (43.36, 1.87, 519.00, 289.50) 同理，越界并集是一条**竖直线段**。
+      所以判据是：**越界部分的面积** > 0.5 pt²。零面积毛边（Edge 像素对齐产生
+      的 hairline）裁掉也看不见，不构成"会被裁"。
     """
     bad = []
     n_white = 0
+    n_sliver = 0
+
+    def _outside_area(r):
+        """r 落在页面外的面积（pt²）。页面内/贴边 ⇒ 0。"""
+        inter = r & page_rect
+        inside = inter.get_area() if not inter.is_empty else 0.0
+        return max(0.0, r.get_area() - inside)
+
+    def _item_rect(it):
+        """一条 subpath（line / curve / rect）的 bbox。"""
+        if it[0] == "re":
+            return it[1]
+        xs, ys = [], []
+        for q in it[1:]:
+            if hasattr(q, "x0"):
+                xs += [q.x0, q.x1]
+                ys += [q.y0, q.y1]
+            # ★ 用 hasattr(q, "x") 而不是 `q is not None`：PyMuPDF 的 item 里
+            #   夹着**整数**（如 ("re", Rect, 1) 的方向位、"qu" 的四元组带上
+            #   一个 flag）—— 原来那样写会 AttributeError。
+            elif hasattr(q, "x"):
+                xs.append(q.x)
+                ys.append(q.y)
+        if not xs:
+            return None
+        return fitz.Rect(min(xs), min(ys), max(xs), max(ys))
+
     for t in texts:
         r = t["bbox"]
         if (r.x0 < margin_pt or r.y0 < margin_pt
@@ -164,15 +203,36 @@ def check_out_of_bounds(texts, draws, page_rect, margin_pt=1.0):
             bad.append(("文字", t["text"]))
     for d in draws:
         r = d["bbox"]
-        if (r.x0 < -0.5 or r.y0 < -0.5
+        if not (r.x0 < -0.5 or r.y0 < -0.5
                 or r.x1 > page_rect.x1 + 0.5 or r.y1 > page_rect.y1 + 0.5):
-            fl = d.get("fill")
-            if fl and min(fl) >= 0.98:
-                n_white += 1
+            continue
+        fl = d.get("fill")
+        if fl and min(fl) >= 0.98:
+            n_white += 1
+            continue
+        # 只看真的探出页面的 subpath
+        over, worst = [], None
+        for it in d.get("items") or []:
+            rr = _item_rect(it)
+            if rr is None:
                 continue
-            bad.append(("图形", f"{r.width:.0f}×{r.height:.0f}pt @ "
-                              f"({r.x0:.0f},{r.y0:.0f})"))
-    return bad, n_white
+            ar = _outside_area(rr)
+            if ar > 0.5:
+                over.append(rr)
+                if worst is None or ar > _outside_area(worst):
+                    worst = rr
+        if not over:
+            # bbox 探出去了，但没有一条子路径有面积的越界 → 零面积毛边
+            n_sliver += 1
+            continue
+        u = over[0]
+        for rr in over[1:]:
+            u = u | rr
+        bad.append(("图形", f"越界部分 {u.width:.1f}×{u.height:.1f}pt "
+                          f"@ ({u.x0:.1f},{u.y0:.1f}) "
+                          f"（{len(over)}/{len(d.get('items') or [])} 条子路径）；"
+                          f"整条约 {r.width:.0f}×{r.height:.0f}pt"))
+    return bad, n_white, n_sliver
 
 
 def check_balance(draws, texts, page_rect, grid=3):
@@ -227,10 +287,11 @@ def main():
         print(f"   ❌ 「{x}」被线穿过 {pct}%")
         fails.append(f"线穿文字: {x}")
 
-    oob, n_white = check_out_of_bounds(texts, draws, page_rect)
+    oob, n_white, n_sliver = check_out_of_bounds(texts, draws, page_rect)
     print(f"\n③ 出界/贴边: {len(oob)} 处"
           + (f"  （另有 {n_white} 条纯白色块贴边，白上白不可见，不计）"
-             if n_white else ""))
+             if n_white else "")
+          + (f"  （另有 {n_sliver} 条零面积毛边被忽略）" if n_sliver else ""))
     for kind, dsc in oob[:6]:
         print(f"   ❌ {kind} {dsc}")
         fails.append(f"出界: {kind} {dsc}")

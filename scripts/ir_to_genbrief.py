@@ -83,6 +83,31 @@ def load_style(profile_path, want_class):
     }
 
 
+# ★ 2026-09-26：IR 的 `primitive` / `params` 是**形态规格**（弹簧线、星芒、
+#   长宽比、波数、射线数…），简报以前把它们**整个丢掉**——只用 primitive 做了
+#   分类，从没打到纸面上。实测后果（UPC 算例）：
+#     · IR 写「弹簧线（螺旋）」→ 模型画成一根**虚线**（规格没给，只能猜）
+#     · IR 写「射线数 11」   → 模型画成一个**实心点**
+#     · IR 写「长宽比 约 2.2:1」→ 模型画成横扁椭圆（这条同时是压扁方向画错的
+#       一半原因；另一半是 style.conventions 没进简报）
+#   下面这两个键是**坐标**，已经由「二、构图」那节负责，别在这儿重复。
+SHAPE_SKIP_KEYS = {"cx", "cy", "x", "y", "x1", "y1", "r", "R", "rx", "ry"}
+
+
+def shape_hint(e: dict) -> str:
+    """把一条元素的形态规格压成一行人读文本；没有就返回空串。"""
+    bits = []
+    prim = " ".join(str(e.get("primitive") or "").split())
+    if prim:
+        bits.append(prim)
+    ps = e.get("params") or {}
+    kv = ", ".join(f"{k}={v}" for k, v in ps.items()
+                   if k not in SHAPE_SKIP_KEYS and not str(k).startswith("_"))
+    if kv:
+        bits.append(kv)
+    return "；".join(bits)
+
+
 def build(ir: dict, style: dict | None, stage: str = "sketch") -> str:
     fig = ir.get("figure", {})
     elems = sorted(ir.get("elements", []), key=lambda e: e.get("z", 0))
@@ -110,10 +135,26 @@ def build(ir: dict, style: dict | None, stage: str = "sketch") -> str:
         L.append("  但仍然：形体要清楚可辨认，不要靠模糊和噪点营造氛围 ——")
         L.append("  因为下一步还要把它转成矢量。")
     L.append("")
-    L.append("★ **必须随本简报一起，把风格参考图传给模型**"
-             "（`gen_figure.py --ref 参考图.png`，可多张）。")
+    L.append("★ **必须随本简报一起，把参考图传给模型**"
+             "（`gen_figure.py --ref 图.png`，可多张）。")
     L.append("  只给文字 → 出来一定是「通用插画脸」。参考图（如 Nature 正刊的同类示意图）"
              "让模型做的是『改风格』而不是『猜构图』。")
+    if stage == "render":
+        # ★ 2026-09-26 实测：这一步以前**只传风格参考图**，没传上一步的草图。
+        #   结果成品位图自己重猜了一遍构图 —— 本次 UPC 算例里它把核 B 画成了
+        #   横扁（草图/IR 都要求高瘦），而构图闸口拦不住（形状朝向原本没人测）。
+        #   草图是**已经过闸口①**的构图依据，必须一起传，否则"根据草图生成位图"
+        #   这句话在流程里是空的。
+        L.append("")
+        L.append("★ **必须把上一步的草图也一起 `--ref` 传进来** —— 草图是**构图依据**"
+                 "（它已经过了闸口①）。")
+        L.append("  只传风格参考图 = 让模型重新猜一遍构图，构图会被改坏。")
+        L.append("  正确调用：`gen_figure.py --brief brief2.md --stage render \\")
+        L.append("      --ref <上一步选中的草图.png> --ref <风格参考图.png> --seeds ...`")
+    L.append("")
+    L.append("★ **不要画外框**：图片四周不要边框、不要矩形画框、不要装饰性的外框线。")
+    L.append("  （实测：模型 3/3 会在四周画一条 1px 淡灰细框，"
+             "导致出图被裁、构图检测也跟着失效。）")
     L.append("")
     L.append(f"画布比例：{W}×{H}（宽高比 {W/H:.2f}）。白底。")
     L.append("")
@@ -130,7 +171,10 @@ def build(ir: dict, style: dict | None, stage: str = "sketch") -> str:
     #   实测：直接倒出来是 36 条，全是噪声，模型没法用。
     #   所以按 primitive 分类 + 按名族合并。
     SHADOW_PRIMS = {"cast_shadow", "contact_shadow"}
-    ANNOT_PRIMS = {"label"}
+    # ★ 2026-09-26：原来只认英文 "label"。UPC 那条 IR 写的是 `primitive: 文字`，
+    #   于是**标签文字整段没进简报** —— 模型只能自己编，编出来是中文「核A / 核B」，
+    #   而 IR 要的是 A / B。中文 IR 写中文 primitive 是很自然的，必须一起认。
+    ANNOT_PRIMS = {"label", "text", "文字", "标注"}
     content, annots, has_shadow = [], [], False
     for e in elems:
         prim = e.get("primitive", "")
@@ -153,18 +197,22 @@ def build(ir: dict, style: dict | None, stage: str = "sketch") -> str:
         role = " ".join((e.get("physics_role") or "").split())
         if f in seen:
             seen[f]["n"] += 1
+            if not seen[f]["shape"] and shape_hint(e):
+                seen[f]["shape"] = shape_hint(e)
             # 只在原 role 更实质时补充
             if role and not role.startswith(("同", "同上")) and len(role) > len(seen[f]["role"]):
                 seen[f]["role"] = role
         else:
-            entry = {"n": 1, "role": role if not role.startswith(("同", "同上")) else ""}
+            entry = {"n": 1, "shape": shape_hint(e),
+                     "role": role if not role.startswith(("同", "同上")) else ""}
             seen[f] = entry
             families.append((f, entry))
 
     L.append("图中要出现的**物理对象**（数量要对，但不能把实现细节当内容）：")
     for f, info in families:
         cnt = f" ×{info['n']}" if info["n"] > 1 else ""
-        L.append(f"  · {f}{cnt}" + (f" —— {info['role']}" if info["role"] else ""))
+        L.append(f"  · {f}{cnt}" + (f" —— {info['role']}" if info["role"] else "")
+                 + (f"【形态：{info['shape']}】" if info.get("shape") else ""))
     if has_shadow:
         L.append("  · （各主要形体带**柔和的投影与接触阴影**，让它们看起来是浮在纸面上"
                  "而不是贴上去的）")
@@ -174,9 +222,11 @@ def build(ir: dict, style: dict | None, stage: str = "sketch") -> str:
         L.append("图中**文字**（拼写和数值必须完全正确 —— 下一步会重写成真正的矢量文字，"
                  "现在画错就会被照抄）：")
         for e in annots:
-            txt = (e.get("params") or {}).get("t")
+            txt = (e.get("params") or {}).get("t") or e.get("text")
             if txt:
                 L.append(f'  · "{txt}"')
+        L.append("  ★ **逐字照写上面这些字符串**（大小写、上下标 e⁺ / e⁻ 都要对），"
+                 "**不要翻译成中文、不要自己加标签**。")
         L.append("")
     L.append("")
 
@@ -218,6 +268,20 @@ def build(ir: dict, style: dict | None, stage: str = "sketch") -> str:
         L.append("")
         for c in cons:
             L.append(f"  · {c.get('名','')}：{c.get('量','')}  要求 {c.get('要求','')}")
+        L.append("")
+
+    # ── 形态约定（IR 的 style.conventions）──
+    # ★ 2026-09-26 实测：这一段以前**根本没进简报**。UPC 那条算例的 IR 里写着
+    #   「核必须画成纵向压扁的椭圆（Lorentz 收缩）」，简报里却一个字都没有 ——
+    #   于是草图 + 成品位图 4/4 把两核画成**横扁**椭圆（压扁方向垂直于运动方向，
+    #   而它们沿水平束流运动），旧闸口还量不出来（它只查「相向 / 不重叠 /
+    #   光子线在两核之间 / 末态背对背」四条，没有一条管形状朝向）。
+    #   约定只写在 IR 里 = 没人执行。必须显式落到简报上。
+    conv = (ir.get("style") or {}).get("conventions") or []
+    if conv:
+        L.append("═══ 三·补、★ 形态约定（照画，不许自己发挥）═══")
+        for c in conv:
+            L.append(f"  · {c}")
         L.append("")
 
     # ── 风格 ──

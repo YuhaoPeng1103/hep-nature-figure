@@ -87,10 +87,133 @@ def content_stats(img: Image.Image):
                          int(j * W / 3):int((j + 1) * W / 3)]
             if cell.mean() < 0.002:
                 empty.append((j, i))
+    # ★ 贴边细边框检测：生图模型常在四周画一条 1px 淡灰外框
+    #   （实测 2026-09-26：同一简报 3/3 命中）。它会把“内容边界”拉成整幅图，
+    #   于是被误报成“内容出界”。这里把它认出来，报错时直接点名。
+    frame = None
+    band = 4
+    ring = np.zeros_like(nonbg)
+    ring[:band, :] = ring[-band:, :] = True
+    ring[:, :band] = ring[:, -band:] = True
+    inner = nonbg & ~ring
+    if inner.any():
+        iy, ix = np.where(inner)
+        inset = min(ix.min() / W, iy.min() / H,
+                    1 - (ix.max() + 1) / W, 1 - (iy.max() + 1) / H)
+        rp = a[ring & nonbg]
+        # 判据只看“拿掉最外圈后内容是不是就离边了”——
+        #   真正出界的大色块会一直往里延伸，内容边界不会因此收进来；
+        #   只有“贴边的一条细线”才会。不能拿灰度当判据（模型画的框有时深有时浅）。
+        if rp.size and inset >= 0.02:
+            frame = {"inset": round(float(inset), 3),
+                     "gray": round(float(rp.mean()), 3), "px": int(rp.size)}
+    # ★ 贴边的是「细线出画布」还是「内容被裁」？
+    #   束流线 / 参考线**本来就该跑到画布外**（参考图 T3-33 就是：两条虚线
+    #   一直顶到左右边）。旧版一律报「内容贴边/出界 —— 会被裁」，实测连
+    #   参考图自己都过不了 —— 假阳性，而且会让人开始忽略这条闸口。
+    #   判据：贴边那一圈里非背景像素占比。细线 0.5~2%，被裁的实心块几十 %，
+    #   中间取 10%。
+    band = max(4, int(round(min(H, W) * 0.02)))
+    edge_frac = {}
+    for name, rs, cs, dist in (
+            ("left", slice(None), slice(0, band), x0),
+            ("right", slice(None), slice(W - band, W), 1 - x1),
+            ("top", slice(0, band), slice(None), y0),
+            ("bottom", slice(H - band, H), slice(None), 1 - y1)):
+        if dist < 0.01:
+            edge_frac[name] = round(float(nonbg[rs, cs].mean()), 4)
     return {"bbox": (round(x0, 3), round(y0, 3), round(x1, 3), round(y1, 3)),
             "centroid": (round(cx, 3), round(cy, 3)),
             "whitespace": round(1 - nonbg.mean(), 4),
+            "frame": frame,
+            "edge_frac": edge_frac,
             "empty_cells": empty}
+
+
+# ══ 机器能判的几何：Lorentz 收缩方向 ═════════════════════════════════
+# ★ 2026-09-26 实测抓到的问题：UPC 那张图的 IR 明写「核必须画成纵向压扁的椭圆
+#   （Lorentz 收缩）」，草图 + 成品位图 4/4 全画成**横扁** —— 两核沿水平束流运动，
+#   压扁方向却垂直于运动方向。旧的 geometry_constraints 四条全是「核与核之间」的
+#   关系，**没有一条管单个形体的朝向**，所以两版位图都"通过"了闸口。
+#
+# 判据链（全部从像素来，不需要人回答）：
+#   ① 核物质是整张图里唯一的大面积**彩色**对象（核子气是红/绿/蓝小球；
+#      其余元素都是深色线、箭头、文字）→ 用饱和度取大块
+#   ② 单个核子之间有空隙，连通域会是几百个小圆 → 先膨胀合并，
+#      再取**未膨胀**像素的 bbox（否则框会被结构元素撑大 2k px）
+#   ③ 束流方向由 IR 声明（`束流方向: horizontal|vertical`，可从 composition.视角
+#      抄）。收敛沿束流方向 → 束流水平 ⇒ 每个核应该**高 > 宽**；竖直 ⇒ 宽 > 高
+SAT_MIN = 40            # max(RGB)-min(RGB) ≥ 它才算"彩色"
+BLOB_MIN_FRAC = 0.004   # 大块面积下限（占画布比）—— 小于它的当噪声
+
+
+def colorful_blobs(img, min_frac=BLOB_MIN_FRAC):
+    """图里的大面积彩色块（＝核）。按面积降序返回 [{px, box, wh}]。"""
+    from scipy import ndimage as ndi
+    a = np.asarray(img.convert("RGB")).astype(np.int16)
+    H, W = a.shape[:2]
+    m = (a.max(2) - a.min(2)) >= SAT_MIN
+    if not m.any():
+        return []
+    k = max(3, int(round(W * 0.012)))
+    md = ndi.binary_dilation(m, np.ones((3, 3), bool), iterations=k)
+    lab, n = ndi.label(md, np.ones((3, 3), int))
+    out = []
+    for i in range(1, n + 1):
+        mm = m & (lab == i)
+        px = int(mm.sum())
+        if px < min_frac * H * W:
+            continue
+        ys, xs = np.nonzero(mm)
+        box = (int(xs.min()), int(ys.min()), int(xs.max()) + 1, int(ys.max()) + 1)
+        out.append({"px": px, "box": box,
+                    "wh": (box[2] - box[0], box[3] - box[1])})
+    out.sort(key=lambda d: -d["px"])
+    return out
+
+
+def lorentz_check(img, specs):
+    """IR 的 `geometry_constraints.机器` 里名含「压扁/收缩」的条目，逐条量。
+
+    每条至少要有：`名`、`束流方向: horizontal|vertical`；可选 `阈值`（默认 1.25，
+    ratio 得 ≥ 它才算"确实压扁了"，太接近 1 的圆是没画收缩）。
+    返回 (lines, hard)。
+    """
+    lines, hard = [], []
+    blobs = colorful_blobs(img)
+    if len(blobs) < 2:
+        lines.append("  ⚠️ 只找到 %d 个彩色大块（核应该是整张图里唯一的大面积彩色"
+                     "对象）—— 这条没测成" % len(blobs))
+        return lines, hard
+    for sp in specs:
+        beam = str(sp.get("束流方向", "")).strip().lower()
+        if beam.startswith(("h", "水", "横")):
+            horiz = True
+        elif beam.startswith(("v", "竖", "纵")):
+            horiz = False
+        else:
+            lines.append("  ⚠️ %s：IR 没写 `束流方向: horizontal|vertical`，"
+                         "这条没测成" % sp.get("名", "?"))
+            continue
+        try:
+            thr = float(sp.get("阈值", 1.25))
+        except (TypeError, ValueError):
+            thr = 1.25
+        for i, b in enumerate(blobs[:2], 1):
+            w, h = b["wh"]
+            ratio = (h / w) if horiz else (w / h)
+            axis = "高/宽" if horiz else "宽/高"
+            good = ratio >= thr
+            if good:
+                note = "沿%s束流方向压扁（Lorentz 收缩）— 对" % ("水平" if horiz else "竖直")
+            else:
+                note = "**压扁方向垂直于运动方向** —— 画反了"
+            lines.append("  %s 核#%d box=%s %d×%d  %s=%.2f  %s"
+                         % ("✅" if good else "❌", i, b["box"], w, h, axis, ratio, note))
+            if not good:
+                hard.append("核#%d 的 Lorentz 收缩方向画反（%s=%.2f < %.2f）"
+                            % (i, axis, ratio, thr))
+    return lines, hard
 
 
 def main():
@@ -100,12 +223,19 @@ def main():
     ap.add_argument("--profile", help="风格档案（可选）")
     ap.add_argument("--class", dest="want_class", default=None)
     ap.add_argument("--canvas", help="IR 声明的画布 WxH，用于查比例是否被改")
+    ap.add_argument("--trim", type=int, default=0,
+                    help="先裁掉四周 N px 再测（处理生图模型画的贴边细外框）")
     a = ap.parse_args()
 
     img_path = Path(a.image)
     if not img_path.exists():
         raise SystemExit(f"找不到 {img_path}")
     img = Image.open(img_path)
+    if a.trim:
+        w0, h0 = img.size
+        img = img.crop((a.trim, a.trim, w0 - a.trim, h0 - a.trim))
+        print("已裁掉四周 %d px（符合宽高比检查用原图）: %dx%d"
+              % (a.trim, img.size[0], img.size[1]))
     W, H = img.size
     ir = load_ir(Path(a.ir))
 
@@ -137,8 +267,24 @@ def main():
         print(f"  内容重心 ({st['centroid'][0]:.2f}, {st['centroid'][1]:.2f})")
         x0, y0, x1, y1 = st["bbox"]
         if min(x0, y0, 1 - x1, 1 - y1) < 0.01:
-            print("  ❌ 内容贴边/出界 —— 会被裁")
-            hard.append("内容贴边或出界")
+            fr = st.get("frame")
+            if fr:
+                print("  ❌ 贴边细边框 —— 四周有一条淡色外框"
+                      "（灰度 %.2f，%s px；拿掉它后内容离边 %.1f%%）"
+                      % (fr["gray"], fr["px"], fr["inset"] * 100))
+                print("     → 这是生图模型的固定毛病："
+                      "简报里加一句『**不要画外框**』再重出一张")
+                hard.append("贴边细边框")
+            elif st.get("edge_frac") and max(st["edge_frac"].values()) <= 0.10:
+                who = ", ".join("%s %.1f%%" % (k, v * 100)
+                                for k, v in st["edge_frac"].items())
+                print("  ⚠️ 内容出画布（贴边那一圈的非背景占比：%s）——" % who)
+                print("     看着是**线条本来就该跑到画布外**（束流线/参考线这类），"
+                      "不是被裁。确认一下就行。")
+                soft.append("内容出画布")
+            else:
+                print("  ❌ 内容贴边/出界 —— 会被裁")
+                hard.append("内容贴边或出界")
         if not (0.28 < st["centroid"][0] < 0.72):
             print("  ⚠️ 内容重心偏左右 —— 构图可能失衡")
             soft.append("重心偏左右")
@@ -148,6 +294,27 @@ def main():
             soft.append("留白失衡")
         else:
             print("  ✅ 9 格都有内容")
+
+    # ★ 机器能判的几何：IR 的 `geometry_constraints.机器`（现在只实现 Lorentz 收缩）
+    mcons = []
+    for c in ((ir.get("geometry_constraints") or {}).get("机器") or []):
+        if not isinstance(c, dict):
+            continue
+        # 现在只实现了"压扁/收缩"这一族；别的名字原样跳过（免得假装测了）
+        if "压扁" in str(c.get("名", "")) or "收缩" in str(c.get("名", "")):
+            mcons.append(c)
+    if mcons:
+        print()
+        print("  ├ Lorentz 收缩方向（★ 机器量的，不用人回答）")
+        lines, lhard = lorentz_check(img, mcons)
+        for ln in lines:
+            print(ln)
+        if lhard:
+            print("     → 两核必须**沿运动方向**压扁（收缩轴 ∥ 速度）。"
+                  "画成横扁 = 收缩轴垂直于速度 = 物理错。")
+            print("       修法：IR 的 style.conventions 已写明形状 → 简报里"
+                  "（ir_to_genbrief 会带过去）必须有这一条；没有就补上再重出。")
+        hard += lhard
 
     # 风格（有档案时）
     if a.profile and Path(a.profile).exists():

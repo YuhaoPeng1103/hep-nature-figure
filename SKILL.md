@@ -245,6 +245,31 @@ python3 scripts/raster_to_vector_semantic.py fig.png -o fig.svg --words words.tx
 只用"偏右上""靠近表面"这类词描述位置 → 实现时会画出"看着对但物理错"的图。
 *实测*：喷注淬火图第一版的逃逸喷注穿过了大半个介质，因为 IR 只写了"顶点偏右上"。
 
+★ **分两节写，别都写成待答问题**（v2.6.2 加）：
+
+```yaml
+geometry_constraints:
+  约束:            # 机器判不了 → check_sketch 逐条变成**待你回答**的问题
+    - 名: 两核相向运动
+      量: "dot(A 的速度方向, B 的速度方向)"
+      要求: "< 0"
+  机器:            # 机器能判 → check_sketch **自己量**，不用人回答
+    - 名: 两核沿束流方向压扁（Lorentz 收缩）
+      量: "每个核的彩色像素块 bbox 的高/宽"
+      束流方向: horizontal       # 从 composition.视角 抄
+      阈值: 1.25                 # ≥ 才算"确实压扁了"；≈1 的圆是没画收缩
+      要求: "> 1.25"
+```
+
+*实测（2026-09-26）*：`约束` 那四条全是**核与核之间**的关系，
+**没有一条管单个形体的朝向** —— 于是两核的 Lorentz 收缩方向画反了
+（沿水平束流运动却画成横扁）的位图，"四条全过"。形状朝向这类**能量出来的**
+东西，必须写进 `机器` 让闸口去量，不要指望人每次都想起来看。
+
+> 同理：IR 的 `style.conventions`（"核必须画成高瘦椭圆"这类**形态约定**）
+> 一定要落到简报上 —— v2.6.2 之前 `ir_to_genbrief.py` 把它整个丢掉了，
+> 写在 IR 里等于没写。
+
 > 跳过 IR 直接画 = "AI 随机画一张好看的图"，复现不了，物理也没保证。
 
 ### 3. 选后端（按图选工具，不预设）
@@ -445,10 +470,14 @@ python3 scripts/sketch_to_vector.py gen/sketch_s1.png -o gen/sketch_s1.svg --ocr
 # ── 4. ★ 闸口①：草图过物理检查（不能跳）────────────────────
 python3 scripts/check_sketch.py gen/sketch_s1.png --ir ir/xxx.ir.yaml
 
-# ── 5. 出成品位图（同样带 --ref）──────────────────────────
+# ── 5. 出成品位图（★ 草图 + 风格参考图都要带）──────────────
 python3 scripts/ir_to_genbrief.py ir/xxx.ir.yaml --stage render -o brief2.md
 python3 scripts/gen_figure.py --brief brief2.md --stage render \
-    --ref refs/T3-33.png --seeds 21,22 --outdir gen/
+    --ref gen/sketch_s1.png --ref refs/T3-33.png --seeds 21,22 --outdir gen/
+#   ★ 第一个 --ref 是**上一步选中的草图**：它是构图依据（已过闸口①）。
+#     只传风格参考图 = 让模型重新猜一遍构图，构图会被改坏
+#     （实测 2026-09-26：UPC 算例漏传草图，成品位图把核 B 画成了横扁，
+#      与 IR 的 Lorentz 收缩方向相反）。
 
 # ── 6. ★ 闸口②：成品位图再过一次同一个闸口 ─────────────────
 python3 scripts/check_sketch.py gen/render_s22.png --ir ir/xxx.ir.yaml

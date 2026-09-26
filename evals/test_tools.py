@@ -175,7 +175,8 @@ def test_escalation():
 
     r = subprocess.run([sys.executable, str(gate), str(normal),
                         "--profile", str(pj)],
-                       capture_output=True, text=True, timeout=120)
+                       capture_output=True, text=True, timeout=120,
+                       encoding="utf-8", errors="replace")
     out = r.stdout
     assert "范畴·无彩色" not in out, "有彩色的图不该被判'无彩色'"
     # 关键：飘的指标（dark_ratio/edge_density/saturation）再偏也不许升级为阻断
@@ -189,7 +190,8 @@ def test_escalation():
     im.convert("L").convert("RGB").save(gray)
     r2 = subprocess.run([sys.executable, str(gate), str(gray),
                          "--profile", str(pj)],
-                        capture_output=True, text=True, timeout=120)
+                        capture_output=True, text=True, timeout=120,
+                        encoding="utf-8", errors="replace")
     assert r2.returncode != 0 and "范畴·无彩色" in r2.stdout, (
         "灰度图撞彩色档案必须阻断（这是升级规则原本要防的那个漏洞）")
 
@@ -217,7 +219,8 @@ def test_subclass_profile():
       "构图审计能抓到出界文字。防'标签被裁但全局指标全绿'")
 def test_out_of_bounds():
     r = subprocess.run([sys.executable, str(SCRIPTS / "audit_composition.py"),
-                        "--help"], capture_output=True, text=True)
+                        "--help"], capture_output=True, text=True,
+                       encoding="utf-8", errors="replace")
     assert r.returncode == 0, "审计脚本应可运行"
     src = (SCRIPTS / "audit_composition.py").read_text(encoding="utf-8")
     assert "check_out_of_bounds" in src, "应有出界检查"
@@ -316,7 +319,8 @@ def test_robust_metrics():
       "② 探测表漏项导致报告永远误导性地全绿（实测漏过 shapely / PyYAML）")
 def test_tool_install_hint():
     r = subprocess.run([sys.executable, str(SCRIPTS / "check_tools.py")],
-                       capture_output=True, text=True, timeout=180)
+                       capture_output=True, text=True, timeout=180,
+                       encoding="utf-8", errors="replace")
     out = r.stdout
     assert r.returncode == 0, f"check_tools 应正常退出，实际 {r.returncode}"
     assert "安装" in out, "输出应含装机指引"
@@ -397,6 +401,47 @@ def main():
                 print(f"  ✗ {n}: {d}")
     print(f"{'='*70}")
     return 0 if npass == len(tests) else 1
+
+
+@case("composition_oob_ignores_zero_area_sliver",
+      "出界判据要按 subpath 判 + 越界部分要有面积。防 Edge 打印的零面积毛边"
+      "把每一张位图临摹稿都误判成『出界』而阻断交付")
+def test_oob_sliver():
+    """
+    ★ 实测（2026-09-26，UPC 临摹稿 upc_q16.pdf，Edge print-to-pdf）：
+      有一条淡紫 path 的 bbox 是 (0, 0, 461.30, 289.50)，看着"盖住大半个页面
+      还出界"。但它 396 条子路径里**只有 3 条越界**，越界部分的并集是
+      (0.63, 289.19, **0.63**, 289.50) —— **宽为 0**，面积 0。原因是 groupvec
+      会把**同色矩形并成一条 path**（体积优化），bbox 是全体子路径的并集；
+      拿并集 bbox 判 =「一处贴边 ⇒ 整条 path 出界」。另一条同理，越界并集是
+      一条竖直线段。旧版把这两条判成 🚫 阻断交付，而它们裁掉也看不见。
+    """
+    sys.path.insert(0, str(SCRIPTS))
+    import pymupdf
+    from audit_composition import boxes, check_out_of_bounds
+
+    doc = pymupdf.open()
+    pg = doc.new_page(width=400, height=300)
+    # (a) 零面积毛边：一条 path = 贴边矩形 + 一条**零宽**竖线探出 1pt
+    sh = pg.new_shape()
+    sh.draw_rect(pymupdf.Rect(0, 0, 350, 299.0))
+    sh.draw_line(pymupdf.Point(0.5, 299.0), pymupdf.Point(0.5, 301.0))
+    sh.finish(color=None, fill=(0.87, 0.87, 0.93))
+    sh.commit()
+    # (b) 真出界：14×14pt 实心块，10pt 探出右边（会被裁掉）
+    pg.draw_rect(pymupdf.Rect(390, 140, 404, 154),
+                 color=None, fill=(0.9, 0.2, 0.2))
+    with tempfile.TemporaryDirectory() as td:
+        p = Path(td) / "oob.pdf"
+        doc.save(str(p))
+        doc.close()
+        d = pymupdf.open(str(p))
+        texts, draws, _ = boxes(d[0])
+        bad, n_white, n_sliver = check_out_of_bounds(texts, draws, d[0].rect)
+        d.close()
+    assert n_sliver == 1, f"零面积毛边应被忽略 1 条，实得 {n_sliver}"
+    assert len(bad) == 1, f"应只判出 1 处真出界，实得 {len(bad)}：{bad}"
+    assert "14.0×14.0pt" in bad[0][1], f"报的应是**越界那一块**的尺寸：{bad[0][1]}"
 
 
 if __name__ == "__main__":

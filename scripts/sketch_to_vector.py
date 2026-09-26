@@ -157,6 +157,8 @@ def main():
     ap.add_argument("--words", default="", help="词表；不给可加 --ocr 自动出")
     ap.add_argument("--ocr", action="store_true", help="用系统 OCR 自动出词表（Windows）")
     ap.add_argument("--W", type=int, default=None, help="工作分辨率宽（默认=源图宽）")
+    ap.add_argument("--trim", type=int, default=0,
+                    help="先裁掉四周 N px 再矢量化（生图模型常在四周画一条贴边细外框）")
     ap.add_argument("--R", type=float, default=12.0, help="四叉树色差阈值（小=更准更大）")
     ap.add_argument("--K", type=int, default=7, help="最粗边长 2^K")
     ap.add_argument("--q", type=int, default=16,
@@ -175,6 +177,15 @@ def main():
     out = pathlib.Path(a.out).resolve() if a.out else src.with_suffix(".svg")
 
     panels = make_panels(out.parent / ("_sketch_panels_%s.py" % src.stem), W, SH * W // SW)
+    use_src = src
+    if a.trim:
+        from PIL import Image as _Im
+        im = _Im.open(src).convert("RGB")
+        w0, h0 = im.size
+        im = im.crop((a.trim, a.trim, w0 - a.trim, h0 - a.trim))
+        use_src = out.parent / ("_sketch_trim_%s.png" % src.stem)
+        im.save(use_src)
+        print("已裁掉四周 %d px -> %dx%d" % (a.trim, im.size[0], im.size[1]))
 
     words = a.words
     if not words and a.ocr:
@@ -192,7 +203,7 @@ def main():
             print("（没有词表 → 文字会留在色块里。"
                   "要真 <text> 就加 --ocr，或自己写 --words）")
 
-    cmd = [sys.executable, str(HERE / "raster_to_vector_semantic.py"), str(src),
+    cmd = [sys.executable, str(HERE / "raster_to_vector_semantic.py"), str(use_src),
            "-o", str(out), "--panels", str(panels),
            "--W", str(W), "--R", str(a.R), "--K", str(a.K), "--q", str(a.q),
            "--legend", str(out.with_name(out.stem + "_layers.md")),

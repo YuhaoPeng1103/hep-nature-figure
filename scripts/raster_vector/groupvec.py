@@ -166,7 +166,7 @@ def main():
         print("  跳过文字层（%s）—— 原字笔画会留在色块矢量里"
               % ("--no-text" if "--no-text" in av else "没有词表"))
     else:
-        sw = V.read_words(wf, sc * 0.5)
+        sw = V.read_words(wf, sc * 0.5, Wd)
     # ★ FIX / DROP / MANUAL 是「每张图各不相同」的表：--panels 里定义了就用那张，
     #   没定义才退回 labels.py 的 T3-01 默认表（否则换图必须去改包里的文件）
     FIX = getattr(P, "FIX", LB.FIX)
