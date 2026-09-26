@@ -334,6 +334,21 @@ python3 scripts/check_delivery.py fig.pdf fig.eps
 ```
 检查：0 嵌入位图？文字可提取？字号 ≥5pt？
 
+**大 SVG 怎么出 PDF（实测）**：不要用 `cairosvg` ——
+本算例 `upc_q16.svg`（2.67 MB / 5396 条 `<path>`）走
+`cairosvg.svg2pdf` 直接 OOM。用浏览器打印（保矢量、不栅格化）：
+
+```bash
+# 包一层 HTML，@page 尺寸 = 成品物理尺寸（mm 换算成 pt）
+#   @page { size: 518.7402pt 289.2974pt; margin: 0 }    # 183 × 102 mm 双栏
+"C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe" \
+    --headless=new --disable-gpu --no-pdf-header-footer \
+    --print-to-pdf=fig.pdf file:///.../fig.wrap.html
+```
+
+`check_delivery.py` 的位图判据正是按这条路径校准的
+（渐变会被 MuPDF 误报成嵌入位图，它按 xref 判别）。
+
 #### 风格档案与阻断门禁（不写死风格）
 
 **风格不写死**——目标可以是任意一张参考图，也可以是**类级风格档案**。

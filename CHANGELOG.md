@@ -138,6 +138,15 @@ T3-33 因为核离左边只有 1% ⇒ 仍 ❌（这条不是假阳性，1% 留�
 `composition_oob_ignores_zero_area_sliver`，实跑真 PDF 验判据；另 2 条是上面
 修 8 从假失败转真通过）。
 
+### 修 9：文档没写「大 SVG 怎么出 PDF」—— cairosvg 会 OOM
+
+`SKILL.md` 只说了“PDF 必须出、183 mm”，没说**怎么出**。实测
+`cairosvg.svg2pdf` 对本算例 `upc_q16.svg`（2.67 MB / 5396 条 `<path>`）
+**直接 OOM**；而 `cairosvg.svg2png` 回渲染是好的（自检的 MAE 就靠它，
+`fig_upc_run3/_cmp.py`）。能出 PDF 的是**浏览器打印**（保矢量）：包一层
+`@page { size: 518.7402pt 289.2974pt; margin: 0 }`（= 183 × 102 mm）的 HTML，
+再 `msedge --headless=new --print-to-pdf`。已补进 `SKILL.md` 的交付节。
+
 ### run3 交付数字（1664×928）
 
 | 阶段 | 产物 | 指标 |
