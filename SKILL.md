@@ -105,6 +105,12 @@ python3 scripts/raster_to_vector_semantic.py fig.png -o fig.svg --words words.tx
 > ⚠️ 两条路都**做不出真渐变网格**。原图的连续渐变在矢量里只能是色阶台阶
 > （调小 `--R` 变细，代价是路径数/体积）或真 `<gradient>`（要求图能拆成图元）。
 
+★ **临摹稿过两道门禁时会踩两个假阳性（v2.5 已修，但你得知道它们存在）：** 位图临摹稿的
+页面就是图本身，白底矩形总是顶到边 → `audit_composition` 会报「出界」（白上白被裁
+不可见，现已不计）；渐变填充会被 MuPDF 当成嵌入位图 →
+`check_delivery` 会报「72 dpi 位图」（现已改成扫 xref 认真 `/Subtype /Image`）。
+完整算例（含实测数字）：`assets/demos/upc_semantic/`。
+
 ### ★ 物理检查要在【最终矢量】上做
 
 **位图对 ≠ 重画出来的对。** 实测（`sketch2nature_demo/`）：同一模型从位图重画时，

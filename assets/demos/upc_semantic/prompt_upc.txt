@@ -1,0 +1,35 @@
+Ultra-peripheral heavy-ion collision, side view. Flat vector physics schematic for a
+Nature paper: solid flat colour fills, crisp hard edges, thin black outlines, pure
+white background, generous white space, no glossy 3D, no shadow, no glow, no texture.
+
+CANVAS 16:9, nothing else in the picture, no frames, no extra lines.
+The two nuclei are NOT on the same line. They sit on TWO SEPARATE PARALLEL
+HORIZONTAL DASHED LINES, one above the other, separated by a clear empty gap.
+
+- Upper dashed line runs across the whole width at about 30% of the height.
+  On it, at about 25% from the left, sits nucleus A: a VERTICALLY ELONGATED solid
+  dark-blue ellipse with a black outline (roughly twice as tall as it is wide).
+  To its right a thick solid black arrow points RIGHT along the upper dashed line,
+  labelled "v" above it.
+- Lower dashed line runs across the whole width at about 70% of the height.
+  On it, at about 82% from the left, sits nucleus B: the same vertically elongated
+  ellipse shape in solid burnt orange with a black outline. To its left a thick
+  solid black arrow points LEFT along the lower dashed line, labelled "v" above it.
+  A small italic letter "z" sits at the right-hand end of the upper dashed line.
+- Around each nucleus draw two thin concentric amber ellipse outlines.
+- At the FAR LEFT of the picture, about 5% from the left edge and well clear of
+  everything else, draw ONE vertical double-headed black arrow. It starts exactly
+  on the upper dashed line and finishes exactly on the lower dashed line. The
+  italic letter "b" is written just to the right of its middle. There is no other
+  vertical arrow anywhere in the picture.
+- A wavy amber line without any arrowhead starts at the right edge of nucleus A and
+  travels to a single point at the exact centre of the picture. A second wavy amber
+  line without any arrowhead starts at the left edge of nucleus B and travels to
+  that same centre point. The Greek letter gamma labels each wavy line. At the
+  centre point draw a small black starburst where the two wavy lines meet.
+- From that starburst exactly TWO straight arrows leave in opposite directions,
+  back to back: a magenta arrow up and to the right labelled "e+" with a plus in
+  superscript, and a dark green arrow down and to the left labelled "e-" with a
+  minus in superscript. No other arrows.
+- Small clean sans-serif labels: "nucleus A" above nucleus A, "nucleus B" below
+  nucleus B.

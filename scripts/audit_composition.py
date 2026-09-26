@@ -36,8 +36,9 @@ MIN_TEXT_CONTRAST = 0.35
 
 
 def boxes(page):
-    """返回 (文字块, 绘制块) 的 bbox 列表"""
+    """返回 (文字块, 绘制块, 被剔除的页面背景数)"""
     texts, draws = [], []
+    n_bg = 0
     d = page.get_text("dict")
     for b in d["blocks"]:
         for l in b.get("lines", []):
@@ -46,15 +47,25 @@ def boxes(page):
                     texts.append({"bbox": fitz.Rect(s["bbox"]),
                                   "text": s["text"].strip()[:24],
                                   "size": round(s["size"], 1)})
+    pr = page.rect
     for dr in page.get_drawings():
         r = dr["rect"]
         if r.width > 0.4 or r.height > 0.4:      # 忽略极小点
+            # ★ 页面自己的白底（近白色填充 + 几乎盖满整页）不是「会被裁掉的内容」。
+            #   实测（UPC 位图临摹产物 upc.pdf）：它被 ③ 报 3 处「出界」，
+            #   但 3 处的 fill 全是 (1,1,1)/(1,0.996,0.996)/(1,1,0.996)，x1/y1 仅超出 0.54pt；
+            #   同时 ① 文字重叠 0 处、② 线穿文字 0 处。删掉它们不会隐藏任何
+            #   真问题：真正被裁的内容不会是“白上白”。
+            fl = dr.get("fill")
+            if fl and min(fl) >= 0.98 and r.get_area() >= 0.97 * pr.get_area():
+                n_bg += 1
+                continue
             draws.append({"bbox": r, "type": dr.get("type", "?"),
-                          "fill": dr.get("fill"),
+                          "fill": fl,
                           "fill_opacity": dr.get("fill_opacity", 1.0),
                           "stroke": dr.get("color"),
                           "stroke_opacity": dr.get("stroke_opacity", 1.0)})
-    return texts, draws
+    return texts, draws, n_bg
 
 
 
@@ -135,8 +146,16 @@ def check_line_through_text(page, texts):
 
 
 def check_out_of_bounds(texts, draws, page_rect, margin_pt=1.0):
-    """③ 元素出界或贴边"""
+    """③ 元素出界或贴边
+
+    ★ 纯白填充不参与判定：**白上白被裁是不可见的**，不可能是真问题。
+      实测（UPC 位图临摹 upc.pdf）：面包装在白页上的背景色块被报
+      3 处「出界」，但 fill 全是白/近白，且 y1 仅超出 0.54pt（Edge 打印时
+      像素对齐）。同时临摹稿 ① 文字重叠 0 处、② 线穿文字 0 处。
+      不剔除的话，**每一张位图临摹稿都会被误判阻断**。
+    """
     bad = []
+    n_white = 0
     for t in texts:
         r = t["bbox"]
         if (r.x0 < margin_pt or r.y0 < margin_pt
@@ -147,9 +166,13 @@ def check_out_of_bounds(texts, draws, page_rect, margin_pt=1.0):
         r = d["bbox"]
         if (r.x0 < -0.5 or r.y0 < -0.5
                 or r.x1 > page_rect.x1 + 0.5 or r.y1 > page_rect.y1 + 0.5):
+            fl = d.get("fill")
+            if fl and min(fl) >= 0.98:
+                n_white += 1
+                continue
             bad.append(("图形", f"{r.width:.0f}×{r.height:.0f}pt @ "
                               f"({r.x0:.0f},{r.y0:.0f})"))
-    return bad
+    return bad, n_white
 
 
 def check_balance(draws, texts, page_rect, grid=3):
@@ -180,14 +203,15 @@ def main():
     p = Path(a.pdf)
     doc = fitz.open(p)
     page = doc[0]
-    texts, draws = boxes(page)
+    texts, draws, n_bg = boxes(page)
     page_rect = page.rect
     page_area = page_rect.get_area()
 
     print(f"\n{'='*68}\n构图审计: {p.name}\n{'='*68}")
     print(f"  页面 {page_rect.width:.0f}×{page_rect.height:.0f} pt"
           f"  ({page_rect.width/MM:.0f}×{page_rect.height/MM:.0f} mm)")
-    print(f"  文字块 {len(texts)} | 绘制块 {len(draws)}")
+    print(f"  文字块 {len(texts)} | 绘制块 {len(draws)}"
+          + (f"  （另有 {n_bg} 条页面白底已剔除，不参与出界判定）" if n_bg else ""))
 
     fails, warns = [], []
 
@@ -203,8 +227,10 @@ def main():
         print(f"   ❌ 「{x}」被线穿过 {pct}%")
         fails.append(f"线穿文字: {x}")
 
-    oob = check_out_of_bounds(texts, draws, page_rect)
-    print(f"\n③ 出界/贴边: {len(oob)} 处")
+    oob, n_white = check_out_of_bounds(texts, draws, page_rect)
+    print(f"\n③ 出界/贴边: {len(oob)} 处"
+          + (f"  （另有 {n_white} 条纯白色块贴边，白上白不可见，不计）"
+             if n_white else ""))
     for kind, dsc in oob[:6]:
         print(f"   ❌ {kind} {dsc}")
         fails.append(f"出界: {kind} {dsc}")

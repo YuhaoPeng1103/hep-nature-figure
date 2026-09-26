@@ -78,7 +78,10 @@ def _split_comp(comp, rgb, minpx, gap=2, tol=40, ncol=16):
     out = []
     for i in range(len(seeds)):
         mm = np.zeros(comp.shape, bool)
-        mm[y0:y1, x0:x1] = sub == i
+        # ★ 只能填【连通域本身】的像素。distance_transform 是对整个 crop 求最近种子，
+        #   若不加 & m，元素会把外接矩形整块吞下来 —— 实测 UPC 图：photon-A 元素
+        #   97.7% 是背景、field-A 89.9%、arrow-b 84.9%，“点选物理元素”直接失效。
+        mm[y0:y1, x0:x1] = (sub == i) & m
         out.append((mm, cnt[int(seeds[i])]))
     return out
 

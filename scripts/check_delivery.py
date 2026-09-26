@@ -32,9 +32,47 @@ COVER_FAIL = 0.90    # 单张位图占页比例 ≥ 它就判失败（受控区�
 COVER_WARN = 0.50
 
 
-def check_bitmaps(page, n_draw, n_xobj):
+def real_image_xrefs(doc):
+    """PDF 里真·图像 XObject 的 xref 集合。
+
+    ★ 为什么不能直接信 page.get_image_info()：
+      MuPDF 会把**渐变填充（shading pattern）**也合成成一条"图像"记录，
+      特征是 xref=0、像素尺寸正好等于该图元的 bbox。实测（本机 PyMuPDF）：
+        · 最小复现：只含 1 个 radialGradient + 1 个 linearGradient 的 SVG，
+          走 Edge print-to-pdf —— get_images()=0、原始字节里 /Subtype /Image
+          出现 0 次（只有 /Shading），但 get_image_info() 报 **2 张**
+          "57×64 px" 的位图 → 旧版本直接判 ❌ 有效 dpi 72 < 300。
+        · 反向对照：真塞一张 240×160 PNG 进 HTML 再导出，
+          get_images()=1、xref 扫描找到 xref 4，
+          get_image_info(xrefs=True) 给出的 xref 也正是 4。
+      所以判据是「有 xref，且该 xref 的对象 Subtype 真的是 /Image」。
+      也别退回 page.get_images()：它只读页面资源字典，
+      会漏掉嵌套 Form XObject 里的图（正是"整页被栅格化"的典型形态）。
+    """
+    out = set()
+    for x in range(1, doc.xref_length()):
+        try:
+            if (doc.xref_get_key(x, "Subtype") or ("", ""))[1] == "/Image":
+                out.add(x)
+        except Exception:
+            pass
+    return out
+
+
+def page_bitmaps(page, doc):
+    """返回 (真位图信息列表, 被剔除的伪位图条数)。"""
+    try:
+        infos = page.get_image_info(xrefs=True)
+    except TypeError:      # 老版本 PyMuPDF 没有 xrefs 参数
+        sys.exit("PyMuPDF 太旧：get_image_info 不支持 xrefs=True，"
+                 "无法把真位图和渐变 shading 区分开。请 pip install -U pymupdf")
+    real = real_image_xrefs(doc)
+    good = [i for i in infos if i.get("xref") in real]
+    return good, len(infos) - len(good)
+
+
+def check_bitmaps(infos, pw, ph):
     """位图只允许在受控区域 + dpi 达标 + 有矢量轮廓。返回是否通过。"""
-    infos = page.get_image_info()
     if not infos:
         return True
     pw, ph = page.rect.width, page.rect.height
@@ -83,19 +121,22 @@ def check_pdf(path):
         if i > 0:
             print(f"  -- 第 {i+1} 页 --")
         mm = 72 / 25.4
-        n_img = len(page.get_images())
         n_xobj = len(page.get_xobjects()) if hasattr(page, "get_xobjects") else 0
         n_draw = len(page.get_drawings())
         txt = page.get_text().strip()
+        infos, n_phantom = page_bitmaps(page, doc)
+        n_img = len(infos)
 
         print(f"  页面      {page.rect.width/mm:.0f} × {page.rect.height/mm:.0f} mm")
         print(f"  矢量对象  {n_draw} 条顶层指令"
               + (f" + {n_xobj} 个 XObject" if n_xobj else ""))
-        print(f"  嵌入位图  {n_img} 个")
+        print(f"  嵌入位图  {n_img} 个"
+              + (f"（另有 {n_phantom} 条矢量渐变填充被 MuPDF 记成伪位图，已剔除）"
+                 if n_phantom else ""))
         print(f"  可提取文字 {len(txt)} 字符")
 
         # 判定 —— 位图要过三道闸，不是"提醒一下"就放行
-        raster_ok = check_bitmaps(page, n_draw, n_xobj)
+        raster_ok = check_bitmaps(infos, page.rect.width, page.rect.height)
         if n_draw < 5 and n_xobj == 0:
             print("  ❌ 几乎没有矢量内容 —— 可能整页被栅格化")
             ok = False
