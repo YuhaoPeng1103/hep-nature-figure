@@ -47,6 +47,8 @@ from raster_vector import groupvec  # noqa: E402
 def to_argv(a):
     argv = [str(a.image), str(a.out), a.words or "-",
             "--W", str(a.W), "--R", str(a.R), "--K", str(a.K)]
+    if a.q:
+        argv += ["--q", str(a.q)]
     if a.erase:
         argv.append("--erase")
     if a.no_text:
@@ -114,6 +116,9 @@ def main():
     ap.add_argument("--R", type=float, default=16.0,
                     help="四叉树色差阈值：小=更准更大，大=更小更粗（默认 16）")
     ap.add_argument("--K", type=int, default=7, help="最粗边长 2^K（默认 7=128px）")
+    ap.add_argument("--q", type=int, default=0,
+                    help="每通道颜色量化级数（默认 0=不量化）；"
+                         "抗锯齿过渡带会让叶子数爆炸，抹平它就能少几倍路径")
     ap.add_argument("--no-erase", dest="erase", action="store_false",
                     help="不擦掉原字笔画（默认擦掉，因为文字要重写成真 <text>）")
     ap.add_argument("--no-text", action="store_true",

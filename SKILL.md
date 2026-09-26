@@ -438,6 +438,9 @@ python3 scripts/gen_figure.py --brief brief1.md --stage sketch \
 # ── 3. 草图矢量化输出（人可改）────────────────────────────
 python3 scripts/sketch_to_vector.py gen/sketch_s1.png -o gen/sketch_s1.svg --ocr
 #   不用写 panels.py：草图靠自动切分，每个形体一个子层（part-01…）
+#   ★ 默认 --q 16（每通道颜色量化级数）。草图边缘的抗锯齿会切出数万条碎路径，
+#     量化后才能“给人改”。实测：0->30412 条/MAE 0.376；16->2111 条/MAE 1.102
+#     （>8 色阶像素 0.31%，与不量化的 0.32% 持平，但路径少 14 倍）。要更精就 --q 0。
 
 # ── 4. ★ 闸口①：草图过物理检查（不能跳）────────────────────
 python3 scripts/check_sketch.py gen/sketch_s1.png --ir ir/xxx.ir.yaml
@@ -481,6 +484,7 @@ python3 scripts/repair_brief.py fig.svg --profile assets/style-profiles.json
 | **API key** | 读环境变量 `DASHSCOPE_API_KEY`，**脚本不存 key** | 别人装了 skill 得用**他自己的** key |
 | **风格参考图** | `--ref 图1.png --ref 图2.png`（可多张） | 只给文字 → 出来一定很"通用"。参考图 = Nature 风格书 |
 | **两个接口** | `qwen-image-*` → 图生图（**支持 --ref**）；`wanx*`/`wan*` → 纯文生图 | 要参考图只能用前者 |
+| **image 字段** | 本地图 → **base64 data URI**（自动）；公网 URL 直接透传 | mm 端点**只收**公网 URL 或 base64，**不认 `oss://`** —— 实测提交报 400 `Image must be either a public URL or a Base64 encoded string`（v2.6.1 修）|
 | **两个产物** | 草图 PNG + **草图 SVG** + 成品位图，全部落盘 | 用户要能拿到中间产物 |
 | **可复现** | `gen/calls.jsonl` 记 model/seed/size/refs/prompt 指纹 | 复现和核对计费都靠它 |
 | 没 key 时 | `--dry-run` 只写提示词和调用计划 | 自检不用花钱 |

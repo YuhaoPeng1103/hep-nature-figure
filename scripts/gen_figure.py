@@ -60,6 +60,7 @@ gen_figure —— 第 ② 步：把 IR 简报变成【草图】或【成品位�
 from __future__ import annotations
 
 import argparse
+import base64
 import hashlib
 import json
 import mimetypes
@@ -101,35 +102,22 @@ def _req(url, key, payload=None, method=None, raw=None, ctype=None, timeout=180)
         return 0, "网络错误: %s" % e
 
 
-def upload_ref(base, key, path):
-    """本地图 → oss:// URL（DashScope 临时上传，48h 有效）。
+def ref_to_image_field(path):
+    """参考图 → mm 端点 image 字段的值。
 
-    mm 端点的 image 字段只收 URL 或 oss:// 引用，本地路径要先走这一步。
+    ★ 实测（2026-09-26）：mm 端点**只收**公网 URL 或 base64 data URI，
+      **不认 `oss://`**（会报 InvalidParameter: Image must be either a public
+      URL (http:// or https://) or a Base64 encoded string）。
+      所以本地图一律转 data URI，不再走 OSS 临时上传。
     """
-    st, pol = _req(base + "/api/v1/uploads?action=getPolicy&model=qwen-image-edit-plus", key)
-    if not isinstance(pol, dict) or "data" not in pol:
-        raise SystemExit("取上传策略失败 (%s): %s" % (st, str(pol)[:300]))
-    d = pol["data"]
-    mp = "----genfigure"
-    parts = []
-    for k, v in [("OSSAccessKeyId", d["access_key_id"]), ("policy", d["policy"]),
-                 ("Signature", d["signature"]), ("key", d["key"]),
-                 ("x-oss-object-acl", d["x_oss_object_acl"]),
-                 ("x-oss-forbid-overwrite", d["x_oss_forbid_overwrite"]),
-                 ("success_action_status", "200")]:
-        parts.append(("--%s\r\nContent-Disposition: form-data; name=\"%s\"\r\n\r\n%s\r\n"
-                      % (mp, k, v)).encode("utf-8"))
-    p = pathlib.Path(path)
-    ct = mimetypes.guess_type(p.name)[0] or "application/octet-stream"
-    parts.append(("--%s\r\nContent-Disposition: form-data; name=\"file\"; filename=\"%s\"\r\n"
-                  "Content-Type: %s\r\n\r\n" % (mp, p.name, ct)).encode("utf-8"))
-    parts.append(p.read_bytes())
-    parts.append(("\r\n--%s--\r\n" % mp).encode("utf-8"))
-    st, r = _req(d["upload_host"], None, raw=b"".join(parts), method="POST",
-                 ctype="multipart/form-data; boundary=" + mp)
-    if st not in (200, 201, 204):
-        raise SystemExit("参考图上传失败 (%s): %s" % (st, str(r)[:300]))
-    return "oss://" + d["key"]
+    s = str(path)
+    if s.startswith("http://") or s.startswith("https://"):
+        return s
+    p = pathlib.Path(s)
+    if not p.exists():
+        raise SystemExit("参考图不存在: %s" % p)
+    mime = mimetypes.guess_type(p.name)[0] or "image/png"
+    return "data:%s;base64,%s" % (mime, base64.b64encode(p.read_bytes()).decode("ascii"))
 
 
 def download(url, dest):
@@ -296,8 +284,8 @@ def main():
         if not p.exists():
             sys.exit("参考图不存在: %s" % r)
         if mode == "mm":
-            print("上传参考图  : %s" % p.name, flush=True)
-            refs.append(upload_ref(cfg["base"], key, p))
+            print("参考图  : %s" % p.name, flush=True)
+            refs.append(ref_to_image_field(p))
         else:
             refs.append(str(p))
 

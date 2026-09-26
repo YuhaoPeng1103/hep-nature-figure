@@ -128,6 +128,7 @@ def main():
         return type(dflt)(av[av.index(name) + 1]) if name in av else dflt
 
     W = opt("--W", 1200); R = opt("--R", 16.0); K = opt("--K", 7)
+    Q = opt("--q", 0)
     erase = "--erase" in av
     # 图层清单默认跟输出 SVG 同名（不要硬编码某张图的文件名）
     man = opt("--manifest", "")
@@ -149,6 +150,14 @@ def main():
     im = im.resize((W, int(round(im.height * W / im.width))), Image.LANCZOS)
     a = np.asarray(im).astype(np.float32); H, Wd = a.shape[:2]
     sc = Wd / OW
+
+    # ★ 颜色量化（--q L）：AI 出的图边缘全是抗锯齿过渡带，
+    #   四叉树会沿着它切出数万条碎路径。把每通道量化成 L 级，
+    #   过渡带塔缩成 1~2 个硬边，叶子数大幅下降。
+    #   Q 越小越粗；平涂草图建议 6~10，渲染稿建议 12~20。
+    if Q and Q >= 2:
+        a = np.round(a / 255.0 * (Q - 1)) / (Q - 1) * 255.0
+        print("  颜色量化到 %d 级/通道" % Q)
     print("图像 %dx%d | 四叉树 R=%s 最粗 %dpx | 源 %dx%d" % (Wd, H, R, 1 << K, OW, OH))
 
     # ---------- 1. 文字：OCR + 修正表 + 手工标签 -> 对齐 + 自校验 ----------

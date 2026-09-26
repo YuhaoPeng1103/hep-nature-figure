@@ -1,11 +1,15 @@
 ﻿# ocr_words.ps1 —— 用 Windows.Media.Ocr 出「词 + 坐标」词表
-#   powershell -ExecutionPolicy Bypass -File ocr_words.ps1 原图.png > words.txt
+#   powershell -ExecutionPolicy Bypass -File ocr_words.ps1 -Image 原图.png -Out words.txt
+#   （不给 -Out 就输到 stdout，可以 > words.txt 重定向）
 # 输出：x<TAB>y<TAB>w<TAB>h<TAB>text   （坐标为 **2 倍图** 坐标）
 #
 # 为什么要 2 倍图：位图里的标签只有 15~20px 高，直接 OCR 会把 Quark-Gluon
 # 认成 Quark-GIuon、Plasma 认成 PIasma。放大 2 倍再 OCR 错字率明显下降，
 # 剩下的错字用 labels.py 的 FIX 表修。
-param([Parameter(Mandatory=$true)][string]$Image, [string]$Lang = 'zh-Hans-CN')
+# ★ -Out 必须在 param 里声明：否则 `-Out` 会被 PowerShell 当成通用参数
+#   误差报“parameter name 'Out' is ambiguous (-OutVariable/-OutBuffer)”。
+param([Parameter(Mandatory=$true)][string]$Image, [string]$Lang = 'zh-Hans-CN',
+      [string]$Out = '')
 $ErrorActionPreference = 'Stop'
 [Console]::OutputEncoding = [Text.Encoding]::UTF8
 Add-Type -AssemblyName System.Runtime.WindowsRuntime
@@ -40,9 +44,18 @@ $stream = Await ($sf.OpenAsync([Windows.Storage.FileAccessMode]::Read)) ([Window
 $dec = Await ([Windows.Graphics.Imaging.BitmapDecoder, Windows.Graphics, ContentType = WindowsRuntime]::CreateAsync($stream)) ([Windows.Graphics.Imaging.BitmapDecoder])
 $bmp = Await ($dec.GetSoftwareBitmapAsync()) ([Windows.Graphics.Imaging.SoftwareBitmap])
 $res = Await ($e.RecognizeAsync($bmp)) ([Windows.Media.Ocr.OcrResult])
+$lines = @()
 foreach ($ln in $res.Lines) {
     foreach ($w in $ln.Words) {
         $r = $w.BoundingRect
-        Write-Output ("{0:F1}`t{1:F1}`t{2:F1}`t{3:F1}`t{4}" -f $r.X, $r.Y, $r.Width, $r.Height, $w.Text)
+        $lines += ("{0:F1}`t{1:F1}`t{2:F1}`t{3:F1}`t{4}" -f $r.X, $r.Y, $r.Width, $r.Height, $w.Text)
     }
+}
+if ($Out) {
+    # UTF-8 无 BOM（带 BOM 会让下游读到一个隐形字符）
+    [IO.File]::WriteAllLines([IO.Path]::GetFullPath($Out), $lines,
+        (New-Object Text.UTF8Encoding $false))
+    Write-Host ("OCR 词表：{0} 行 -> {1}" -f $lines.Count, $Out)
+} else {
+    $lines | Write-Output
 }

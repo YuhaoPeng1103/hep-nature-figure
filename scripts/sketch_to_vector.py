@@ -118,19 +118,32 @@ def make_panels(path: pathlib.Path, W: int, H: int):
 
 
 def try_ocr(image: pathlib.Path, out_words: pathlib.Path):
-    """Windows.Media.Ocr 出词表（skill 自带脚本，2× 放大后识别）。"""
+    """Windows.Media.Ocr 出词表（skill 自带脚本，2× 放大后识别）。
+
+    ★ 失败时**把原因打出来**：这里曾经是 `except: return None`，
+      结果脚本的 `-Out` 参数一直没声明（PowerShell 报 ambiguous）而
+      使用者只看到“没有词表”，反复加 --ocr 也无济于事。
+    """
     ps1 = HERE / "raster_vector" / "ocr_words.ps1"
     if not ps1.exists():
+        print("  ! OCR 跳过：找不到 %s" % ps1)
         return None
     try:
         r = subprocess.run(["powershell", "-NoProfile", "-ExecutionPolicy", "Bypass",
                             "-File", str(ps1), "-Image", str(image),
                             "-Out", str(out_words)],
-                           capture_output=True, text=True, timeout=180)
-    except (OSError, subprocess.SubprocessError):
+                           capture_output=True, text=True, errors="replace", timeout=180)
+    except subprocess.TimeoutExpired:
+        print("  ! OCR 超时（180s）")
+        return None
+    except (OSError, subprocess.SubprocessError) as e:
+        print("  ! OCR 无法运行：%s" % e)
         return None
     if out_words.exists() and out_words.stat().st_size > 0:
         return out_words
+    print("  ! OCR 没出词表（returncode=%s）" % r.returncode)
+    for ln in (r.stderr or "").strip().splitlines()[-4:]:
+        print("    " + ln.strip())
     return None
 
 
@@ -146,6 +159,11 @@ def main():
     ap.add_argument("--W", type=int, default=None, help="工作分辨率宽（默认=源图宽）")
     ap.add_argument("--R", type=float, default=12.0, help="四叉树色差阈值（小=更准更大）")
     ap.add_argument("--K", type=int, default=7, help="最粗边长 2^K")
+    ap.add_argument("--q", type=int, default=16,
+                    help="每通道颜色量化级数（默认 16；0=关）。"
+                         "草图边缘的抗锯齿会切出巨量碎路径，量化后才能给人改。"
+                         "实测（同一张草图）：0->30412 条/MAE 0.376；"
+                         "6->873/3.210；10->1255/1.273；**16->2111/1.102（>8 误差 0.31% 与不量化持平）**")
     a = ap.parse_args()
 
     src = pathlib.Path(a.image).resolve()
@@ -164,12 +182,19 @@ def main():
         if got:
             words = str(got)
             print("OCR 词表: %s" % got)
+        else:
+            print("  → --ocr 没成功（原因见上）：本次按无名牌文字处理")
     if not words:
-        print("（没有词表 → 文字会留在色块里。要真 <text> 就加 --ocr，或自己写 --words）")
+        if a.ocr:
+            print("（没拿到词表 → 文字会留在色块里。"
+                  "可以自己写一份 --words，或查上面的 OCR 报错）")
+        else:
+            print("（没有词表 → 文字会留在色块里。"
+                  "要真 <text> 就加 --ocr，或自己写 --words）")
 
     cmd = [sys.executable, str(HERE / "raster_to_vector_semantic.py"), str(src),
            "-o", str(out), "--panels", str(panels),
-           "--W", str(W), "--R", str(a.R), "--K", str(a.K),
+           "--W", str(W), "--R", str(a.R), "--K", str(a.K), "--q", str(a.q),
            "--legend", str(out.with_name(out.stem + "_layers.md")),
            "--manifest", str(out.with_name(out.stem + ".json")),
            "--check"]
