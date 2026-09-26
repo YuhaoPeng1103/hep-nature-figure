@@ -444,5 +444,110 @@ def test_oob_sliver():
     assert "14.0×14.0pt" in bad[0][1], f"报的应是**越界那一块**的尺寸：{bad[0][1]}"
 
 
+@case("ink_map_detects_coarse_stroke_interior",
+      "ink_map 要把【粗笔画内部】判成墨迹。防'擦字留残影'——"
+      "字号大的标签只擦掉轮廓、内部色块被重写的 <text> 盖着成重影")
+def test_ink_map_coarse_stroke():
+    """
+    ★ 实测（2026-09-27，自旋关联算例 render_s22_clean.png，1664x926）：
+      原判据只有「|lum - median(17x17)| > 20」。对粗笔画失效：17x17 的中值窗口
+      整块落在笔画内部 → 中值 = 笔画自己的颜色 → 差值 ~ 0 → 内部判不出墨迹。
+      字号最大的两个标签（Λ 58px、Λ̄）擦完分别残留 21.1% / 15.7% 的笔画；
+      21 条标签合计残留 209px 墨迹（成品里就是重影）。
+      补一条「比 41x41 中值估的背景暗 25 以上也算墨迹」后：Λ 122px->0、
+      Λ̄ 87px->0、全部标签 209px->0。
+      这里用合成图复现：白底 + 16px 宽黑条（条宽要落在 9~20px 这个窗口才失效）。
+    """
+    import numpy as np
+    from scipy import ndimage
+    from raster_vector.raster_ops import ink_map
+    a = np.full((200, 200, 3), 255.0, np.float64)
+    a[:, 92:108] = 0.0                      # 16px 宽黑条（0..255 灰阶）
+    m = ink_map(a)
+    core = m[40:60, 95:105]                 # 条内部
+    assert core.mean() > 0.95, f"粗笔画内部应判成墨迹，实得 {core.mean():.3f}"
+    assert m[20:30, 20:30].mean() == 0.0, "平坦背景不该被判成墨迹"
+    # 旧判据（只有 |lum-med17|>20）在同一处判不出来 —— 这个 case 才有意义
+    lum = a.mean(2)
+    old = np.abs(lum - ndimage.median_filter(lum, 17)) > 20
+    assert old[40:60, 95:105].mean() < 0.05, (
+        "旧判据本该在粗笔画内部判不出（case 前提），实得 "
+        f"{old[40:60, 95:105].mean():.3f}")
+
+
+@case("trim_border_removes_frame_and_is_idempotent",
+      "trim_border 要裁掉生图模型稳定画的 1~2px 外框，且【幂等】"
+      "（裁完再跑不许再裁）；内容真的顶到边时不许裁")
+def test_trim_border():
+    """
+    ★ 实测（2026-09-26，自旋关联算例）：生图模型稳定在四周画 1~2px 实心外框。
+      简报里写「不要外框」没用；--negative 加 border/frame/picture frame/
+      box outline 也一样（A/B 同 seed 3/3 有框；gen_neg/ 5/5 有框）。
+      于是改成确定性地裁。这里合成两张图验三条：
+        ① 白底 + 四周 2px 黑框      → 四条边各裁 2px
+        ② 对裁完的结果再跑一次      → 一条都不裁（幂等）
+        ③ 内容真的顶到边（左半全黑）→ 判为内容，不裁
+    """
+    import numpy as np
+    from PIL import Image
+    from trim_border import detect
+    a = np.full((200, 300, 3), 255, np.uint8)
+    a[0:2, :] = 0; a[-2:, :] = 0; a[:, 0:2] = 0; a[:, -2:] = 0
+    img = Image.fromarray(a)
+    r = detect(img)
+    for k in ("top", "bottom", "left", "right"):
+        assert r[k][0] == 2, f"{k} 应裁 2px，实得 {r[k]}"
+    r2 = detect(img.crop((2, 2, 298, 198)))
+    assert all(r2[k][0] == 0 for k in ("top", "bottom", "left", "right")), (
+        f"幂等：裁完再跑不该再裁，实得 {r2}")
+    b = np.full((200, 300, 3), 255, np.uint8)
+    b[:, 0:100] = 0                          # 左半全黑 → 内容顶到边
+    assert detect(Image.fromarray(b))["left"][0] == 0, "内容顶到边不许裁"
+
+
+@case("element_of_accepts_float_predicates_and_tight_fallback",
+      "元素表的颜色条件要能返回【float 加分】（bool 仍按 +0.22 兼容）；"
+      "兜底要按 (距离, 框面积) 落到包含它的最紧的框")
+def test_element_of():
+    """
+    ★ 实测（2026-09-27，自旋关联算例）：
+      ① 颜色条件原来只支持 bool，`ANY/PALE` 一律 +0.22 → 灰色抗锯齿碎片
+         （自旋箭头外晕/束流虚线，约 (150,150,150)）IoU~0，靠这 0.22 被表里
+         靠前的元素抢走：L 的 bbox 被撑到 (229,74,518,654)，5 个核的色块被判成
+         beam-axis-A。改成条件返回 float（DARK/COLOR +0.22、ANY 0.0）才对。
+      ② 兜底只看距离（且严格 <）时，覆盖整面板的 background 框 d=0、又是列表
+         末位初值 → 永不替换，5 个散块 8000+px 全被判成 background。
+         改成 (距离, 框面积) = 包含它的最紧的框。
+    """
+    from raster_vector import panels as P
+    saved = P.ELEMENTS
+    try:
+        # ① float 条件：同一框、同 IoU，0.22 的应胜出；0.0 的不加分
+        P.ELEMENTS = {"c": [
+            ("front", "front (color)", [(0, 0, 100, 100)], lambda c: 0.22),
+            ("grey", "grey", [(0, 0, 100, 100)], lambda c: 0.0),
+        ]}
+        eid, _ = P.element_of("c", (0, 0, 100, 100), (200, 200, 200))
+        assert eid == "front", f"float 条件 0.22 应胜出，实得 {eid}"
+        # ② bool 条件仍按老规矩 +0.22（向后兼容）
+        P.ELEMENTS = {"c": [
+            ("b1", "bool true", [(0, 0, 100, 100)], lambda c: True),
+            ("b2", "bool false", [(0, 0, 100, 100)], lambda c: False),
+        ]}
+        eid, _ = P.element_of("c", (0, 0, 100, 100), (10, 10, 10))
+        assert eid == "b1", f"bool True 应 +0.22，实得 {eid}"
+        # ③ 兜底：探针落在 background 大框和 corner 小框**里面** → 取面积更小
+        #    （最紧）的 corner；旧的距离法会选中 background
+        P.ELEMENTS = {"c": [
+            ("front", "front", [(0, 0, 100, 100)], lambda c: 0.0),
+            ("background", "Panel background", [(0, 0, 500, 500)], lambda c: 0.0),
+            ("corner", "corner box", [(380, 380, 420, 420)], lambda c: 0.0),
+        ]}
+        eid, _ = P.element_of("c", (390, 390, 400, 400), (10, 10, 10))
+        assert eid == "corner", f"应落到包含它的最紧的框 corner，实得 {eid}"
+    finally:
+        P.ELEMENTS = saved
+
+
 if __name__ == "__main__":
     sys.exit(main())

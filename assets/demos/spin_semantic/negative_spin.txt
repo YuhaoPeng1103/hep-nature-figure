@@ -1,0 +1,4 @@
+3D render, photorealistic, glossy plastic, gradient background, glow, lens flare,
+drop shadow, texture, noise, blurry, watermark, signature, extra text, clutter,
+overlapping labels, border, frame, outer frame, picture frame, box outline,
+black border, thin frame line, vignette, panel border, image frame

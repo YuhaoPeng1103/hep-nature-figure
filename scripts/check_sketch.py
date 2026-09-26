@@ -199,20 +199,39 @@ def lorentz_check(img, specs):
             thr = float(sp.get("阈值", 1.25))
         except (TypeError, ValueError):
             thr = 1.25
-        for i, b in enumerate(blobs[:2], 1):
+        # ★ 2026-09-26：「核 = 面积最大的两个彩色块」是**启发式**，不是识别。
+        #   实测踩到（自旋关联算例）：(a) 面板的 QGP 火球 + 紫色 L 箭头 +
+        #   青色 Λ̄ 被膨胀合并成一个大彩色块，**面积排到第 2**，顶替了真正的
+        #   第 2 个核（红核，面积第 3）。那次结论恰好是对的（2.08 也 ≥1.25），
+        #   但**量错了对象** —— 闸口不能惄惄量错东西。
+        #   试过「加 fill（像素/bbox 面积）过滤掉稀疏的合并团块」，**不能用**：
+        #   run2 那张画反的 render_s31，错误的那个核恰好就是个 fill=0.20
+        #   的合并团块 —— 滤掉它 = 漏掉真错误（已实测）。
+        #   所以判据不动（仍用面积前二定好坏，避免放松），但**把所有彩色块都列出来**，
+        #   带上 fill（实心核 ~0.6、合并团块 ~0.1），让人一眼看出被量的到底是不是核。
+        for i, b in enumerate(blobs, 1):
             w, h = b["wh"]
             ratio = (h / w) if horiz else (w / h)
             axis = "高/宽" if horiz else "宽/高"
+            fill = b["px"] / float(w * h)
+            if i > 2:
+                lines.append("     · 彩色块#%d box=%s %d×%d  %s=%.2f  fill=%.2f"
+                             "（未参与判定）" % (i, b["box"], w, h, axis, ratio, fill))
+                continue
             good = ratio >= thr
             if good:
                 note = "沿%s束流方向压扁（Lorentz 收缩）— 对" % ("水平" if horiz else "竖直")
             else:
                 note = "**压扁方向垂直于运动方向** —— 画反了"
-            lines.append("  %s 核#%d box=%s %d×%d  %s=%.2f  %s"
-                         % ("✅" if good else "❌", i, b["box"], w, h, axis, ratio, note))
+            lines.append("  %s 核#%d box=%s %d×%d  %s=%.2f  fill=%.2f  %s"
+                         % ("✅" if good else "❌", i, b["box"], w, h, axis, ratio, fill, note))
             if not good:
                 hard.append("核#%d 的 Lorentz 收缩方向画反（%s=%.2f < %.2f）"
                             % (i, axis, ratio, thr))
+    if len(blobs) > 2:
+        lines.append("     → ▲ 上面列了全部 %d 个彩色块；判定只用前两个。"
+                     "fill 接近 0.6 = 实心核；fill ~0.1 = 多个物体被膨胀合并的团块。"
+                     "被量的不是核 → 人工看一眼这行。" % len(blobs))
     return lines, hard
 
 

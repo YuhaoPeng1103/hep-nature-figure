@@ -278,6 +278,15 @@ def main():
             if r.get("ok"):
                 mm |= LB.rot_mask((H, Wd), r["box"], r["ang"], r["mrect"],
                                   ink=inkm, pad=2)
+        # ★ EXTRA_ERASE：版式表点名要擦的框（OCR 框漏掉的多部件字形）。
+        #   实测（自旋图）：Λ̄ 的上划线在原图里是独立的一横（1405,522,1436,526），
+        #   OCR 给的框从 y=530 起 —— 横杠没被擦掉，成品里「重写的 <text>」再画一根
+        #   横杠，就成了双划线。这个框**不能**并进词表：把 Λ̄ 的框撑到 55px 高时
+        #   逐词自校验反而不过（res0 0.168 > 0.140，字体的横杠位置比原图近），
+        #   于是只能「拟合用紧框 + 擦除补一块」。
+        for (ex0, ey0, ex1, ey1) in getattr(P, "EXTRA_ERASE", []):
+            mm |= V.text_mask((H, Wd), [(ex0, ey0, ex1 - ex0, ey1 - ey0, ".")], 1.0,
+                              pad=2, ink=inkm)
         # 还要擦掉"重写文字实际占用的范围"：如 'Area'->'Area:' 补的冒号会压在原图冒号上
         rb = [k["res"][7]["rect"] for k in kept if k["res"][7].get("rect")]
         if rb:

@@ -48,11 +48,23 @@ def text_mask(shape, words, sc, pad=2, ink=None):
     return m
 
 
-def ink_map(a):
-    """局部对比度 -> 笔画像素。文字/线条为真，平坦背景为假"""
+def ink_map(a, win=17, win_bg=41, thr=20, dthr=25):
+    """局部对比度 -> 笔画像素。文字/线条为真，平坦背景为假。
+
+    ★ 实测坑（2026-09-27）：只留「|lum - 中值| > 20」这一条时，**粗笔画内部**
+      判不出墨迹 —— 17x17 的中值窗口整块落在笔画内部，中值就等于笔画自己的
+      颜色，|lum-bg| 约等于 0。字号最大的标签（自旋图里 58px 的 Λ / Λ̄）擦完还剩
+      21% / 16% 的原笔画，成品里就成了「重写的 text 压着残留色块」的重影。
+      补一条「明显比**更大窗口**估的局部背景暗」：41x41 的中值一定跨出粗笔画
+      取到背景色，于是笔画内部也能判成墨迹。
+      实测（render_s22_clean.png，1664x926）：Λ 残留 122px->0（21.1%->0%），
+      Λ̄ 87px->0（15.7%->0%），21 条标签擦除后残留墨迹 209px->0。
+    """
     lum = a.mean(2)
-    bg = ndimage.median_filter(lum, 17)
-    return np.abs(lum - bg) > 20
+    bg = ndimage.median_filter(lum, win)
+    m = np.abs(lum - bg) > thr
+    m |= lum < ndimage.median_filter(lum, win_bg) - dthr
+    return m
 
 
 def inpaint(a, m, sig=5.0):

@@ -474,34 +474,45 @@ python3 scripts/ir_to_genbrief.py ir/xxx.ir.yaml --stage sketch -o brief1.md
 python3 scripts/gen_figure.py --brief brief1.md --stage sketch \
     --ref refs/T3-33.png --seeds 1,2,3 --outdir gen/
 #   产物：gen/sketch_s1.png、gen/sketch_prompt.txt、gen/calls.jsonl
+#   ★ 模型**稳定**在四周画 1~2px 外框：简报里写「不要外框」没用、
+#     --negative 加 border/frame/picture frame 也没用（实测 5/5 全有框）
+#     → 别求它，确定性裁掉；后面所有步骤都用 *_clean.png：
+python3 scripts/trim_border.py gen/sketch_s1.png -o gen/sketch_s1_clean.png
 
 # ── 3. 草图矢量化输出（人可改）────────────────────────────
-python3 scripts/sketch_to_vector.py gen/sketch_s1.png -o gen/sketch_s1.svg --ocr
+python3 scripts/sketch_to_vector.py gen/sketch_s1_clean.png -o gen/sketch_s1.svg --ocr
 #   不用写 panels.py：草图靠自动切分，每个形体一个子层（part-01…）
 #   ★ 默认 --q 16（每通道颜色量化级数）。草图边缘的抗锯齿会切出数万条碎路径，
 #     量化后才能“给人改”。实测：0->30412 条/MAE 0.376；16->2111 条/MAE 1.102
 #     （>8 色阶像素 0.31%，与不量化的 0.32% 持平，但路径少 14 倍）。要更精就 --q 0。
 
 # ── 4. ★ 闸口①：草图过物理检查（不能跳）────────────────────
-python3 scripts/check_sketch.py gen/sketch_s1.png --ir ir/xxx.ir.yaml
+python3 scripts/check_sketch.py gen/sketch_s1_clean.png --ir ir/xxx.ir.yaml
 
 # ── 5. 出成品位图（★ 草图 + 风格参考图都要带）──────────────
 python3 scripts/ir_to_genbrief.py ir/xxx.ir.yaml --stage render -o brief2.md
 python3 scripts/gen_figure.py --brief brief2.md --stage render \
-    --ref gen/sketch_s1.png --ref refs/T3-33.png --seeds 21,22 --outdir gen/
+    --ref gen/sketch_s1_clean.png --ref refs/T3-33.png --seeds 21,22 --outdir gen/
 #   ★ 第一个 --ref 是**上一步选中的草图**：它是构图依据（已过闸口①）。
 #     只传风格参考图 = 让模型重新猜一遍构图，构图会被改坏
 #     （实测 2026-09-26：UPC 算例漏传草图，成品位图把核 B 画成了横扁，
 #      与 IR 的 Lorentz 收缩方向相反）。
+#   成品位图同样带外框 → 同样裁掉再进闸口/临摹：
+python3 scripts/trim_border.py gen/render_s22.png -o gen/render_s22_clean.png
 
 # ── 6. ★ 闸口②：成品位图再过一次同一个闸口 ─────────────────
-python3 scripts/check_sketch.py gen/render_s22.png --ir ir/xxx.ir.yaml
+python3 scripts/check_sketch.py gen/render_s22_clean.png --ir ir/xxx.ir.yaml
 
 # ── 7. 位图 → 矢量：首选重画，备用混合临摹 ──────────────────
 #    首选：看懂每个部分后重画（形体带真 <gradient>，保留色彩+阴影）
-#    备用（要"和位图一模一样"时）：
-python3 scripts/raster_to_vector_semantic.py gen/render_s22.png -o fig.svg \
-        --words words.txt --panels my_panels.py --legend fig_layers.md --check
+#    备用（要"和位图一模一样"时）—— semantic 临摹，出的是**真 <text>** +
+#    **按物理元素的命名图层树**（不是像素描摹）：OCR 词表逐词对齐后擦掉原字、
+#    重写成可编辑 <text>；图形按 panels.py 的元素表归到 nucleus-A / photon-B …
+#    实测（自旋图）非文字区 MAE 0.518、>8 色阶 0.01%，1946 条 <path>、0 个 <image>
+python3 scripts/raster_to_vector_semantic.py gen/render_s22_clean.png -o fig.svg \
+        --words words.txt --panels my_panels.py \
+        --legend fig_layers.md --el_txt fig_el_table.txt --check
+#    --legend 人读图层清单 / --el_txt 元素明细 / --check 回渲染自检（MAE/PSNR）
 
 # ── 8. 三道门禁 + 返修单 → 交付 ───────────────────────────
 python3 scripts/check_render.py fig.png --probe 0.5,0.10
@@ -530,6 +541,7 @@ python3 scripts/repair_brief.py fig.svg --profile assets/style-profiles.json
 | **两个接口** | `qwen-image-*` → 图生图（**支持 --ref**）；`wanx*`/`wan*` → 纯文生图 | 要参考图只能用前者 |
 | **image 字段** | 本地图 → **base64 data URI**（自动）；公网 URL 直接透传 | mm 端点**只收**公网 URL 或 base64，**不认 `oss://`** —— 实测提交报 400 `Image must be either a public URL or a Base64 encoded string`（v2.6.1 修）|
 | **两个产物** | 草图 PNG + **草图 SVG** + 成品位图，全部落盘 | 用户要能拿到中间产物 |
+| **裁外框** | 出图后跑 `scripts/trim_border.py in.png -o out_clean.png` | 模型**稳定**在四周画 1~2px 外框，简报与 `--negative` 都拦不住（实测 5/5）→ 确定性裁掉，别求模型 |
 | **可复现** | `gen/calls.jsonl` 记 model/seed/size/refs/prompt 指纹 | 复现和核对计费都靠它 |
 | 没 key 时 | `--dry-run` 只写提示词和调用计划 | 自检不用花钱 |
 

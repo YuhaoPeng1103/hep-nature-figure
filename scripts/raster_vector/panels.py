@@ -249,27 +249,45 @@ def _iou(A, B):
 
 def element_of(cid, bbox, rgb):
     """给自动切分出的一个色块命名：与 ELEMENTS 里的框比 IoU，颜色吻合加成；
-    全都对不上就退化成「离哪个框最近」。返回 (元素id, 人读说明)"""
+    全都对不上就退化成「包含它的最紧的框 / 最近的框」。返回 (元素id, 人读说明)
+
+    ★ 颜色条件（cond）可以返回 bool，也可以返回 **float 加分**：
+      · bool（含 np.bool_）→ True 加 0.22（老行为，全兼容）
+      · float            → 直接加这个值（0.0 = 不加分）
+      为什么要 float：实测（自旋关联算例）`ANY/PALE` 无条件 +0.22 时，灰色抗锯齿
+      碎片（自旋箭头外晕 / 束流虚线 / b 的竖虚线，颜色约 (150,150,150)）对任何框的
+      IoU 都≈0，那个 +0.22 就成了唯一的决定项 → 5 个核的色块被判成表里靠前的
+      beam-axis-A。改成「只有确实是黑（DARK）/确实是彩色（COLOR）才 +0.22，
+      ANY=0.0」才对。见 CHANGELOG v2.6.3 修 6。
+    """
     els = ELEMENTS.get(cid)
     if not els:
         return None, None
     best, bs = None, 0.0
     for eid, label, boxes, cond in els:
         s = max(_iou(bbox, b) for b in boxes)
-        if cond(rgb):
-            s += 0.22
+        v = cond(rgb)
+        if v is True or v is False or type(v).__name__ == "bool_":
+            s += 0.22 if v else 0.0
+        else:
+            s += float(v)
         if s > bs:
             bs, best = s, (eid, label)
     if best is None or bs < 0.10:
         cx = (bbox[0] + bbox[2]) / 2.0
         cy = (bbox[1] + bbox[3]) / 2.0
-        bb, bd = els[-1][:2], 1e18
+        # ★ 兜底按 (距离, 框面积) 取最小，不能只看距离：background 的框是**整面板**，
+        #   任何落进去的点对它 d=0，只看距离（且用严格 <）时先遍历到的那个框赢 →
+        #   所有落不到「紧框」里的散块全被判成 background（实测自旋图 5 个散块、
+        #   8000+px 被吞）。面积做第二关键字 = 包含它的最紧的框，符合
+        #   「点选物理元素」的直觉。见 CHANGELOG v2.6.3 修 7。
+        bb, bk = els[-1][:2], (1e18, 1e18)
         for eid, label, boxes, cond in els:
             for (x0, y0, x1, y1) in boxes:
                 dx = max(x0 - cx, 0.0, cx - x1); dy = max(y0 - cy, 0.0, cy - y1)
-                d = (dx * dx + dy * dy) ** 0.5
-                if d < bd:
-                    bd, bb = d, (eid, label)
+                k = ((dx * dx + dy * dy) ** 0.5, (x1 - x0) * (y1 - y0))
+                if k < bk:
+                    bk, bb = k, (eid, label)
         return bb
     return best
 
