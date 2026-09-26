@@ -1,10 +1,19 @@
 #!/usr/bin/env python3
 """
-check_sketch —— 中间稿检查（路径 2 的闸口）
+check_sketch —— 位图闸口（★ 同一个脚本在流程里跑 **两次**）
 =========================================================================
 ## 它在流程里的位置
 
-    草图/描述 ──生图──▶ 【更好的草图】 ──★这里检查★──▶ 成品位图 ──绘画──▶ 矢量
+    草图/描述 ──生图──▶ 草图 ──★闸口①★──▶ 成品位图 ──★闸口②★──▶ 矢量
+                        （矢量化输出，人可改）
+
+★ **两道闸口用的是同一个脚本**，只是喂进去的图不同：
+  · 闸口① 草图 → 成品位图 之间：构图错了，重出的代价最小；
+  · 闸口② 成品位图 → 矢量 之间：**成品位图是矢量那一步的唯一依据**，
+    它错了后面全错。以前只跑了闸口①，闸口②是漏的。
+
+★ 为什么成品位图也要查：矢量那一步（重画 / 混合临摹）都会**忠实照抄位图**，
+  位图里的物理错误会被原样带进交付的矢量图里 —— 而位图本身没有第二个人看过。
 
 ## ★ 为什么必须分成两类检查
 
@@ -17,13 +26,17 @@ check_sketch —— 中间稿检查（路径 2 的闸口）
   ■ 必须你回答的  IR 的 `geometry_constraints` **逐条变成待答问题**
                   —— 让"检查物理"从一句原则变成一个必须填的动作
 
-**有任何一条答"否" → 改 prompt 重出，不要往下走。**
+**有任何一条答「否」→ 改 prompt 重出，不要往下走。**
 往下走的代价是：错误会被带进成品位图、再带进矢量，越往后越贵。
 
 ## 用法
 
-    python3 check_sketch.py sketch_v1.png --ir ir/xxx.ir.yaml
-    python3 check_sketch.py sketch_v1.png --ir ir/xxx.ir.yaml \\
+    # 闸口① 草图
+    python3 check_sketch.py gen/sketch_s1.png --ir ir/xxx.ir.yaml
+    # 闸口② 成品位图（喂同一个 IR）
+    python3 check_sketch.py gen/render_s22.png --ir ir/xxx.ir.yaml
+
+    python3 check_sketch.py gen/render_s22.png --ir ir/xxx.ir.yaml \\
         --profile assets/style-profiles.json --class "T3-schematic (illustration)"
 """
 from __future__ import annotations
@@ -81,7 +94,7 @@ def content_stats(img: Image.Image):
 
 
 def main():
-    ap = argparse.ArgumentParser(description="中间稿检查（路径 2 的闸口）")
+    ap = argparse.ArgumentParser(description="位图闸口 —— 草图 / 成品位图通用，流程里跑两次")
     ap.add_argument("image")
     ap.add_argument("--ir", required=True, help="对应的 IR —— 几何约束从它来")
     ap.add_argument("--profile", help="风格档案（可选）")
@@ -96,7 +109,7 @@ def main():
     W, H = img.size
     ir = load_ir(Path(a.ir))
 
-    print(f"【中间稿检查】{img_path.name}")
+    print(f"【位图闸口】（草图 / 成品位图通用）{img_path.name}")
     print(f"  尺寸 {W}×{H}  宽高比 {W/H:.2f}")
 
     # 画布比例是否照 IR 走

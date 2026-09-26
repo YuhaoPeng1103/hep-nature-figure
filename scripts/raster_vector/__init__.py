@@ -4,7 +4,7 @@
   位图（示意图 / 期刊配图）
     ├─ 四叉树平色块   -> 逐像素临摹的色块矢量（quadtree）
     ├─ 文字层         -> 可编辑的真 <text>（labels）
-    ├─ 物理元素切分   -> 面板 -> 元素 -> 颜色族 的图层树（elements + panels + groupvec）
+    ├─ 物理元素切分   -> 面板 -> 物理元素 -> path 的图层树（elements + panels + groupvec）
     └─ 组装 + 自检     -> SVG + 图层清单（groupvec）
 
 与「像素描摹」的根本差别：**先理解，再临摹**。

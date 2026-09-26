@@ -104,6 +104,11 @@ def build(ir: dict, style: dict | None, stage: str = "sketch") -> str:
         L.append("  但仍然：形体要清楚可辨认，不要靠模糊和噪点营造氛围 ——")
         L.append("  因为下一步还要把它转成矢量。")
     L.append("")
+    L.append("★ **必须随本简报一起，把风格参考图传给模型**"
+             "（`gen_figure.py --ref 参考图.png`，可多张）。")
+    L.append("  只给文字 → 出来一定是「通用插画脸」。参考图（如 Nature 正刊的同类示意图）"
+             "让模型做的是『改风格』而不是『猜构图』。")
+    L.append("")
     L.append(f"画布比例：{W}×{H}（宽高比 {W/H:.2f}）。白底。")
     L.append("")
 
@@ -201,7 +206,9 @@ def build(ir: dict, style: dict | None, stage: str = "sketch") -> str:
     if cons:
         L.append("═══ 三、★ 几何约束（画错这张图就是废图）═══")
         L.append("**图像模型不知道物理，这一节是最容易画错的地方。**")
-        L.append("临摹成矢量时必须逐条对账，不能照抄位图。")
+        L.append("★ 矢量那一步必须拿这一节**逐条对账**。")
+        L.append("  · 位图已经过了闸口（check_sketch 答完所有几何问题）→ **就该照它画**；")
+        L.append("  · 对不上 = 位图错了 → 回去改简报重出，而不是在矢量那步偷偷「修正」。")
         L.append("")
         for c in cons:
             L.append(f"  · {c.get('名','')}：{c.get('量','')}  要求 {c.get('要求','')}")
@@ -246,18 +253,31 @@ def build(ir: dict, style: dict | None, stage: str = "sketch") -> str:
     L.append("─" * 60)
     if stage == "sketch":
         L.append("★ 下一步（不在本次任务里）：")
-        L.append("  ① 拿这张草图**对着第三节的几何约束逐条核对** ——")
-        L.append("     图像模型不知道物理，这是最容易画错的地方。")
-        L.append("     核对了才能往下走；错了就改 prompt 重出。")
-        L.append("  ② 核对通过后，可以再调一次图像模型出**成品位图**（要质感），")
-        L.append("     也可以直接照着这张草图**绘画成矢量**。")
-        L.append("  ③ 出矢量时：文字写成真 <text>、渐变写成真 <gradient>、")
-        L.append("     几何以第三节的约束为准，**不要照抄图上的几何**。")
+        L.append("  ① **矢量化输出**（草图必须是矢量的，人要能直接改）：")
+        L.append("       python3 scripts/sketch_to_vector.py <草图.png> \\")
+        L.append("           -o <草图.svg> --ocr      # --ocr 让字也变成真 <text>")
+        L.append("     不用写 panels.py —— 草图靠自动切分，每个形体一个子层。")
+        L.append("  ② **过闸口**（第一道）：拿草图对着第三节逐条核对")
+        L.append("       python3 scripts/check_sketch.py <草图.png> --ir <你的.ir.yaml>")
+        L.append("     ★ 有半张输出是「必须你/模型看图逐条回答」的几何约束。")
+        L.append("     任何一条答「否」→ 改简报重生，**不要往下走**。")
+        L.append("  ③ 过闸口后再调一次图像模型出**成品位图**（要质感，同样带 --ref）。")
     else:
-        L.append("★ 下一步（不在本次任务里）：把这张位图**看懂后重画**成 SVG。")
-        L.append("  · 重画时以第三节的几何约束为准，**不要照抄位图的几何**；")
-        L.append("  · 文字写成真 <text>，渐变写成真 <gradient>；")
-        L.append("  · 图层按**语义**分（介质/核/喷注/标注），不是按颜色分。")
+        L.append("★ 下一步（不在本次任务里）：")
+        L.append("  ⓪ **先过闸口**（第二道，这一步以前漏了）：")
+        L.append("       python3 scripts/check_sketch.py <成品位图.png> --ir <你的.ir.yaml>")
+        L.append("     成品位图是矢量那一步的**唯一依据**，它错了后面全错。")
+        L.append("  ① **首选：理解后重画**（路径 2 / 3 的默认终点）")
+        L.append("       看懂位图里每个部分是什么，逐个重画成 SVG：")
+        L.append("       · 图层按**结构/物理**分（nucleus-A / photon-A / vertex…），"
+                 "**不按颜色分**；")
+        L.append("       · 要保留**色彩和阴影**（形体用真 <gradient>，别退化成平涂）；")
+        L.append("       · 文字写成真 <text>。")
+        L.append("  ② **备用：混合临摹**（重画不划算/要更忠实时才用）")
+        L.append("       python3 scripts/raster_to_vector_semantic.py <位图> -o fig.svg \\")
+        L.append("           --words words.txt --panels panels.py --check")
+        L.append("       逐像素描摹 + 文字擦掉重写真 <text>；")
+        L.append("       分层同样按物理元素（颜色只是 path 的属性，不是图层）。")
     return "\n".join(L)
 
 

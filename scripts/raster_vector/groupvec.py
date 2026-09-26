@@ -129,7 +129,10 @@ def main():
 
     W = opt("--W", 1200); R = opt("--R", 16.0); K = opt("--K", 7)
     erase = "--erase" in av
-    man = opt("--manifest", "t301_grouped.json")
+    # 图层清单默认跟输出 SVG 同名（不要硬编码某张图的文件名）
+    man = opt("--manifest", "")
+    if not man:
+        man = os.path.splitext(out)[0] + "_layers.json"
     stats = "--stats" in av
 
     # 版式表可以外挂：--panels my_panels.py（不传就用包里的 T3-01 示例）
@@ -422,14 +425,19 @@ def emit(src, out, man, stats, a, H, Wd, kept, R, K, legend=None, rot=None):
          'width="%d" height="%d" viewBox="0 0 %d %d">' % (Wd, H, Wd, H),
          '<title>%s</title>' % LB.xml_esc(title),
          '<desc>全矢量图：文字为可编辑的真 text 元素，其余为逐像素临摹的色块矢量。'
-         '图层 = 面板(panel) -> 物理元素(element) -> 颜色族(color family)；'
+         '图层 = 面板(panel) -> 物理元素(element) -> path；'
          '每个面板另有 text 子层。元素命名见 panels.py 的 ELEMENTS 表。</desc>',
          '<g id="figure" data-role="figure" inkscape:groupmode="layer" inkscape:label="Figure">',
          '<rect id="canvas-background" x="0" y="0" width="%d" height="%d" fill="#ffffff"/>' % (Wd, H)]
     manifest = {"source": os.path.basename(src), "canvas": [Wd, H], "panels": []}
     ntxt = 0
     md = ["# 图层清单 — %s" % os.path.basename(out), "",
-          "图层树：`面板 panel` → `物理元素 element` → `颜色族 color family`。",
+          "图层树：`面板 panel` → `物理元素 element` → `<path>`。",
+          "★ 图层只按【物理元素】分，**不按颜色分层** —— 人打开图层面板看到的应该是",
+          "物理（nucleus-A / photon-B / arrow-b…），不是 white / orange / gray。",
+          "同色矩形仍会并成一条 path（那只是体积优化），颜色挂在 `data-color` 上；",
+          "要把一个元素再拆成子结构（如 `nucleus-A-body` / `nucleus-A-outline`），"
+          "用 `panels.py` 的 `SPLIT` 显式写，而不是靠自动的颜色分组。",
           "在 Illustrator 里打开「图层」面板即可按下面的名字点选；在 Inkscape 里是子图层。", "",
           "| 面板 | 物理元素 | 说明 | 包围盒 (x0,y0,x1,y1) | 路径数 | 像素 |", "|---|---|---|---|---|---|"]
     text_layers = []
@@ -454,22 +462,23 @@ def emit(src, out, man, stats, a, H, Wd, kept, R, K, legend=None, rot=None):
                         LB.xml_esc(elab)))
             L.append('<title>%s</title>' % LB.xml_esc(elab))
             einfo = {"id": eid, "label": elab, "bbox": list(bbox), "px": epx,
-                     "paths": en, "families": []}
-            fams = {}
-            for col, rects in per[cid][eid].items():
-                fams.setdefault(cname(*col), []).append((col, rects))
-            for fam in sorted(fams, key=lambda f: -sum(len(r) for _, r in fams[f])):
-                items = sorted(fams[fam], key=lambda t: -sum(w * h for _, _, w, h in t[1]))
-                L.append('<g id="%s-%s-%s" data-family="%s" data-paths="%d" data-px="%d">'
-                         % (cid, eid, fam, fam, len(items), sum(len(r) for _, r in items)))
-                for i, (col, rects) in enumerate(items, 1):
-                    d = "".join("M%d %dh%dv%dh-%dz" % (x, y, w, h, w) for x, y, w, h in rects)
-                    px = sum(w * h for _, _, w, h in rects)
-                    L.append('<path id="%s-%s-%s%d" data-color="%s" data-px="%d" fill="%s" d="%s"/>'
-                             % (cid, eid, fam, i, hexs(col), px, hexs(col), d))
-                L.append('</g>')
-                einfo["families"].append({"name": fam, "paths": len(items),
-                                          "px": sum(len(r) for _, r in items)})
+                     "paths": en, "colors": []}
+            # ★ 不再插一层「颜色族」<g>：图层树必须是 panel -> element -> <path>。
+            #   实测问题（2026-09-26）：人打开图层面板看到的是
+            #     p-photon-A / p-photon-A-orange / p-photon-A-gray / p-photon-A-white
+            #   —— 中间那层是**按颜色**分的，跟物理没关系，选择/改色时要多点好几次。
+            #   「同色矩形并成一条 path」仍然保留（那是体积优化，不是图层结构）：
+            #   实测 UPC 图 48071 条色块 → 22655 条 <path>，并了 53%。
+            #   要按物理再拆子结构，用 panels.py 的 SPLIT 显式写。
+            items = sorted(per[cid][eid].items(),
+                           key=lambda t: -sum(w * h for _, _, w, h in t[1]))
+            for i, (col, rects) in enumerate(items, 1):
+                d = "".join("M%d %dh%dv%dh-%dz" % (x, y, w, h, w) for x, y, w, h in rects)
+                px = sum(w * h for _, _, w, h in rects)
+                L.append('<path id="%s-%s-%02d" data-color="%s" data-px="%d" fill="%s" d="%s"/>'
+                         % (cid, eid, i, hexs(col), px, hexs(col), d))
+                einfo["colors"].append({"color": hexs(col), "family": cname(*col),
+                                        "px": px, "rects": len(rects)})
             L.append('</g>')
             pinfo["elements"].append(einfo)
             md.append("| `%s` | `%s-%s` | %s | %d,%d,%d,%d | %d | %d |"

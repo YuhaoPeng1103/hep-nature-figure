@@ -19,9 +19,8 @@
 figure
 └─ c1                       data-role="schematic"   ← 面板
    ├─ c1-medium-tube        data-label="Hydrodynamic expansion (medium tube)"  ← 物理元素
-   │  ├─ c1-medium-tube-ltorange   data-family=...    ← 颜色族
-   │  │  └─ <path data-color="#fcf0de" data-px="..."/>
-   │  └─ …
+   │  ├─ <path data-color="#fcf0de" data-px="..."/>   ← 同色矩形并成一条 path
+   │  └─ …          （★ 中间不再有「颜色族」那一层：图层按物理分，不按颜色分）
    ├─ c1-nucleus-deformed / c1-nucleus-spectator / c1-core-sphere
    ├─ c1-slice-ellipse / c1-jets / c1-momentum-arrow / c1-connector-arrow
    ├─ c1-background

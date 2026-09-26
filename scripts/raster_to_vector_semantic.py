@@ -119,11 +119,14 @@ def main():
     ap.add_argument("--no-text", action="store_true",
                     help="不做文字层：原字留在色块里（过不了投稿门禁，但不需要 OCR）")
     ap.add_argument("--legend", default="", help="输出可读图层清单 .md")
-    ap.add_argument("--manifest", default="t301_grouped.json", help="输出图层清单 .json")
+    ap.add_argument("--manifest", default="", help="输出图层清单 .json（默认跟 -o 同名）")
     ap.add_argument("--elmap", default="", help="输出元素划分自检图 .png")
     ap.add_argument("--el_txt", default="", help="元素划分明细 .txt")
     ap.add_argument("--check", action="store_true", help="回渲染自检（推荐每次都开）")
     a = ap.parse_args()
+
+    if not a.manifest:
+        a.manifest = str(Path(a.out).with_suffix("")) + "_layers.json"
 
     src = Path(a.image)
     if not src.exists():

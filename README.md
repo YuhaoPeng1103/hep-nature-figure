@@ -1,16 +1,14 @@
-> # 📌 本分支 = 版本 B2（最新）：生图 + 成品位图
+> # 📌 本分支 = 主线（v2.6）：三条路线合一
 >
-> 两次生图：先出「更好的草图」检查，再出成品位图，然后临摹成矢量。**观感最好，但可复现最差。**
+> 三条路线都在本分支里，**默认走路线 3**：IR → 生图简报 → 草图（+矢量草图）→
+> 闸口① → 成品位图 → 闸口② → 重画/临摹成矢量 → 三道门禁 → 交付。
+> 观感最好，代价是两次生图、可复现最差。
 >
-> 另外两个版本在别的分支：
-> | 分支 | 路线 | 特点 |
-> |---|---|---|
-> | `main`（= 本分支） | **B2**：生图 + 成品位图 | 观感最好，但两次生图、可复现最差 |
-> | `route-a` | **A**：模型直接写 SVG | 约束最紧、可复现最好，**默认推荐** |
-> | `route-b1` | **B1**：生图当草图 | 质感和可控的折中 |
+> `route-a` / `route-b1` / `route-b2` 是早期「一个分支一条路线」的旧版，
+> 保留但不再更新；新装直接用 `main`。
 >
 > ```bash
-> git clone -b <分支名> https://github.com/YuhaoPeng1103/hep-nature-figure.git
+> git clone https://github.com/YuhaoPeng1103/hep-nature-figure.git
 > ```
 
 ---
@@ -68,60 +66,98 @@
 输入（参考图 / 草图 / 描述）
    ↓
 ① 写 IR —— 物理层 + 元素 + 构图 + geometry_constraints
+      IR 就是"完善后给生图模型的 prompt"
    ↓
-② 选路线产生内容
-   A  模型直接写 SVG         B1 生图当草图 → 检查 → 绘画         B2 B1 + 成品位图
+② IR → 约束简报              scripts/ir_to_genbrief.py --stage sketch
    ↓
-③ ★ 确定性重组（三条路在这里汇合），两种粒度：
-   对象级：模型看懂 → 写 Scene Graph → scene_render.py 重组 → SVG
-   像素级：位图 → raster_to_vector_semantic.py（自动切分定形状 + 人写元素表命名）→ SVG
-   两者的同一份输入两次跑 → 逐字节相同的 SVG
+③ 出草图（★ 必须带 --ref 风格参考图；key 用使用者自己的）
+                             scripts/gen_figure.py --stage sketch
    ↓
-④ 三道门禁 + 返修单 → 交付（SVG 工作稿 + PDF 交付稿）
+④ ★ 草图矢量化 —— 人可改的 SVG 草图（必须输出）
+                             scripts/sketch_to_vector.py
+   ↓
+⑤ ★ 闸口①：草图过物理检查（不能跳）      scripts/check_sketch.py
+   ↓
+⑥ 出成品位图（同样带 --ref）             scripts/gen_figure.py --stage render
+   ↓
+⑦ ★ 闸口②：成品位图再过一次同一个闸口    scripts/check_sketch.py
+   ↓
+⑧ 位图 → 矢量：首选重画（按结构/物理分层、保留色彩与阴影）
+   备用混合临摹（逐像素描摹 + 文字擦掉重写真 <text>）
+   ↓
+⑨ 三道门禁 + 返修单 → 交付（SVG 工作稿 + PDF 交付稿）
 ```
 
-**为什么要有第 ③ 环**：「位图 → 矢量」这一步，像素描摹**没有理解**
-（文字碎成色块、渐变退化成色阶），而让模型直接重画**不忠实、不确定**
-（漂移、自己发明）。所以拆开：**人/模型负责看懂，代码负责重组。**
+**为什么要这两道闸口**：机器判不了物理。草图阶段先拦一次"元素缺失 / 喷注画反"，
+成品位图阶段再拦一次"生图模型自作主张改了物理"。**闸口不是装饰，是流水线上的卡尺。**
 
-**两种粒度各管一摊**：图能拆成图元（圆/圆柱/箭头/轴）就用 Scene Graph，
-渐变是**真** `<gradient>`；图是渲染质感（光照/体积/有机纹理）就用
-`raster_to_vector_semantic.py`，忠实度最高但渐变换成色阶台阶。见下节。
+**为什么第 ④ 环要输出矢量草图**：草图是给人改的。位图草图改不动，
+矢量化之后人能在 Illustrator 里直接拖动某个形体，改完再回去生成品位图。
 
 ---
 
 ## 三条路线，怎么选
 
-|  | **A：模型写 SVG** | **B1：生图当草图** | **B2：B1 + 成品位图** |
+|  | **路线 1：直接代码出图** | **路线 2：生图草图 → 代码完善** | **路线 3：生图草图 → 成品位图 → 临摹** |
 |---|---|---|---|
-| 流程 | IR → 模型直接写 SVG → 门禁 | IR → 生图简报 → 草图 → 检查 → 绘画 | B1 + 成品位图 → 先理解再临摹 |
+| 中间产物 | 无 | 草图 PNG + **矢量草图 SVG** | 草图 PNG + **矢量草图 SVG** + 成品位图 |
+| 谁保证物理 | 代码（`geometry_constraints` 直接可算） | 闸口① | 闸口① + 闸口② |
 | 观感 | 教科书插画 | 中 | **最好** |
-| 可复现 | 较好 | 中 | **最差**（两次生图） |
-| 物理把关 | IR 全程 | 生图后要核 | 两道闸口 |
+| 可复现 | **最好**（逐字节） | 中 | **最差**（两次生图） |
 | 成本 | 低 | 中 | 高 |
 
-- **默认走 A**：约束最紧、可复现最好
-- **要质感走 B1**：`ir_to_genbrief.py --stage sketch` → 生图 → `check_sketch.py`
-- **B2 只在 B1 明显不够时上**：多一次生图，也多一次漂移机会
-  （临摹那步本身是确定性的，漂移只来自生图）
+- **默认 = 路线 3。** "质感"这件事生图模型比代码强得多；只有要确定性时才退回 1。
+- **只要确定性 / 要批量扫参数** → 路线 1（`scene_render.py` IR 直渲，或 `svg_lib` 手写）
+- **要人插手改草图** → 路线 2（矢量草图交给人在 Illustrator 里改，再代码完善）
 
-> ⚠️ **可复现性尚未验证**：同 prompt 两次输出是否一致，决定这条路能否做**交付**
+> 路线 2 和 3 的**前两段完全一样**（IR → 简报 → 生图 → 矢量草图 → 闸口①）。
+> 区别只在第三段：2 是代码接着完善草图，3 是多跑一张成品位图再矢量化。
+> 所以**默认的路线 3 也算复现任务** —— 位图临摹回矢量那一段就是复现。
+
+> ⚠️ **可复现性尚未验证**：同 prompt 同 seed 两次输出是否一致，决定这条路能否做**交付**
 > 而不只是**出稿**。这是当前最大的未解问题。
+
+> ⚠️ **生图 key 由使用者自备**（环境变量 `DASHSCOPE_API_KEY`），skill 里不存任何 key；
+> 没 key 也能 `gen_figure.py --dry-run` 走通全流程自检。
+
 
 ---
 
-## 位图 → 矢量（临摹）
+## 位图 → 矢量（第 ⑧ 步到底用哪个）
 
-两条临摹路，**按图的类型选**：
+| | **模型看图重画（首选）** | `raster_to_vector_semantic.py`（备用） | `raster_to_vector.py`（备用） |
+|---|---|---|---|
+| 原理 | 看懂"这是核 / 这是光子线 / 这是顶点"再重画 | 自动切分定形状 + 人写元素表命名 | 等高线 → 填色路径，**没有"理解"** |
+| 文字 | 真 `<text>` | **OCR + 逐词对齐**，真 `<text>` | 模型写 `--text-spec` 后擦掉重写 |
+| 渐变 | **真 `<gradient>`**（保住色彩和阴影） | 色阶台阶，但**误差可量化可调**（`--R`） | 退化成色阶台阶 |
+| 图层 | 按**结构/物理**（人手定） | 按**物理元素**（命名图层树，**不夹颜色层**） | 按**颜色**分，`--groups` 可归组 |
+| 复现 | 两次不一样 | **逐字节相同** | 逐字节相同 |
+| 依赖 | 无（模型干活） | `numpy scipy Pillow cairosvg cairocffi fontTools` | 还要 `cv2` / `skimage` |
 
-| | `raster_to_vector.py`（逐像素描摹） | **`raster_to_vector_semantic.py`（先理解再临摹）** |
-|---|---|---|
-| 文字 | 模型写 `--text-spec` → 擦掉重写 | **真 `<text>`**（OCR 词表 + 逐词对齐 + 擦原笔画） |
-| 图层 | 按**颜色**分，`--groups` 可归组 | 按**物理元素**分（fireball / nucleons / jets / surface …） |
-| 渐变 | 退化成色阶台阶 | 色阶台阶，但**误差可量化可调**（`--R`） |
-| 验收 | 要自己量 | MAE / PSNR / `--check` 回渲染 |
-| 复现 | 逐字节相同 | **逐字节相同**（已实测三次） |
-| 依赖 | cv2 / skimage | numpy / scipy / Pillow / cairosvg / cairocffi / fontTools |
+选法：
+
+- **默认 → 重画。** 看懂了再画，曲线干净、渐变是真渐变、图层是物理的。
+- **要"和位图一模一样" → semantic 临摹。** 同分辨率 MAE 实测 0.2–0.5，
+  代价是每条曲线碎成台阶，且每张图要手写 `words.txt` + `panels.py`。
+- 图**本来就该拆成图元** → 别临摹，直接写 IR / 写 SVG，渐变是真渐变。
+
+**两条路都要求**：文字是真 `<text>`、图层按**物理元素**分（颜色只是 `<path>` 的属性）。
+
+> ⚠️ **不论走哪条，纯像素描摹一定不行**：文字会全变成轮廓。
+> 实测同一张图，纯描摹 `<text>` 元素 **0 个**；给文字清单后 **3 个**。
+
+```bash
+# ① 出词表（Windows.Media.Ocr，自动 2× 放大）
+powershell -File scripts/raster_vector/ocr_words.ps1 -Image fig.png -Out words.txt
+# ② 照着 scripts/raster_vector/panels.py 改出这张图的 CELLS / ELEMENTS / SPLIT
+# ③ 组装 + 自检
+python3 scripts/raster_to_vector_semantic.py fig.png -o fig.svg \
+        --words words.txt --panels my_panels.py --legend fig_layers.md --elmap fig_el.png --check
+```
+
+> ★ **semantic 这条要人写两张每图各不相同的表**：`words.txt`（OCR 词表）和 `panels.py`
+> （面板框 + 物理元素框 + 颜色条件）。自动切分只负责"形状对不对"，
+> **"这块叫什么物理名字"必须人来写** —— 这是它比纯描摹贵的地方，也是它准的地方。
 
 实测（T3-01 Jia2026 Fig.1，1200×1133，4.7 MB）：
 
@@ -132,22 +168,9 @@
 | `<path>` / `<text>` / `<image>` | 37930 / 54 / **0** |
 | 图层 | 12 面板 / **50 物理元素** |
 
-```bash
-# ① 出词表（Windows.Media.Ocr，自动 2× 放大）
-powershell -File scripts/raster_vector/ocr_words.ps1 -Image fig.png -Out words.txt
-# ② 照着 scripts/raster_vector/panels.py 改出这张图的 CELLS / ELEMENTS / SPLIT
-# ③ 组装 + 自检
-python3 scripts/raster_to_vector_semantic.py fig.png -o fig.svg --words words.txt \
-        --panels my_panels.py --legend fig_layers.md --elmap fig_el.png --check
-```
-
-> ★ **要人写两张每图各不相同的表**：`words.txt`（OCR 词表）和 `panels.py`
-> （面板框 + 物理元素框 + 颜色条件）。自动切分只负责"形状对不对"，
-> **"这块叫什么物理名字"必须人来写** —— 这是它比纯描摹贵的地方，也是它准的地方。
-
-> ⚠️ **做不出真渐变网格**。原图的连续渐变在矢量里只能是色阶台阶
+> ⚠️ **两条备用路都做不出真渐变网格**。原图的连续渐变在矢量里只能是色阶台阶
 > （调小 `--R` 变细，代价是路径数/体积）或真 `<gradient>`（要求图能拆成图元）。
-> 只适合「色块 + 硬边」类图（示意 / 三维渲染示意图）；照片、有机纹理不适合。
+> 只适合「色块 + 硬边」类图（示意 / 三维渲染示意图）；照片、有机纹理要靠**重画**。
 
 ---
 
@@ -264,8 +287,12 @@ python3 scripts/demo_combined.py
 │   ├── check_tools.py           工具能力探测 + 装机指引
 │   ├── check_render.py          渲染静默失败检测（渐变失效/字体丢失都不报错）
 │   ├── check_delivery.py        投稿检查（矢量？文字可编辑？字号达标？）
-│   ├── raster_to_vector.py      位图 → 矢量（临摹主路径）：逐像素 + 混合文字 + --groups
-│   ├── raster_to_vector_semantic.py  ★ 位图 → 语义分层的全矢量 SVG（先理解再临摹）
+│   ├── gen_figure.py            ★ 第 ③ 步：生图（简报 → 草图/成品位图）。key 自备，支持 --ref
+│   ├── sketch_to_vector.py      ★ 第 ④ 步：草图矢量化成可改的 SVG（不用写 panels.py）
+│   ├── check_sketch.py          ★ 闸口①/②：草图与成品位图的物理检查
+│   ├── ir_to_genbrief.py        IR → 生图简报（--stage sketch / render）
+│   ├── raster_to_vector.py      位图 → 矢量（临摹备用）：逐像素 + 混合文字 + --groups
+│   ├── raster_to_vector_semantic.py  位图 → 语义分层的全矢量 SVG（先理解再临摹）
 │   ├── raster_vector/           上面那条的库（quadtree/labels/elements/panels/groupvec）
 │   ├── compare_ref.py           参考图与成图并排对比
 │   ├── style_bench.py           风格度量与基准比对
