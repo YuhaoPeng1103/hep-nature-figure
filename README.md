@@ -31,6 +31,28 @@
 
 ---
 
+## 什么时候用它 / 适合做什么
+
+- **画投稿级示意图** —— 碰撞 / QGP / 介质响应 / 喷注淬火 / 涡旋与整体极化 / 手绘草图转配图。
+- **复现已有论文配图** —— 给一张参考图（或论文 PDF），先提取 IR 再生成，并附偏离量化。
+- **要 3D 质感的示意图** —— 带光照、渐变、圆柱 / 火球 / 核子气这类"代码拼不出质感"的图。
+- **多面板复合图** —— 面板标签、拼版保矢量（`assemble_panels.py`）。
+- **投稿合规检查** —— 是不是纯矢量、文字能不能提取、最小字号、有没有嵌入位图、构图碰撞。
+- **要一张"能改"的图** —— 图层按**物理元素**分组（`nucleus-A` / `photon-B` …），不是按颜色分层。
+
+**不适合**：纯统计图（直方图 / 散点 / 热图）、交互式 dashboard、物理还没想清就要"一键出图"。
+
+## 典型请求
+
+- "参考 `_T3精选` 里的风格，画一张超边缘碰撞（UPC）的物理示意图。"
+- "把这张手绘草图做成 Nature 级的 3D 配图，导 SVG + PDF。"
+- "复现这张论文图（贴图），给我可编辑矢量，并说明哪里对不上。"
+- "用最新的 skill 再跑一次自旋关联的示意图。"（→ 默认走路线③）
+- "这张图除了文字都必须是矢量，渐变和阴影要保住。"
+- "查一下这张图的 PDF 合不合投稿要求（矢量 / 字号 / 嵌入位图）。"
+
+---
+
 ## ★ 分工：谁画、谁约束、谁验收
 
 **画图交给模型，本 skill 负责约束、验收、返修。**
@@ -179,6 +201,35 @@ python3 scripts/raster_to_vector_semantic.py fig.png -o fig.svg \
 
 ---
 
+## 示例预览
+
+| 方向 | 预览 | 看点 |
+|---|---|---|
+| 自旋关联示意图（路线③ 全过程） | <a href="assets/demos/spin_semantic/cmp_preview.png"><img src="assets/demos/spin_semantic/cmp_preview.png" width="260" alt="自旋关联：位图 vs 临摹矢量"></a> | 上 = 生图模型的成品位图，下 = 临摹矢量回渲染；非文字区 MAE **0.518**、`<image>` **0** |
+| UPC 示意图（三条落点并排） | <a href="assets/demos/upc_semantic/cmp_preview.png"><img src="assets/demos/upc_semantic/cmp_preview.png" width="260" alt="UPC：生图位图 / 语义临摹 / 代码直写"></a> | 1 生图位图 / 2 语义临摹 / 3 代码直写 —— 同一条主线的三种落点 |
+| 生图模型的成品位图（原图） | <a href="assets/demos/upc_semantic/src_upc.png"><img src="assets/demos/upc_semantic/src_upc.png" width="260" alt="UPC 生图位图"></a> | 路线③ 的中间产物：只当作"更好的草图"，它过了闸口才允许照它画 |
+| 手绘草图（路线②③ 的输入） | <a href="assets/demos/sketch_upc.png"><img src="assets/demos/sketch_upc.png" width="260" alt="手绘草图输入"></a> | 草图只要求"构图清晰、元素齐全"，质感由后面的生图负责 |
+
+## 你需要提供
+
+- **物理内容** —— 这张图要表达什么（几句话也行）。它是 IR 里 `physics` 的来源，也是闸口的判据。
+- **参考图 / 草图**（可选但强烈建议）—— 风格参考走 `--ref`；复现任务要另给原图。
+- **目标规格** —— 单栏 / 双栏、目标期刊、要 SVG / PDF / PNG 里的哪些。
+- **生图模型的 API key**（走路线②③时）—— 本 skill **不携带、不保存**任何 key，用你自己的
+  （`gen_figure.py` 读环境变量 `DASHSCOPE_API_KEY`；没 key 可以 `--dry-run` 只出自检计划）。
+
+## 产出
+
+- **可编辑矢量**：`<path>` 按物理元素分层 + 真 `<text>`（文字可提取、可改）+ `<image>` **0** 个。
+- **投稿 PDF**（默认 183×102 mm 双栏）+ 可选 PNG 预览。
+- **中间产物全部落盘**：IR、生图简报、草图 PNG、**矢量化草图 SVG**、成品位图，以及
+  每个 seed 的 `calls.jsonl`（model / seed / size / refs / prompt 指纹 / 耗时）。
+- **验收记录**：闸口①/② 的逐条结论、临摹自检（MAE / PSNR / 色阶差）、交付门禁、构图审计。
+- **图层清单**（`*_layers.md`）：每个物理元素一行 —— 在 Illustrator / Inkscape 的图层面板里
+  按名字点选就能改，不用在图里找。
+
+---
+
 ## 安装
 
 ### Claude Code
@@ -279,36 +330,63 @@ python3 scripts/demo_combined.py
 ```
 .
 ├── SKILL.md                     路由器：判任务 → 写 IR → 选后端 → 执行 → 验证
-├── references/
-│   ├── ir-spec.md               六层 IR 规范（物理/元素/构图/风格/执行/验收）
-│   ├── svg-cookbook.md          SVG 技法 + 7 个渲染陷阱
-│   ├── tool-selection.md        按图选工具（内容轴 × 风格轴）
-│   ├── multi-tool.md            多工具联合 + 交付格式
-│   ├── style-bench.md           风格量化与 4 个测量陷阱
-│   └── gotchas.md               渲染静默失败详解
+├── CHANGELOG.md                 每个版本修了什么（每条都带实测对照）
+├── requirements.txt             依赖（numpy / scipy / Pillow / shapely / cairosvg / PyMuPDF …）
+├── references/                  写作与排查时翻的规范（见下面「内置参考」）
 ├── scripts/
-│   ├── svg_lib.py               SVG 图元库（火球/圆柱/核子/壳/环/坐标轴/图层）
+│   ├── svg_lib.py               SVG 图元库（火球 / 圆柱 / 核子 / 壳 / 环 / 坐标轴 / 图层）
 │   ├── geom.py                  shapely 布尔运算 → SVG path（外轮廓、有机团块）
-│   ├── check_tools.py           工具能力探测 + 装机指引
-│   ├── check_render.py          渲染静默失败检测（渐变失效/字体丢失都不报错）
-│   ├── check_delivery.py        投稿检查（矢量？文字可编辑？字号达标？）
-│   ├── gen_figure.py            ★ 第 ③ 步：生图（简报 → 草图/成品位图）。key 自备，支持 --ref
-│   ├── sketch_to_vector.py      ★ 第 ④ 步：草图矢量化成可改的 SVG（不用写 panels.py）
-│   ├── check_sketch.py          ★ 闸口①/②：草图与成品位图的物理检查
+│   ├── cartoon_lib.py           卡通示意（手绘感）图元
+│   ├── scene_render.py          路线 1：IR 直渲（确定性，可批量扫参数）
+│   ├── verify_scene.py          路线 1 的几何自检（量 IR 里写了数量的元素）
 │   ├── ir_to_genbrief.py        IR → 生图简报（--stage sketch / render）
+│   ├── gen_figure.py            ★ 第③步：生图（简报 → 草图 / 成品位图）。key 自备，支持 --ref
+│   ├── trim_border.py           ★ 裁掉生图模型稳定画的 1~2px 外框（幂等）
+│   ├── sketch_to_vector.py      ★ 第④步：草图矢量化成可改的 SVG（不用写 panels.py）
+│   ├── check_sketch.py          ★ 闸口①/②：草图与成品位图的物理检查
 │   ├── raster_to_vector.py      位图 → 矢量（临摹备用）：逐像素 + 混合文字 + --groups
 │   ├── raster_to_vector_semantic.py  位图 → 语义分层的全矢量 SVG（先理解再临摹）
-│   ├── raster_vector/           上面那条的库（quadtree/labels/elements/panels/groupvec）
-│   ├── compare_ref.py           参考图与成图并排对比
-│   ├── style_bench.py           风格度量与基准比对
-│   ├── auto_converge.py         自动收敛循环（量→定位→修正→复测）
+│   ├── raster_vector/           上面那条的库（quadtree / labels / elements / panels / groupvec / raster_ops）
+│   ├── check_tools.py           工具能力探测 + 装机指引
+│   ├── check_render.py          渲染静默失败检测（渐变失效 / 字体丢失都不报错）
+│   ├── check_delivery.py        投稿检查（矢量？文字可编辑？字号达标？）
+│   ├── delivery_gate.py         风格档案门禁（偏离超限 → 阻断）
+│   ├── audit_composition.py     构图审计（文字重叠 / 线穿文字 / 出界 / 留白）
+│   ├── audit_panels.py          多面板对齐审计
 │   ├── assemble_panels.py       复合图拼版（保矢量）
+│   ├── compare_ref.py           参考图与成图并排对比
+│   ├── style_bench.py / style_profile.py   风格量化与建档
+│   ├── auto_converge.py         自动收敛循环（量 → 定位 → 修正 → 复测）
 │   ├── extract_figures.py       从论文 PDF 自动切图
-│   └── demo_combined.py         多工具联合示范
+│   ├── repair_brief.py          返修单（归一化坐标 + 具体改多少）
+│   └── demo_*.py                多工具联合 / 喷注淬火 / 时间线 示范
+├── evals/
+│   ├── test_tools.py            17 个回归 case（每个对应一个真实踩过的坑）
+│   └── evals.json / README.md   评测清单
 └── assets/
-    ├── t3-exemplars/            参考图库（含 2 张 CC-BY 图 + 版权说明）
-    └── ir/                      3 套 IR 标准答案
+    ├── style-profiles.json      风格档案（门禁用；存**区间**不存点值）
+    ├── t3-exemplars/            参考图库（2 张 CC-BY 图 + `NOTICE.md` 版权说明）
+    ├── ir/                      7 套 IR 标准答案（含 UPC / 自旋关联两个完整算例）
+    └── demos/
+        ├── upc_semantic/        UPC 完整算例（词表 / 元素表 / 源图 / 并排预览）
+        └── spin_semantic/       自旋关联完整算例（同上，v2.6.3）
 ```
+
+---
+
+## 内置参考（索引）
+
+| 文件 | 什么时候看 |
+|---|---|
+| `references/ir-spec.md` | 写 IR 之前 —— 六层规范（物理 / 元素 / 构图 / 风格 / 执行 / 验收） |
+| `references/tool-selection.md` | 不确定该用哪个后端时（内容轴 × 风格轴） |
+| `references/svg-cookbook.md` | 手写 SVG 时 —— 技法 + 7 个渲染陷阱 |
+| `references/multi-tool.md` | 一张图要多个工具合做，或要定交付格式时 |
+| `references/style-bench.md` | 要用风格指标做诊断时 —— 含 4 个测量陷阱 |
+| `references/gotchas.md` | 渲染"看着成功其实失败"时（静默失败详解） |
+| `evals/test_tools.py` | 改完任何工具之后 —— 跑一遍防"修一个坏一个" |
+| `CHANGELOG.md` | 想知道某个坑是什么时候、怎么修的（每条都带实测数字） |
+| `assets/demos/upc_semantic/`、`assets/demos/spin_semantic/` | 想照抄一个完整算例（词表 + 元素表 + 命令 + 实测数字） |
 
 ---
 
@@ -377,6 +455,18 @@ python3 scripts/extract_figures.py 你的论文.pdf -o refs/
 按 Nature 官方美术指南，本来就没有"一步到位的成品"：各面板在各自软件做，
 最后在矢量编辑器里合成，美术团队还可能重画。所以"能直接用"的准确含义是
 **「输出的稿子在 Inkscape/Illustrator 里打开，不用重画、只需调整」**。
+
+---
+
+## 与其他 skill / 工具的关系
+
+- **`imagegen`（通用位图生成）** —— 只要一张好看的位图、不涉及物理正确性判定时用它；
+  要"物理对 + 可编辑矢量 + 投稿合规"时用本 skill（路线②③自己调生图模型）。
+- **`pdf`** —— 需要表单 / 提取 / 更复杂的 PDF 操作时交给它；本 skill 的投稿 PDF 走 Edge
+  `--print-to-pdf`（cairosvg 出大 SVG 会 OOM）。
+- **`visualize`** —— 交互式、探索式的图表和模拟用它；本 skill 只做**静态投稿图件**。
+- **`presentations` / `documents`** —— 图件定稿后要放进 slides / 文稿时，把 SVG/PDF 交给它们。
+- 本 skill **不做**统计检验、也不替论文叙事 —— 那部分交给对应工具。
 
 ---
 
