@@ -878,5 +878,50 @@ def test_gen_figure_content_ref_layout_mode():
     assert not (out3 / ("layout_%s.png" % sketch.stem)).exists(), "显式 full 不该降级"
 
 
+@case("genbrief_carries_element_material",
+      "IR 的 `material:` 必须进简报（以前**整段丢**，只用 primitive 做分类）；"
+      "而且简报**不许硬编码火球长什么样**。实测（2026-09-27 形变核→火球，qwen-image-3.0 "
+      "seed 53，只改 spec）：旧版简报把火球写死成「内亮外暗的多层半透明渐变 + 边缘柔和」"
+      "-> 出的是一颗**光滑橙色糖球**（内部结构高频能量 0.0103）；把 IR 的 material "
+      "写清楚（哑光 / 三层壳 / 组元颗粒 / 场线）并让它进简报 -> 同一模型同一 seed "
+      "出的是有内部结构的等离子体团（高频能量 0.0265~0.0418，即 2.6~4 倍）。")
+def test_genbrief_carries_material():
+    import ir_to_genbrief as IG
+
+    ir = {"figure": {"canvas": {"w": 100, "h": 60}},
+          "elements": [
+              {"name": "QGP 火球", "z": 1, "primitive": "大团块",
+               "material": "哑光的等离子体团：三层壳 + 内部组元颗粒 + 场线，不要高光"},
+              # 同名族（末尾有编号）也要能合并进去
+              {"name": "演化箭头 1", "z": 2, "primitive": "粗箭头",
+               "material": "实心深灰，无描边"},
+              {"name": "演化箭头 2", "z": 2, "primitive": "粗箭头"}]}
+    out = IG.build(ir, None, "render")
+
+    # ① material 要真的到纸面上（旧版这里是 0 次）
+    assert "【材质：" in out, "元素的 material 必须进简报"
+    assert "哑光的等离子体团" in out, "material 原文要带出来"
+    assert "实心深灰，无描边" in out, "同名族里第一个有 material 的条目要保留它"
+
+    # ② 不许再把火球长什么样写死
+    assert "内亮外暗的多层半透明渐变" not in out, (
+        "火球描述不许硬编码 —— 那会把模型按在一颗光滑高光球上，"
+        "IR 的 material 再写也没用")
+    assert "以第一节各元素的【材质】为准" in out, "要显式把发光体的画法指回 material"
+
+    # ③ 禁止项要留出「IR 写明的内部结构必须画」的口子
+    assert "必须画出来" in out and "不是装饰" in out, (
+        "禁止项第 1 条原来只说「不要加 IR 清单里没有的东西」，"
+        "会把 material 要求的组元颗粒/场线也一起禁掉")
+    assert "示意性的细小符号" in out, (
+        "「颗粒噪点」要澄清成胶片颗粒，别把示意性细小符号一并禁掉")
+
+    # ④ 没写 material 的元素不该凭空多出【材质：】
+    out2 = IG.build({"figure": {"canvas": {"w": 100, "h": 60}},
+                     "elements": [{"name": "核", "z": 1, "primitive": "椭球"}]},
+                    None, "render")
+    assert "【材质：" not in out2, "没写 material 就不该有【材质：】段"
+
+
 if __name__ == "__main__":
     sys.exit(main())

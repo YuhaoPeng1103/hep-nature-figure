@@ -59,8 +59,10 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 #   3D 渲染风（球面明暗/高光/柔和阴影/平滑渐变/网格线）在矢量化时会变成
 #   真 <gradient>，**并不**降低交付质量，不该被禁。现在按风格档分叉。
 _COMMON_FAILURES_HEAD = [
-    "**不要添加 IR 元素清单里没有的东西**。模型最爱加装饰性的光晕、粒子、星星、"
-    "多余箭头——那些会被带进矢量，且违背物理内容。",
+    "**不要添加 IR 元素清单里没有的【独立物体/箭头/文字/装饰光晕】**。模型最爱加"
+    "装饰性的光晕、星星、多余箭头——那些会被带进矢量，且违背物理内容。"
+    "★ 但第一节【材质】里**写明**的内部结构（分层 / 组元颗粒 / 场线 / 亮核 / 外壳 / "
+    "日冕…）**必须画出来** —— 那是规格，不是装饰。",
     "**文字不要画错**。位图里的文字只当占位（下一步会重写成真 `<text>`），"
     "但拼写和数字必须对，否则临摹时会照抄错值。",
     "**不要改视角或投影**。IR 里写了视角约定就照办；换视角会让几何约束全部失效。",
@@ -73,7 +75,8 @@ _COMMON_FAILURES_TAIL_FLAT = [
 _COMMON_FAILURES_TAIL_3D = [
     "**不要画成照片级**。**允许** 3D 渲染的立体感（球面明暗 / 高光 / 柔和阴影 / "
     "平滑渐变 / 表面网格线）—— 这些矢量化后是真 `<gradient>`，是加分项；"
-    "但**不要**照片级材质纹理、颗粒噪点、景深虚化、镜头光晕。",
+    "但**不要**照片级材质纹理、胶片颗粒/噪点纹理、景深虚化、镜头光晕。"
+    "（示意性的细小符号——组元点、场线、网格线——不算「颗粒噪点」，该画就画。）",
     "**不要加渐变背景、装饰性光斑**这些摄影感的东西（背景保持纯白）。",
 ]
 
@@ -313,15 +316,18 @@ def build(ir: dict, style: dict | None, stage: str = "sketch",
     for e in content:
         f = family(e.get("name", ""))
         role = " ".join((e.get("physics_role") or "").split())
+        mat = " ".join(str(e.get("material") or "").split())
         if f in seen:
             seen[f]["n"] += 1
             if not seen[f]["shape"] and shape_hint(e):
                 seen[f]["shape"] = shape_hint(e)
+            if mat and not seen[f]["material"]:
+                seen[f]["material"] = mat
             # 只在原 role 更实质时补充
             if role and not role.startswith(("同", "同上")) and len(role) > len(seen[f]["role"]):
                 seen[f]["role"] = role
         else:
-            entry = {"n": 1, "shape": shape_hint(e),
+            entry = {"n": 1, "shape": shape_hint(e), "material": mat,
                      "role": role if not role.startswith(("同", "同上")) else ""}
             seen[f] = entry
             families.append((f, entry))
@@ -330,7 +336,8 @@ def build(ir: dict, style: dict | None, stage: str = "sketch",
     for f, info in families:
         cnt = f" ×{info['n']}" if info["n"] > 1 else ""
         L.append(f"  · {f}{cnt}" + (f" —— {info['role']}" if info["role"] else "")
-                 + (f"【形态：{info['shape']}】" if info.get("shape") else ""))
+                 + (f"【形态：{info['shape']}】" if info.get("shape") else "")
+                 + (f"【材质：{info['material']}】" if info.get("material") else ""))
     if has_shadow:
         L.append("  · （各主要形体带**柔和的投影与接触阴影**，让它们看起来是浮在纸面上"
                  "而不是贴上去的）")
@@ -432,12 +439,21 @@ def build(ir: dict, style: dict | None, stage: str = "sketch",
         L.append("  · **允许并鼓励**平滑渐变 / 高光 / 柔和阴影 / 半透明叠色 —— "
                  "这些在矢量化时会变成真 `<gradient>` 与 `fill-opacity`，"
                  "**不会**降低交付质量，正是这一步要的东西")
-        L.append("  · 火球/热区：**内亮外暗的多层半透明渐变**（亮核 → 橙 → 红），"
-                 "内部核子球互相重叠；边缘柔和但不模糊")
+        # ★ 2026-09-27：这一行原来是**硬编码**的「火球 = 内亮外暗的多层半透明渐变，
+        #   边缘柔和」—— 不管 IR 的 material 写什么，都把火球定成一颗光滑高光球。
+        #   实测（形变核→火球 算例）：出图就是一颗光滑塑料感的橙色糖球
+        #   （内部 5 个半透明圆球），而同一份 IR 让别的模型画、或人工补上内部结构后，
+        #   是「亮核 + 等离子体壳 + 外层日冕 + 内部组元点/场线」的富结构等离子体团。
+        #   即「不好看」不是模型的锅，是这里的硬编码把模型按在了一颗空球上。
+        L.append("  · **发光体 / 热区怎么画，以第一节各元素的【材质】为准**"
+                 "（分层 / 组元 / 亮核 / 外壳 / 日冕…那张表说什么就是什么）。"
+                 "材质没写清楚 = 模型只能画一颗**光滑高光球**，"
+                 "那是通用 CG 球、不是物理对象。")
         L.append("  · **先定一个全局光源**（比如左上方 45°），"
                  "所有高光、阴影、投影都从它推导 —— 不要每个物体各拍一个方向")
-        L.append("  · **仍然不要**：照片级材质纹理、颗粒/噪点、景深虚化、镜头光晕、"
-                 "渐变背景 —— 这些矢量化后是噪声，会毁掉图层结构")
+        L.append("  · **仍然不要**：照片级材质纹理、胶片颗粒/噪点纹理、景深虚化、"
+                 "镜头光晕、渐变背景 —— 这些矢量化后是噪声，会毁掉图层结构"
+                 "（示意性的细小符号 ≠ 颗粒噪点，该画就画）")
     else:  # ref —— 跟随参考图
         L.append("═══ 四、风格（★ 跟随参考图 —— 参考图是**风格书**）═══")
         L.append("**渲染风格由参考图决定，不要默认成扁平矢量风。**")
@@ -446,7 +462,13 @@ def build(ir: dict, style: dict | None, stage: str = "sketch",
                  "柔和阴影 + 平滑渐变 + 表面网格线），配色 / 材质 / 光源方向照参考图；")
         L.append("  · **允许并鼓励**平滑渐变 / 高光 / 柔和阴影 / 半透明叠色"
                  "（矢量化时变成真 `<gradient>`，不降低交付质量）；")
-        L.append("  · **仍然不要**：照片级材质纹理、颗粒/噪点、景深虚化、镜头光晕、渐变背景。")
+        # ★ 同上：发光体长什么样以 IR 的 material 为准，别硬编码成「光滑渐变球」
+        L.append("  · **发光体 / 热区怎么画，以第一节各元素的【材质】为准**"
+                 "（分层 / 组元 / 亮核 / 外壳 / 日冕…那张表说什么就是什么）。"
+                 "材质没写清楚 = 模型只能画一颗**光滑高光球**，"
+                 "那是通用 CG 球、不是物理对象。")
+        L.append("  · **仍然不要**：照片级材质纹理、胶片颗粒/噪点纹理、景深虚化、"
+                 "镜头光晕、渐变背景（示意性的细小符号 ≠ 颗粒噪点，该画就画）。")
     if stage == "render":
         _ist = ir.get("style") or {}
         if _ist.get("classification"):
