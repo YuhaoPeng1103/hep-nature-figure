@@ -464,10 +464,41 @@ def dump_elements(a, R, K, out_png="_elem_overlay.png"):
 
 
 # ------------------------------------------------------------------ 输出
+def _seam_attr(col, sw):
+    """同色描边 —— 专治 PDF/SVG 的「纱窗」接缝。
+
+    为什么需要：四叉树把平滑渐变切成成千上万条**彼此紧贴**的同色矩形，每个矩形在
+    PDF 里是独立填充、各做各的抗锯齿 → 相邻边界处混进背景色，形成一层 1px 的**亮网格**。
+    实测（形变核→火球，1664×926）：PDF 里整个火球都是纱窗，火球区 MAE 13.4；加同色
+    描边后 2.8，肉眼网纹消失（HTML 屏幕渲染看不出来，只有导出 PDF 才暴露）。
+    宽度单位 = 工作分辨率像素（≈1 源像素），半宽 0.5px 正好盖住接缝；再宽会把形状
+    撑大（实测 2.5px 反而更差：火球区 3.4）。
+
+    ★ 只给**不透明**实色块加：明暗层是 `fill-opacity`，描边会按全不透明度画上去，
+      整个元素直接变黑（实测 stage1 的 MAE 3.5 → 56.8）。所以调用点只覆盖
+      base / 逐色 / remnant 三处，**不要**加到 shade 层上。
+    panels 里可用 `SEAM = {"*": 1.0, "stage4-fireball": 1.4}` 覆盖，`{"*": 0}` 关掉。
+    """
+    if not sw:
+        return ""
+    return ' stroke="%s" stroke-width="%.2f" stroke-linejoin="round"' % (col, sw)
+
+
 def emit(src, out, man, stats, a, H, Wd, kept, R, K, legend=None, rot=None, shade=""):
     rot = rot or []
     shade = shade or ""
     idx = P.cell_index(H, Wd)
+    # 接缝描边宽度（见 _seam_attr）；panels 没写就是全局 1.0
+    _SEAM = getattr(P, "SEAM", None)
+    if _SEAM is None:
+        _SEAM = {"*": 1.0}
+
+    def seam_of(eid):
+        v = _SEAM.get(eid)
+        if v is None:
+            v = _SEAM.get("*", 0.0)
+        return float(v or 0.0)
+
     meta, order = P.meta(), P.order()
     named = _name_pass(a, R, K)
     per, labels, nleaf = assign_elements(a, R, K, named)
@@ -735,24 +766,28 @@ def emit(src, out, man, stats, a, H, Wd, kept, R, K, legend=None, rot=None, shad
                     bodies.setdefault(ki, []).extend(rects)
                     if lev > 0.0:
                         bands.setdefault((tone, lev), []).extend(rects)
+                _sw = seam_of(eid)
                 for j, ki in enumerate(sorted(bodies)):
                     rects = sorted(bodies[ki], key=lambda r: (r[1], r[0]))
                     px = sum(w * h for _, _, w, h in rects)
+                    _hc = SHD.hexs(shd["bases"][ki])
                     L.append('<path id="%s-%s-body%d" data-role="element-body" '
-                             'data-base="%s" data-px="%d" fill="%s" d="%s"/>'
-                             % (cid, eid, j + 1, SHD.hexs(shd["bases"][ki]), px,
-                                SHD.hexs(shd["bases"][ki]), SHD.d_of(rects)))
+                             'data-base="%s" data-px="%d" fill="%s"%s d="%s"/>'
+                             % (cid, eid, j + 1, _hc, px, _hc,
+                                _seam_attr(_hc, _sw), SHD.d_of(rects)))
                     einfo["colors"].append({"color": SHD.hexs(shd["bases"][ki]),
                                             "family": "base", "role": "element-body",
                                             "px": px, "rects": len(rects)})
             else:
                 items = sorted(per[cid][eid].items(),
                                key=lambda t: -sum(w * h for _, _, w, h in t[1]))
+                _sw = seam_of(eid)
                 for i, (col, rects) in enumerate(items, 1):
                     d = "".join("M%d %dh%dv%dh-%dz" % (x, y, w, h, w) for x, y, w, h in rects)
                     px = sum(w * h for _, _, w, h in rects)
-                    L.append('<path id="%s-%s-%02d" data-color="%s" data-px="%d" fill="%s" d="%s"/>'
-                             % (cid, eid, i, hexs(col), px, hexs(col), d))
+                    _hc = hexs(col)
+                    L.append('<path id="%s-%s-%02d" data-color="%s" data-px="%d" fill="%s"%s d="%s"/>'
+                             % (cid, eid, i, _hc, px, _hc, _seam_attr(_hc, _sw), d))
                     einfo["colors"].append({"color": hexs(col), "family": cname(*col),
                                             "px": px, "rects": len(rects)})
             if shd is not None:
@@ -760,10 +795,11 @@ def emit(src, out, man, stats, a, H, Wd, kept, R, K, legend=None, rot=None, shad
                                          key=lambda z: -sum(w * h for _, _, w, h in z[1])):
                     rects = sorted(rects, key=lambda r: (r[1], r[0]))
                     px = sum(w * h for _, _, w, h in rects)
+                    _hc = hexs(col)
                     L.append('<path id="%s-%s-lo-%s" data-role="element-remnant" '
-                             'data-color="%s" data-px="%d" fill="%s" d="%s"/>'
-                             % (cid, eid, hexs(col)[1:], hexs(col), px, hexs(col),
-                                SHD.d_of(rects)))
+                             'data-color="%s" data-px="%d" fill="%s"%s d="%s"/>'
+                             % (cid, eid, _hc[1:], _hc, px, _hc,
+                                _seam_attr(_hc, seam_of(eid)), SHD.d_of(rects)))
                     einfo["colors"].append({"color": hexs(col), "family": "remnant",
                                             "role": "element-remnant", "px": px,
                                             "rects": len(rects)})

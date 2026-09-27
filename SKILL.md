@@ -601,6 +601,11 @@ python3 scripts/raster_to_vector_semantic.py gen/render_s22_clean.png -o fig.svg
 #     ★ 元素掩膜最外 1~3px 是抗锯齿过渡像素：**拟合要腐蚀过、判「body 盖不到」要
 #       膨胀过**。否则拟合中心被带偏（火球实测 dev 中位 21 → 6.3），且那圈过渡像素
 #       会被逐条按原色画出来 = 一圈硬边。
+#   ★★ PDF「纱窗」：逐像素临摹在 PDF 里会出现 1px 亮网格（火球区 MAE 13.4），
+#      groupvec 默认给**不透明实色** path 加**同色描边**（stroke=fill, width=1.0）→ 2.79。
+#      panels 里 SEAM={"*":1.0} 可覆盖 / {"*":0} 关掉；**别加到 fill-opacity 的明暗层**。
+#      ★ MAE 自检要用**成品同款渲染器**（Edge 打印 PDF → PyMuPDF 光栅化）；
+#        cairosvg 回渲染看不出这个问题（0.59 vs 2.43）。
 python3 scripts/raster_to_vector_semantic.py gen/render_s22_clean.png -o fig_edit.svg \
         --words words.txt --panels my_panels.py --W 1662 --R 5 --K 7 --q 0 \
         --shade auto:16:1 --legend fig_edit_layers.md --check
