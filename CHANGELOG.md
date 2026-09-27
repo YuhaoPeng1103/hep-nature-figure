@@ -1,5 +1,61 @@
 # 变更记录
 
+## v2.8.0 — 2026-09-27
+
+**画布只有一个来源 + 出图纪律变成硬约束 + 多张候选机器排序**
+
+### 症状
+
+四个「不出声」的问题，都是**静默失败**（不报错、体检还绿）：
+
+1. **同一张图三个比例**。`references/ir-spec.md` 把画布写在 `composition.canvas`，
+   而 `ir_to_genbrief.py` / `check_sketch.py` 读的是 `figure.canvas` —— 仓库 8 份 IR
+   有 **6 份**按规范写，画布被整段丢弃：简报照默认 `1400×560`（2.50）走，
+   `gen_figure.py` 又按 `--size` 默认请求 `1664×928`（1.79），IR 自己声明的是第三个
+   （实测 `sketch5_upc` = 2.10）。模型照哪个都可能错，而 IR 的归一化坐标全部失效。
+   更糟的是 `ir_brief_audit.py` 的探针把哨兵塞在 `figure.canvas` 下 —— 探针跟 bug
+   同位置，所以它照样报「IR → 简报 无损 ✅」。
+
+2. **`--ref` 缺失只打一行字**（「（无 —— 出来会偏通用）」）就继续。硬规矩写在
+   SKILL.md 里，实际执行交给记性 —— 出来的是「通用插画脸」才知道。
+
+3. **`prompt_extend` 对 mm 硬编码 `True`**：服务端会把简报**重写一遍**，
+   结构化简报里的坐标/数量/约束被稀释，而且 `calls.jsonl` 里看不出到底开没开。
+
+4. **8 个 seed 出图后没有选优机制**：`check_sketch.py` 只吃一张、也不落 json，
+   只能一张张跑 + 人眼逐张过。实测（UPC）8 张只有 3 张合格 —— 5 张废图白看。
+
+### 修法
+
+| # | 改动 | 关键点 |
+|---|---|---|
+| A | 新增 `scripts/ir_canvas.py`，**画布的唯一读取口** | `composition.canvas` 优先、`figure.canvas` 兜底；`parse_ratio` 认「约 2.1（横）」「833 x 633 px」；**解析不出数字会在简报里显形**，不再静默退回默认。`ir_to_genbrief.py` / `check_sketch.py` / `gen_figure.py` 全部接入。简报里的「长边 ≥ 2000 px」也改成跟画布自洽（旧值比调用尺寸 1664 还大，模型只能靠改比例去凑）|
+| A′ | `ir_brief_audit.py` 探针搬到规范位置 | 哨兵放 `composition.canvas.ratio` / `.用途`；另加一条**数值对账**（画布 `1000×600` 必须原样进简报）—— 哨兵查不了数字，而「读错位置」正是数字层面的事 |
+| B | `gen_figure.py --prompt-extend / --no-prompt-extend` | 默认沿用接口行为（mm=True / t2i=False），显式给了就听命令行的；实际取值写进 `calls.jsonl` |
+| C | `check_sketch.py` 一次吃多张 + `--json`；新增 `scripts/pick_best.py` | 排序判据：硬伤条数 → 画布比例偏差 → 软警 → 构图保真 r → 文件名。**「全部有硬伤」退出码 1、且明说别挑** —— 人眼只审入围的 |
+| D | `gen_figure.py` 缺 `--ref` = 硬错误 | 报错里直接给用法 + `--allow-no-ref`（纯文生图/自检提示词才放行）；`calls.jsonl` 记 `no_style_ref` |
+| E | `check_sketch.py --sketch <草图>` 量**构图保真** | 与草图的布局相关 r 低于 `--fidelity-min`（默认 0.70）算硬伤。锚点：降级送草图 0.904 / 原样送 0.873 / 完全不带构图参考 0.696（=「构图跑掉」）|
+| F | `--size` 与 IR 声明的比例不符时当场警告 | 打印两边比例 + 建议尺寸，别等出完图才发现坐标废了 |
+| F′ | 限流退避 | 429 / Throttling / rate limit → 退避 5s、10s；普通故障 3s；尝试次数 2 → 3 |
+| G | 补上 12 个脚本的 `_console.init_console()` | v2.7.3 只覆盖了 22 个脚本，`ir_to_genbrief.py` 等 12 个漏了 —— 它们在管道/重定向下**中文与 ✅ 依然是 gbk**：实测 `python scripts/ir_to_genbrief.py assets/ir/sketch5_upc.ir.yaml` 的输出在 agent 里是乱码（`����� _t.md`）。现在全部脚本一致 |
+
+### 验证
+
+- `python evals/test_tools.py` → **38/38 通过**（新增 6 个 case：
+  `canvas_read_from_composition_not_silently_dropped`、
+  `ir_brief_audit_probes_canvas_at_spec_position`、
+  `check_sketch_multi_image_json_and_pick_best`、
+  `check_sketch_composition_fidelity_floor`、
+  `gen_figure_requires_ref_and_records_prompt_extend`、
+  `gen_figure_warns_when_size_ratio_differs_from_ir`、
+  `gen_figure_backs_off_on_rate_limit`）。
+- `python -m compileall -q scripts evals` 干净。
+- 真实 IR 对账（8 份全过一遍）：`sketch5_upc` → 1664×792（2.10）、
+  `B3_T3-07` → 1664×1264（1.32）、`sketch3_jet` → 1664×804（2.07）、
+  `B1_T3-03` → 749×1664（0.45，竖长条）、`sketch6_spin_correlation` → 1664×930（1.79）。
+  修前这 6 份全都走的是「默认 1400×560」。
+
+
 ## v2.7.3 — 2026-09-27
 
 **自动化里"一打印就崩"：Windows 管道下 stdout 是 gbk；顺带修 3 处探测/文档**

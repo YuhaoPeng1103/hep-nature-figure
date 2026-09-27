@@ -743,10 +743,15 @@ def test_gen_figure_seed_tolerance():
 
     tmp = Path(tempfile.mkdtemp(prefix="gfseed_"))
     (tmp / "b.md").write_text("# 简报\n画一条四阶段演化链。\n", encoding="utf-8")
+    # ★ v2.8 起 --ref 是硬要求（缺了直接报错），这里给一张最小风格参考图
+    from PIL import Image as _I
+    import numpy as _np
+    _I.fromarray(_np.full((60, 90, 3), 200, _np.uint8)).save(str(tmp / "ref.png"))
     env = dict(os.environ)
     env["DASHSCOPE_API_KEY"] = "sk-dummy-for-test"      # 只为过检查，不真的能用
     r = subprocess.run([sys.executable, str(SCRIPTS / "gen_figure.py"),
-                        "--brief", str(tmp / "b.md"), "--seeds", "1,2",
+                        "--brief", str(tmp / "b.md"), "--ref", str(tmp / "ref.png"),
+                        "--seeds", "1,2",
                         "--outdir", str(tmp / "gen"),
                         "--api-base", "http://127.0.0.1:9/v1", "--timeout", "3"],
                        capture_output=True, text=True, timeout=300,
@@ -1077,6 +1082,259 @@ def test_path_asymmetry():
     assert bad_hard, ("顶点偏左 = 几何反了，必须报错 —— 这正是当初三张位图全漏掉的错。"
                       "量测环节若整段失效（比如找不到介质/喷注），也必须算报错，"
                       "不能静默通过")
+
+# ══════════════════════════════════════════════════════════════
+#  坑 6：画布 / 选优 / 生图纪律（v2.8）
+# ══════════════════════════════════════════════════════════════
+
+@case("canvas_read_from_composition_not_silently_dropped",
+      "画布必须**只由 ir_canvas 读**：规范（references/ir-spec.md）写 composition.canvas，"
+      "旧代码读 figure.canvas —— 仓库 8 份 IR 有 6 份按规范写，画布被静默丢弃："
+      "简报照默认 1400×560（2.50）走、gen_figure 又按 --size 默认请求 1664×928（1.79），"
+      "同一张图三个比例，模型照哪个都可能错。而且旧探针把哨兵塞在 figure.canvas 下，"
+      "所以「无损体检」照样绿。这里锁死三种情况：规范位置、旧位置、ratio 认不出。")
+def test_canvas_single_source():
+    import ir_to_genbrief as IG
+
+    # ① 规范位置：composition.canvas —— 尺寸/用途/比例都要进简报
+    ir = {"figure": {"physics_claim": "两核碰撞"},
+          "composition": {"canvas": {"ratio": "约 2.1（横）", "用途": "双栏图"}}}
+    out = IG.build(ir, None, "render")
+    assert "1664×792" in out, (
+        "composition.canvas.ratio=2.1 要换算成 1664×792 的画布（长边与 --size 默认同量级），"
+        "实得简报里没有 —— 画布又被丢了")
+    assert "双栏图" in out and "约 2.1（横）" in out, "用途/比例声明必须进简报"
+
+    # ② 旧位置 figure.canvas 仍要认（向后兼容）
+    ir2 = {"figure": {"canvas": {"w": 1000, "h": 600}}}
+    assert "1000×600" in IG.build(ir2, None, "render"), "旧写法 figure.canvas 也得认"
+
+    # ③ ratio 写了一句没有数字的话 —— 必须显形，不许静默退回默认
+    ir3 = {"composition": {"canvas": {"ratio": "很宽的那种"}}}
+    out3 = IG.build(ir3, None, "render")
+    assert "认不出" in out3, "ratio 解析失败必须在简报里说明，否则模型照默认比例画、IR 坐标全失效"
+
+    # ④ 简报里的「长边」要求不许超过自己也出得起的尺寸（以前写死 2000 > 默认 1664）
+    assert "长边 ≥ 2000" not in out, "长边要求不能是调用根本达不到的数（旧版写死 2000）"
+
+
+@case("ir_brief_audit_probes_canvas_at_spec_position",
+      "无损体检的探针必须跟规范同位置：哨兵原来塞在 figure.canvas 下，"
+      "所以「编译器把 composition.canvas 整段丢掉」体检不出来（照样报无损 ✅）。"
+      "另外画布 W×H 是数字，哨兵查不了，得单列一条数值对账。")
+def test_ir_brief_audit_canvas():
+    import ir_brief_audit as A
+    import ir_to_genbrief as IG
+
+    fields = [f[0] for f in A.FIELDS]
+    assert "composition.canvas.ratio" in fields and "composition.canvas.用途" in fields, (
+        "探针位置必须跟 references/ir-spec.md 一致（composition.canvas），实得 %s"
+        % [f for f in fields if "canvas" in f])
+    assert not [f for f in fields if f.startswith("figure.canvas")], "别再把探针留在旧位置"
+
+    # 数值对账：把画布挪走（模拟旧 bug）时，这条必须翻 ❌
+    probe = A._wrap(A.probe_ir())
+    assert "1000×600" in IG.build(probe, None, "render"), "探针 IR 的画布要原样进简报"
+    del probe["composition"]["canvas"]
+    assert "1000×600" not in IG.build(probe, None, "render"), (
+        "画布没了就该退回默认 —— 正因如此数值对账才拦得住「读错位置」")
+
+
+@case("check_sketch_multi_image_json_and_pick_best",
+      "一次出多张要能**一次全查、机器排序、人眼只审入围的**。实测（UPC）：8 个 seed "
+      "只有 3 张合格，以前一张张跑 + 肉眼过，5 张白看。这里锁：check_sketch 吃多张、"
+      "落 --json、比例不符算硬伤（含 composition.canvas 读法）、pick_best 把干净的排前面。")
+def test_multi_image_and_pick_best():
+    import json as _json
+    import numpy as _np
+    from PIL import Image as _I
+
+    tmp = Path(tempfile.mkdtemp(prefix="mulimg_"))
+    # 干净张：比例与 IR 一致、色块居中（不贴边、重心不偏）
+    a = _np.full((616, 1294, 3), 255, _np.uint8)
+    a[220:400, 480:820] = (60, 90, 200)
+    _I.fromarray(a).save(str(tmp / "ok.png"))
+    # 比例被改坏的（4:3 vs IR 的 2.10）
+    b = _np.full((600, 800, 3), 255, _np.uint8)
+    b[200:400, 240:560] = (60, 90, 200)
+    _I.fromarray(b).save(str(tmp / "bad.png"))
+    ir = tmp / "x.ir.yaml"
+    ir.write_text("figure:\n  physics_claim: 测试\n"
+                  "composition:\n  canvas:\n    w: 1294\n    h: 616\n"
+                  "  layout: [色块居中]\n"
+                  "geometry_constraints:\n  约束:\n    - 名: 色块居中\n"
+                  "      要求: 看得出来就行\n", encoding="utf-8")
+
+    rep = tmp / "check.json"
+    r = subprocess.run([sys.executable, str(SCRIPTS / "check_sketch.py"),
+                        str(tmp / "ok.png"), str(tmp / "bad.png"),
+                        "--ir", str(ir), "--json", str(rep)],
+                       capture_output=True, text=True, timeout=180,
+                       encoding="utf-8", errors="replace")
+    so = r.stdout or ""
+    assert "composition.canvas" in so, "画布比例要按规范位置读出来（%s）" % so[-500:]
+    assert r.returncode == 1, "有一张比例被改坏，闸口必须报错（exit 1）"
+    d = _json.loads(rep.read_text(encoding="utf-8"))
+    assert len(d["images"]) == 2, "两张都要落进 json"
+    hard_ok = d["images"][0]["hard"]
+    hard_bad = d["images"][1]["hard"]
+    assert not hard_ok, "比例一致、色块居中的那张不该有硬伤，实得 %s" % hard_ok
+    assert any("画布比例" in x for x in hard_bad), (
+        "4:3 那张必须因画布比例被记为硬伤，实得 %s" % hard_bad)
+    assert "多张汇总" in so and "排序挑图" in so, "多张时要给汇总和排序指引"
+
+    r2 = subprocess.run([sys.executable, str(SCRIPTS / "pick_best.py"), str(rep)],
+                        capture_output=True, text=True, timeout=120,
+                        encoding="utf-8", errors="replace")
+    so2 = r2.stdout or ""
+    assert r2.returncode == 0, ("有干净候选时 pick_best 应 exit 0：%s" % so2[-500:])
+    lines = [l for l in so2.splitlines() if l.strip().startswith("1 ")]
+    assert lines and "ok.png" in lines[0], (
+        "干净的 ok.png 必须排第 1，实得：%s" % lines)
+
+
+@case("check_sketch_composition_fidelity_floor",
+      "闸口以前只查「照抄参考图」，没人查「成品位图有没有沿用草图的构图」。"
+      "实测（形变核→火球，seed 53）不送构图参考时布局相关掉到 0.696、出图才发现。"
+      "现在 --sketch 给构图依据：r 低于 --fidelity-min 直接算硬伤。")
+def test_composition_fidelity():
+    import numpy as _np
+    from PIL import Image as _I
+
+    tmp = Path(tempfile.mkdtemp(prefix="fid_"))
+    a = _np.full((616, 1294, 3), 255, _np.uint8)
+    a[220:400, 480:820] = (60, 90, 200)
+    a[100:140, 100:400] = (200, 70, 60)
+    _I.fromarray(a).save(str(tmp / "sketch.png"))
+    diff = _np.full((616, 1294, 3), 255, _np.uint8)
+    diff[30:150, 1000:1260] = (20, 20, 20)
+    _I.fromarray(diff).save(str(tmp / "render.png"))
+    ir = tmp / "x.ir.yaml"
+    ir.write_text("figure:\n  physics_claim: 测试\n"
+                  "composition:\n  canvas:\n    w: 1294\n    h: 616\n",
+                  encoding="utf-8")
+
+    def run(img, sk, lo):
+        return subprocess.run([sys.executable, str(SCRIPTS / "check_sketch.py"),
+                               str(img), "--ir", str(ir),
+                               "--sketch", str(sk), "--fidelity-min", lo],
+                              capture_output=True, text=True, timeout=120,
+                              encoding="utf-8", errors="replace")
+
+    # ① 图 == 草图 -> 保真 r=1.0，过关（而且保真值要打印出来，能对账）
+    r_same = run(tmp / "sketch.png", tmp / "sketch.png", "0.7")
+    assert r_same.returncode == 0, (
+        "与草图同一张 -> 保真 r=1.0，不该报错：%s" % (r_same.stdout or "")[-500:])
+    assert "构图保真" in (r_same.stdout or ""), "要打印出保真 r（可对账）"
+
+    # ② 布局完全不同（内容跑到另一个角）-> 必须报硬伤
+    r_bad = run(tmp / "render.png", tmp / "sketch.png", "0.7")
+    assert r_bad.returncode == 1 and "构图保真" in (r_bad.stdout or ""), (
+        "构图完全不同时必须报硬伤（exit 1）：%s" % (r_bad.stdout or "")[-600:])
+
+    # ③ 阈值是可调的：把下限压到 0 下面就放行（防有人把阈值写死）
+    r_lo = run(tmp / "render.png", tmp / "sketch.png", "-1.0")
+    assert r_lo.returncode == 0, (
+        "阈值压到 -1 后同一张图不该再报构图硬伤：%s" % (r_lo.stdout or "")[-500:])
+
+
+@case("gen_figure_requires_ref_and_records_prompt_extend",
+      "风格参考图是硬规矩（只给文字 -> 通用插画脸），可 gen_figure 以前只打一行"
+      "「（无 —— 出来会偏通用）」就继续 —— 纪律交给记性就等于没有。"
+      "另外 prompt_extend 以前对 mm 写死 True（服务端**重写提示词**会稀释简报里的"
+      "坐标/约束），现在要可关、且实际取值必须进 calls.jsonl。")
+def test_gen_figure_ref_and_prompt_extend():
+    import json as _json
+    import os
+    import numpy as _np
+    from PIL import Image as _I
+
+    tmp = Path(tempfile.mkdtemp(prefix="gfref_"))
+    (tmp / "b.md").write_text("# 简报\n画一个四阶段演化链。\n", encoding="utf-8")
+    _I.fromarray(_np.full((60, 90, 3), 200, _np.uint8)).save(str(tmp / "ref.png"))
+
+    # ① 缺 --ref：直接报错，并告诉人怎么放行
+    r = subprocess.run([sys.executable, str(SCRIPTS / "gen_figure.py"),
+                        "--brief", str(tmp / "b.md"), "--dry-run",
+                        "--outdir", str(tmp / "g0")],
+                       capture_output=True, text=True, timeout=120,
+                       encoding="utf-8", errors="replace")
+    assert r.returncode != 0, "缺 --ref 必须报错（不许只打一行警告就继续）"
+    assert "--allow-no-ref" in (r.stdout + r.stderr), "报错要给出放行办法"
+
+    # ② --allow-no-ref 才放行（dry-run 自检场景）
+    r2 = subprocess.run([sys.executable, str(SCRIPTS / "gen_figure.py"),
+                         "--brief", str(tmp / "b.md"), "--allow-no-ref", "--dry-run",
+                         "--outdir", str(tmp / "g1")],
+                        capture_output=True, text=True, timeout=120,
+                        encoding="utf-8", errors="replace")
+    assert r2.returncode == 0, "显式放行后要能跑：%s" % (r2.stdout or "")[-300:]
+
+    # ③ --no-prompt-extend 要真的关掉、并写进调用记录（用必然失败的 api-base，不花钱）
+    env = dict(os.environ)
+    env["DASHSCOPE_API_KEY"] = "sk-dummy-for-test"
+    out = tmp / "g2"
+    r3 = subprocess.run([sys.executable, str(SCRIPTS / "gen_figure.py"),
+                         "--brief", str(tmp / "b.md"), "--ref", str(tmp / "ref.png"),
+                         "--seeds", "1", "--no-prompt-extend", "--outdir", str(out),
+                         "--api-base", "http://127.0.0.1:9/v1", "--timeout", "2"],
+                        capture_output=True, text=True, timeout=300,
+                        encoding="utf-8", errors="replace", env=env)
+    assert r3.returncode == 0, (r3.stdout or "")[-500:] + (r3.stderr or "")[-300:]
+    rec = _json.loads((out / "calls.jsonl").read_text(encoding="utf-8")
+                      .strip().splitlines()[0])
+    assert rec["prompt_extend"] is False, (
+        "--no-prompt-extend 必须落进 calls.jsonl（不然回溯不了提示词有没有被服务端重写）")
+    assert rec["no_style_ref"] is False, "给了 --ref 就该记 no_style_ref=false"
+
+
+@case("gen_figure_warns_when_size_ratio_differs_from_ir",
+      "同一张图两个比例就废了 IR 的归一化坐标：简报按 IR 声明写、API 按 --size 出。"
+      "实测 sketch5_upc 声明 2.10，而 --size 默认 1664*928 是 1.79（差 15%）。"
+      "gen_figure 必须当场对账，别等出完图。")
+def test_gen_figure_ir_ratio_reconcile():
+    import tempfile as _tf
+    tmp = Path(_tf.mkdtemp(prefix="gfratio_"))
+    ir = tmp / "x.ir.yaml"
+    ir.write_text("figure:\n  physics_claim: 测试\n"
+                  "composition:\n  canvas:\n    ratio: 约 2.1（横）\n",
+                  encoding="utf-8")
+    _img = tmp / "ref.png"
+    import numpy as _np
+    from PIL import Image as _I
+    _I.fromarray(_np.full((60, 90, 3), 200, _np.uint8)).save(str(_img))
+    r = subprocess.run([sys.executable, str(SCRIPTS / "gen_figure.py"),
+                        "--ir", str(ir), "--ref", str(_img), "--dry-run",
+                        "--outdir", str(tmp / "g")],
+                       capture_output=True, text=True, timeout=180,
+                       encoding="utf-8", errors="replace")
+    so = (r.stdout or "") + (r.stderr or "")
+    assert r.returncode == 0, so[-400:]
+    assert "同一张图两个比例" in so, (
+        "--size 与 IR 声明的 2.10 不符（默认 1.79）必须警告：%s" % so[-600:])
+    # 把 --size 调成与 IR 一致 -> 不该再报警
+    r2 = subprocess.run([sys.executable, str(SCRIPTS / "gen_figure.py"),
+                         "--ir", str(ir), "--ref", str(_img), "--dry-run",
+                         "--size", "1664*792", "--outdir", str(tmp / "g2")],
+                        capture_output=True, text=True, timeout=180,
+                        encoding="utf-8", errors="replace")
+    assert "同一张图两个比例" not in ((r2.stdout or "") + (r2.stderr or "")), (
+        "比例对上了就不该报警")
+
+
+@case("gen_figure_backs_off_on_rate_limit",
+      "429/限流时**立刻重试只会再撞一次**（实测 seed 批量出图会撞限流）。"
+      "判据要能认出限流类文案并按更长退避重试，而不是和网络抖动一样 3 秒。")
+def test_rate_limit_backoff():
+    import gen_figure as GF
+    for s in ("提交失败 429: Requests rate limit exceeded",
+              "提交失败 429: Throttling.User",
+              "too many requests", "quota exceeded"):
+        assert GF._looks_rate_limited(s), "这些都要判为限流：%r" % s
+    for s in ("网络错误: <urlopen error [WinError 10061]>",
+              "提交失败 500: internal error", "轮询超时"):
+        assert not GF._looks_rate_limited(s), "普通故障不该按限流退避（会白等）：%r" % s
+
 
 if __name__ == "__main__":
     sys.exit(main())

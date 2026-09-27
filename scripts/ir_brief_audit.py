@@ -53,8 +53,12 @@ FIELDS = [
     # ── ① figure 层 ──
     ("figure.physics_claim",      "S_claim",      "carry",        "这张图要表达什么物理（第一节正文）"),
     ("figure.archetype",          "S_archetype",  "context",      "图型：示意图 ≠ 定量面板，影响画法"),
-    ("figure.canvas.ratio",       "S_ratio",      "context",      "IR 声明的画布比例"),
-    ("figure.canvas.用途",         "S_canvas_use", "context",      "单栏 / 双栏"),
+    # ★ 2026-09-27：这两条原来探的是 `figure.canvas.*`，而规范
+    #   （references/ir-spec.md）写的是 `composition.canvas` —— 探针本身探错了
+    #   位置，所以「编译器把 composition.canvas 整段丢掉」这个 bug 体检不出来
+    #   （照样报「无损 ✅」）。探针必须跟规范同位置。
+    ("composition.canvas.ratio",  "S_ratio",      "context",      "IR 声明的画布比例"),
+    ("composition.canvas.用途",    "S_canvas_use", "context",      "单栏 / 双栏"),
     ("figure.title",              "S_title",      "skip",         "图题通常不进画面（画上去就是错）"),
     ("figure.id",                 "S_fid",        "skip",         "回溯用"),
     ("figure.source",             "S_fsrc",       "skip",         "文献出处"),
@@ -126,9 +130,7 @@ def probe_ir() -> dict:
     return {
         "figure": {"id": "S_fid", "source": "S_fsrc", "title": "S_title",
                    "physics_claim": "S_claim", "archetype": "S_archetype",
-                   "panels_count": 3,
-                   "canvas": {"w": 1000, "h": 600, "ratio": "S_ratio",
-                              "用途": "S_canvas_use"}},
+                   "panels_count": 3},
         "elements": [{"id": "E1", "name": "S_name", "z": "S_z",
                       "physics_role": "S_role", "primitive": "S_prim",
                       "params": {"note": "S_pnote"}, "material": "S_mat"}],
@@ -137,6 +139,8 @@ def probe_ir() -> dict:
              "为什么": "S_gcwhy"}]},
         "composition": {"view": "S_view", "layout": ["S_layout"], "note": "S_note",
                         "分区": "S_zone", "叠放关系": "S_stack",
+                        "canvas": {"w": 1000, "h": 600, "ratio": "S_ratio",
+                                   "用途": "S_canvas_use"},
                         "元素布局": [{"id": "E1", "锚点": ["S_anchor", 0.5],
                                      "相对尺寸": "S_size", "备注": "S_remark"}]},
         "style": {"classification": "S_class", "evidence": "S_evid",
@@ -146,6 +150,15 @@ def probe_ir() -> dict:
         "execution": {"primary": "S_exec"},
         "assertions": {"machine": ["S_asm"], "human": ["S_ahm"]},
     }
+
+
+# ── 数值对账 ──────────────────────────────────────────────
+# 哨兵只能查「字符串到没到」。画布 W×H 是**数字**，得单独查 ——
+# 而且它正是「读错位置 → 静默退回默认 1400×560」那个 bug 的照妖镜：
+# 旧代码下这行会是 ❌（简报写 1400×560，探针 IR 写 1000×600）。
+NUMERIC = [
+    ("composition.canvas.w×h", "1000×600", "画布尺寸必须原样进简报（它就是模型要出的比例）"),
+]
 
 
 def audit(stage: str):
@@ -160,6 +173,8 @@ def audit(stage: str):
             want = True
         got = T(tok) in brief
         rows.append((path, tok, kind, want, got, why))
+    for path, needle, why in NUMERIC:
+        rows.append((path, needle, "numeric", True, needle in brief, why))
     return brief, rows
 
 

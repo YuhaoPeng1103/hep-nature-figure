@@ -33,11 +33,16 @@ check_sketch —— 位图闸口（★ 同一个脚本在流程里跑 **两次**
 
     # 闸口① 草图
     python3 check_sketch.py gen/sketch_s1.png --ir ir/xxx.ir.yaml
-    # 闸口② 成品位图（喂同一个 IR）
-    python3 check_sketch.py gen/render_s22.png --ir ir/xxx.ir.yaml
+    # 闸口② 成品位图（喂同一个 IR），并量「构图有没有沿用草图」
+    python3 check_sketch.py gen/render_s22_clean.png --ir ir/xxx.ir.yaml \\
+        --sketch gen/sketch_s1_clean.png
 
     python3 check_sketch.py gen/render_s22.png --ir ir/xxx.ir.yaml \\
         --profile assets/style-profiles.json --class "T3-schematic (illustration)"
+
+    # ★ 多张一次查 + 落 json，再自动排序挑图（8 个 seed 出图后的推荐做法）
+    python3 check_sketch.py gen/sketch_s*.png --ir ir/xxx.ir.yaml --json gen/check.json
+    python3 pick_best.py gen/check.json
 """
 from __future__ import annotations
 
@@ -55,6 +60,8 @@ import numpy as np
 from PIL import Image
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
+
+import ir_canvas          # 画布的唯一读取口（composition.canvas 优先）
 
 
 def load_ir(path: Path) -> dict:
@@ -450,18 +457,13 @@ def path_asym_check(img, specs):
 
 
 
-def main():
-    ap = argparse.ArgumentParser(description="位图闸口 —— 草图 / 成品位图通用，流程里跑两次")
-    ap.add_argument("image")
-    ap.add_argument("--ir", required=True, help="对应的 IR —— 几何约束从它来")
-    ap.add_argument("--profile", help="风格档案（可选）")
-    ap.add_argument("--class", dest="want_class", default=None)
-    ap.add_argument("--canvas", help="IR 声明的画布 WxH，用于查比例是否被改")
-    ap.add_argument("--trim", type=int, default=0,
-                    help="先裁掉四周 N px 再测（处理生图模型画的贴边细外框）")
-    a = ap.parse_args()
 
-    img_path = Path(a.image)
+def check_one(img_path, a, ir):
+    """查一张图。返回机器可读的结果 dict（人眼那一节照旧打印出来）。"""
+
+    img_path = Path(img_path)
+    hard, soft = [], []
+    want = dev = fid_r = None
     if not img_path.exists():
         raise SystemExit(f"找不到 {img_path}")
     img = Image.open(img_path)
@@ -477,21 +479,36 @@ def main():
     print(f"  尺寸 {W}×{H}  宽高比 {W/H:.2f}")
 
     # 画布比例是否照 IR 走
-    cv = (ir.get("figure") or {}).get("canvas") or {}
-    if cv.get("w") and cv.get("h"):
-        want = cv["w"] / cv["h"]
+    # ★ 2026-09-27：画布只由 ir_canvas 读。规范把画布写在 composition.canvas，
+    #   这里以前读 figure.canvas —— 仓库 8 份 IR 有 6 份被静默丢掉，比例被改
+    #   也不报（「无损体检」照样绿）。现在两种位置都认，比例不符算**硬伤**。
+    why = ""
+    if a.canvas:
+        px = ir_canvas.parse_size(a.canvas)
+        if px:
+            want, why = px[0] / px[1], "--canvas 指定"
+        else:
+            print("  ⚠️ --canvas 要写成 WxH（如 1664x928），实得 %r —— 忽略" % a.canvas)
+    if want is None:
+        want = ir_canvas.declared_ratio(ir)
+        if want:
+            node, src = ir_canvas.canvas_node(ir)
+            why = src if ir_canvas.pixel_size(ir) else (src + " 的 ratio")
+    if want:
         dev = abs(W / H - want) / want
         flag = "✅" if dev < 0.12 else "❌"
-        print(f"  {flag} IR 声明的比例 {want:.2f}，实际 {W/H:.2f}"
+        print(f"  {flag} IR 声明的比例 {want:.2f}（{why}），实际 {W/H:.2f}"
               f"（偏差 {dev*100:.0f}%）")
         if dev >= 0.12:
             print("     → 比例被改了。比例变了，IR 里的归一化坐标全部失效。")
+            hard.append("画布比例不符（%.2f vs %.2f）" % (W / H, want))
+    else:
+        print("  （IR 没写画布比例、也没给 --canvas —— 比例这一项没查）")
     print()
 
     # ══ 一、自动测 ══
     print("■ 自动测到的（这些机器能判）")
     st = content_stats(img)
-    hard, soft = [], []
     if st is None:
         print("  ❌ 整张图几乎是白的 —— 没画出东西")
         hard.append("图为空白")
@@ -591,6 +608,29 @@ def main():
             print(f"  （风格量测跳过：{type(e).__name__}）")
     print()
 
+    # ★ 构图保真（v2.8）：成品位图 vs 上一步的草图。闸口以前只查「照抄参考图」，
+    #   没人查「有没有把草图的构图丢掉」—— 实测（形变核→火球，seed 53）不送构图
+    #   参考时布局相关掉到 0.696，得肉眼看到出图才发现。
+    if a.sketch:
+        sp = Path(a.sketch)
+        if not sp.exists():
+            print("  ⚠️ --sketch 不存在：%s —— 保真这一项跳过" % sp)
+        else:
+            try:
+                import ref_leak_check as RLC
+                fid_r = RLC.corr(str(img_path), str(sp))
+            except Exception as e:
+                print("  ⚠️ 构图保真量不了（%s: %s）" % (type(e).__name__, e))
+            if fid_r is not None:
+                ok_fid = fid_r >= a.fidelity_min
+                print("  %s 构图保真：与草图 %s 的布局相关 r=%.3f（下限 %.2f）"
+                      % ("✅" if ok_fid else "❌", sp.name, fid_r, a.fidelity_min))
+                print("     （锚点：降级送草图 0.904 / 原样送 0.873 / 完全不带 0.696）")
+                if not ok_fid:
+                    print("     → 构图跑掉了：成品位图没沿用草图的布局。先查 gen_figure "
+                          "是不是漏了 `--content-ref <草图>`。")
+                    hard.append("构图保真 %.3f < %.2f" % (fid_r, a.fidelity_min))
+
     # ══ 二、必须人/模型回答 ══
     cons = ((ir.get("geometry_constraints") or {}).get("约束") or [])
     print("■ 必须【看图】逐条回答的（机器判不了物理）")
@@ -621,7 +661,57 @@ def main():
         print("   往下走的代价是：错误会被带进成品位图、再带进矢量，越往后越贵。")
     else:
         print("✅ 自动检查通过（但没有几何约束可核，物理没人把过关）")
-    return 1 if hard else 0
+    return {"file": img_path.name, "path": str(img_path),
+            "size": [W, H], "ratio": round(W / H, 4),
+            "ratio_want": (round(want, 4) if want else None),
+            "ratio_dev": (round(dev, 4) if dev is not None else None),
+            "fidelity_r": (round(fid_r, 4) if fid_r is not None else None),
+            "hard": hard, "soft": soft, "ok": not hard}
+
+
+def main():
+    ap = argparse.ArgumentParser(
+        description="位图闸口 —— 草图 / 成品位图通用，流程里跑两次",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog=__doc__.split("## 用法")[-1])
+    ap.add_argument("image", nargs="+",
+                    help="要查的位图；★ 可以一次给多张（8 个 seed 出图后一次全查）")
+    ap.add_argument("--ir", required=True, help="对应的 IR —— 几何约束从它来")
+    ap.add_argument("--profile", help="风格档案（可选）")
+    ap.add_argument("--class", dest="want_class", default=None)
+    ap.add_argument("--canvas", help="覆盖 IR 的画布比例，写 WxH（如 1664x928）")
+    ap.add_argument("--trim", type=int, default=0,
+                    help="先裁掉四周 N px 再测（处理生图模型画的贴边细外框）")
+    ap.add_argument("--sketch", default=None,
+                    help="构图依据（上一步选中的草图）—— 量成品位图的**构图保真**，"
+                         "低于 --fidelity-min 直接算硬伤（按原图量，--trim 不影响它）")
+    ap.add_argument("--fidelity-min", type=float, default=0.70,
+                    help="构图保真下限（默认 0.70）")
+    ap.add_argument("--json", default=None,
+                    help="把机器结果写成 json；多张时配 scripts/pick_best.py 排序挑图")
+    a = ap.parse_args()
+
+    ir = load_ir(Path(a.ir))
+    report = [check_one(Path(one), a, ir) for one in a.image]
+
+    if a.json:
+        Path(a.json).write_text(json.dumps(
+            {"images": report, "ok": all(r["ok"] for r in report),
+             "hard_total": sum(len(r["hard"]) for r in report)},
+            ensure_ascii=False, indent=2), encoding="utf-8")
+        print("已写出机器结果 %s" % a.json)
+    if len(report) > 1:
+        print("=" * 62)
+        print("多张汇总（%d 张）—— 人眼只需审没有硬伤的：" % len(report))
+        for r in sorted(report, key=lambda x: (len(x["hard"]), len(x["soft"]))):
+            print("  %s %-30s 硬伤 %d  软警 %d  保真 %s"
+                  % ("❌" if r["hard"] else "✅", r["file"], len(r["hard"]),
+                     len(r["soft"]),
+                     ("%.3f" % r["fidelity_r"]) if r["fidelity_r"] is not None
+                     else "n/a"))
+        print("  → 排序挑图：python3 scripts/pick_best.py %s"
+              % (a.json or "<--json 写出的报告.json>"))
+    return 1 if any(r["hard"] for r in report) else 0
 
 
 if __name__ == "__main__":

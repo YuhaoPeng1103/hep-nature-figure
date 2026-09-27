@@ -544,6 +544,11 @@ python3 scripts/sketch_to_vector.py gen/sketch_s1_clean.png -o gen/sketch_s1.svg
 
 # ── 4. ★ 闸口①：草图过物理检查（不能跳）────────────────────
 python3 scripts/check_sketch.py gen/sketch_s1_clean.png --ir ir/xxx.ir.yaml
+#   ★ 一次出了多张备选？**一次全喂进去** + 落 json，再自动排序挑图
+#     （人眼只审没有硬伤的 —— 实测 UPC：8 个 seed 只有 3 张合格）：
+#     python3 scripts/check_sketch.py gen/sketch_s*_clean.png --ir ir/xxx.ir.yaml \
+#         --json gen/check1.json
+#     python3 scripts/pick_best.py gen/check1.json
 
 # ── 5. 出成品位图（★ 草图 + 风格参考图都要带）──────────────
 #   ★ 风格档：--style-mode auto|flat|render3d（默认 auto，按 IR 的 style 段判）
@@ -566,7 +571,11 @@ python3 scripts/gen_figure.py --brief brief2.md --stage render \
 python3 scripts/trim_border.py gen/render_s22.png -o gen/render_s22_clean.png --bg 0.975
 
 # ── 6. ★ 闸口②：成品位图再过一次同一个闸口 ─────────────────
-python3 scripts/check_sketch.py gen/render_s22_clean.png --ir ir/xxx.ir.yaml
+#   ★ 加 --sketch 给出**构图依据**：闸口会量「成品位图有没有沿用草图的构图」
+#     （布局相关 r；低于 --fidelity-min 直接算硬伤）。实测：降级送草图 0.904 /
+#     原样送 0.873 / 完全不带构图参考 0.696 —— 掉到 0.696 时以前没人发现。
+python3 scripts/check_sketch.py gen/render_s22_clean.png --ir ir/xxx.ir.yaml \
+    --sketch gen/sketch_s1_clean.png
 
 # ── 7. 位图 → 矢量：首选重画，备用混合临摹 ──────────────────
 #    首选：看懂每个部分后重画（形体带真 <gradient>，保留色彩+阴影）
@@ -660,13 +669,16 @@ python3 scripts/repair_brief.py fig.svg --profile assets/style-profiles.json
 | 事 | 怎么做 | 为什么 |
 |---|---|---|
 | **API key** | 读环境变量 `DASHSCOPE_API_KEY`，**脚本不存 key** | 别人装了 skill 得用**他自己的** key |
-| **风格参考图** | `--ref 图1.png --ref 图2.png`（可多张） | 只给文字 → 出来一定很"通用"。参考图 = Nature 风格书 |
+| **风格参考图** | `--ref 图1.png --ref 图2.png`（可多张）。**缺了直接报错** —— 要纯文生图才加 `--allow-no-ref` | 只给文字 → 出来一定很"通用"。参考图 = Nature 风格书。纪律交给记性就等于没有（v2.8 从"打一行警告就继续"改成硬错误）|
 | **两个接口** | `qwen-image-*` → 图生图（**支持 --ref**）；`wanx*`/`wan*` → 纯文生图 | 要参考图只能用前者 |
 | **image 字段** | 本地图 → **base64 data URI**（自动）；公网 URL 直接透传 | mm 端点**只收**公网 URL 或 base64，**不认 `oss://`** —— 实测提交报 400 `Image must be either a public URL or a Base64 encoded string`（v2.6.1 修）|
 | **两个产物** | 草图 PNG + **草图 SVG** + 成品位图，全部落盘 | 用户要能拿到中间产物 |
 | **裁外框** | 出图后跑 `scripts/trim_border.py in.png -o out_clean.png` | 模型**稳定**在四周画 1~2px 外框，简报与 `--negative` 都拦不住（实测 5/5）→ 确定性裁掉，别求模型 |
-| **调用留痕** | `gen/calls.jsonl` 记 model/seed/size/refs/prompt 指纹 | 出图后要能溯源、核对计费 |
-| **单个 seed 抖动** | 失败**重试 1 次**，两次都失败记 `ok=False` 继续下一个 seed | 实测 2026-09-27：seed 7 撞 TimeoutError 让整批 traceback 退出 —— seed 9 根本没跑、已出的 seed 5 也没进 `calls.jsonl` |
+| **提示词扩展** | `--prompt-extend` / `--no-prompt-extend`（默认沿用接口行为：mm=True / t2i=False）| `prompt_extend=True` 会让服务端**重写提示词**，简报里的坐标/数量/约束被稀释 → 结构化示意图建议 `--no-prompt-extend`。实际取值记进 `calls.jsonl` |
+| **画布比例对账** | `--size` 与 IR 声明的比例不符时当场警告 | 同一张图两个比例，IR 的归一化坐标就废了（实测 sketch5_upc 声明 2.10、默认 `--size` 1.79，差 15%）|
+| **调用留痕** | `gen/calls.jsonl` 记 model/seed/size/refs/prompt 指纹 + `prompt_extend` / `no_style_ref` / `ir_ratio_dev` | 出图后要能溯源、核对计费、回溯提示词有没有被服务端重写 |
+| **单个 seed 抖动** | 失败**重试 2 次**（共 3 次尝试），仍失败记 `ok=False` 继续下一个 seed | 实测 2026-09-27：seed 7 撞 TimeoutError 让整批 traceback 退出 —— seed 9 根本没跑、已出的 seed 5 也没进 `calls.jsonl` |
+| **限流退避** | 429 / Throttling / rate limit 判为限流 → 退避 5s、10s（普通故障 3s）| 限流时立刻重试只会再撞一次；批量出图（多 seed）最容易撞 |
 | 没 key 时 | `--dry-run` 只写提示词和调用计划 | 自检不用花钱 |
 
 > 实测（UPC 图，2026-09-26）：`wanx2.0-t2i-turbo` 对结构化示意图太弱
@@ -678,7 +690,7 @@ python3 scripts/repair_brief.py fig.svg --profile assets/style-profiles.json
 **现象**：出的图跟参考图几乎一模一样 —— 物体、布局、箭头方向、文字全是参考图的。
 
 **根因**：`qwen-image-*` 是**图生图**。参考图的内容越接近目标，模型越倾向**直接抄**
-（`prompt_extend` 还会重写提示词，进一步稀释简报）。参考图给 2 张会加重。
+（`prompt_extend` 还会重写提示词，进一步稀释简报 —— 可用 `--no-prompt-extend` 关掉，见下）。参考图给 2 张会加重。
 **这不是"提示词没写清"，是参考图选错了。**
 
 按顺序排查（每一步都能用机器量）：
@@ -1065,4 +1077,6 @@ python3 scripts/auto_converge.py --ref 参考图.png \
 | `raster_to_vector.py` | **位图 → 矢量（临摹备用路径）**：逐像素描摹 + 混合文字（`--text-spec`）+ 语义归组（`--groups`） |
 | `raster_to_vector_semantic.py` | **位图 → 语义分层的全矢量**（先理解再临摹）：真 `<text>`、物理元素图层树、误差可量化。库在 `scripts/raster_vector/`，用法见其 `README.md` |
 | `ir_brief_audit.py` | **★ IR → 简报的无损体检**（哨兵法：字段没进简报 = IR 白写）。改 IR 格式 / 简报模板后必跑，可挂 CI |
+| `ir_canvas.py` | **内部：IR 画布的**唯一**读取口**（规范位置 `composition.canvas` 优先，旧写法 `figure.canvas` 兜底）。修的是：8 份 IR 有 6 份的画布被静默丢弃 —— 简报照默认 1400×560 走、`gen_figure` 又按 1664×928 出，同一张图三个比例；而旧探针塞在 `figure.canvas` 下，体检照样绿 |
+| `pick_best.py` | **★ 候选排序**：吃 `check_sketch.py --json` 的报告，按「硬伤 → 比例偏差 → 软警 → 构图保真」排序，只把人眼留给没有硬伤的。实测（UPC）：8 个 seed 只有 3 张合格 —— 以前那 5 张废图也要人眼看一遍 |
 | `_console.py` | **内部：控制台编码兜底**。把 stdout/stderr 切 UTF-8 —— 中文 Windows 上 stdout 一旦被管道/重定向（agent、CI、`> log.txt`）就是 gbk，报告里的 ✅/⚠️ 编不出来 → `UnicodeEncodeError` 把脚本打在打印中途。**不影响交互式手敲**，所以只在自动化里炸。拷脚本（扁平布局）时必须一起拷 |

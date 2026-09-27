@@ -56,6 +56,17 @@ gen_figure —— 第 ② 步：把 IR 简报变成【草图】或【成品位�
 `--stage sketch` 保持原样（草图阶段本来就该跟手绘稿的形体走）。
 想让模型连草图的风格一起继承，显式 `--content-ref-mode full`。
 
+## ★ v2.8：三个新开关（都为了「少花钱、少猜」）
+
+- **`--ref` 缺失直接报错**（要放行才加 `--allow-no-ref`）。以前只打一行
+  「（无 —— 出来会偏通用）」就继续 —— 纪律 2（风格参考图必需）等于交给记性。
+- **`--prompt-extend` / `--no-prompt-extend`**：默认沿用接口原有行为
+  （mm=True / t2i=False）。`prompt_extend=True` 会让服务端**重写提示词**，
+  简报里的坐标/数量/约束会被稀释 —— 结构化示意图建议 `--no-prompt-extend`。
+  实际取值写进 `calls.jsonl`，可回溯。
+- **`--size` 与 IR 声明的画布比例不一致时警告**：同一张图两个比例，
+  IR 的归一化坐标就失效了（IRC 声明的位置全按比例换算）。
+
 ## 用法
 
     # ① IR → 简报（skill 自带的编译步骤）
@@ -77,13 +88,15 @@ gen_figure —— 第 ② 步：把 IR 简报变成【草图】或【成品位�
     python3 scripts/check_sketch.py gen/render_s22.png --ir ir/sketch5_upc.ir.yaml
 
     # 想看要发什么请求、不真的调 API：
-    python3 scripts/gen_figure.py --brief brief1.md --dry-run
+    python3 scripts/gen_figure.py --brief brief1.md --ref refs/T3-33.png --dry-run
 """
 from __future__ import annotations
 
 from _console import init_console
 
 init_console()  # Windows：stdout 被管道/重定向时切 UTF-8（否则打印 ✅ 会崩）
+
+from ir_canvas import parse_size, declared_ratio, ratio_deviation, canvas_node, canvas_for_brief
 
 import argparse
 import base64
@@ -126,6 +139,13 @@ def _req(url, key, payload=None, method=None, raw=None, ctype=None, timeout=180)
         return e.code, e.read().decode("utf-8", "replace")
     except urllib.error.URLError as e:
         return 0, "网络错误: %s" % e
+
+
+def _looks_rate_limited(note):
+    """429 / 限流类错误要退避更久 —— 服务端让你慢一点，立刻重试只会再撞一次。"""
+    s = str(note).lower()
+    return any(h in s for h in ("429", "throttl", "rate limit", "limit exceeded",
+                                "too many requests", "quota"))
 
 
 def ref_to_image_field(path):
@@ -217,11 +237,22 @@ def _ref_leak_check(out_png, style_refs, content_refs, skip=False):
 
 
 # ────────────────────────────────────────────────────────── 两种后端
+def _prompt_extend(cfg, default):
+    """prompt_extend 的取值：命令行 > 接口默认（mm=True / t2i=False）。
+
+    ★ 默认不变（兼容老行为）；显式给了就听命令行的 —— 结构化的简报
+      （坐标/数量/约束）被服务端重写一遍就会被稀释。
+    """
+    v = cfg.get("prompt_extend")
+    return default if v is None else bool(v)
+
+
 def gen_mm(cfg, prompt, negative, seed, refs):
     content = [{"image": u} for u in refs] + [{"text": prompt}]
     payload = {"model": cfg["model"],
                "input": {"messages": [{"role": "user", "content": content}]},
-               "parameters": {"size": cfg["size"], "n": 1, "prompt_extend": True,
+               "parameters": {"size": cfg["size"], "n": 1,
+                              "prompt_extend": _prompt_extend(cfg, True),
                               "watermark": False, "seed": seed}}
     if negative:
         payload["parameters"]["negative_prompt"] = negative
@@ -242,7 +273,8 @@ def gen_t2i(cfg, prompt, negative, seed, refs):
                       "要 --ref 就用 qwen-image 系列。" % cfg["model"])
     payload = {"model": cfg["model"], "input": {"prompt": prompt},
                "parameters": {"size": cfg["size"], "n": 1,
-                              "prompt_extend": False, "seed": seed}}
+                              "prompt_extend": _prompt_extend(cfg, False),
+                              "seed": seed}}
     if negative:
         payload["input"]["negative_prompt"] = negative
     h_extra = {"X-DashScope-Async": "enable"}
@@ -304,6 +336,21 @@ def read_brief(a):
     raise SystemExit("要给 --brief brief.md 或 --ir xxx.ir.yaml 之一")
 
 
+def _load_ir_light(path):
+    """只为「画布比例对账」读一遍 IR；读不了不算错误（返回 None）。"""
+    try:
+        import json as _json
+        txt = pathlib.Path(path).read_text(encoding="utf-8")
+        try:
+            import yaml
+            return yaml.safe_load(txt)
+        except ImportError:
+            return _json.loads(txt)
+    except Exception as e:
+        print("  ⚠️ 读不了 IR（%s），跳过画布比例对账" % e)
+        return None
+
+
 def main():
     ap = argparse.ArgumentParser(
         description="IR 简报 → 草图 / 成品位图（key 由使用者自备）",
@@ -328,6 +375,13 @@ def main():
                          "风格参考被稀释（详见文件头部说明）")
     ap.add_argument("--no-ref-check", action="store_true",
                     help="出图后不做「参考图照抄」自检（默认做）")
+    ap.add_argument("--allow-no-ref", action="store_true",
+                    help="★ 确实要纯文生图才加：不放行时缺 --ref 直接报错"
+                         "（只给文字简报出来的图一定「通用」）")
+    ap.add_argument("--prompt-extend", action=argparse.BooleanOptionalAction,
+                    default=None,
+                    help="服务端是否重写提示词。默认沿用接口行为（mm=True / t2i=False）；"
+                         "结构化示意图建议 --no-prompt-extend（重写会稀释简报里的坐标/约束）")
     ap.add_argument("--model", default="qwen-image-3.0")
     ap.add_argument("--mode", choices=("auto", "mm", "t2i"), default="auto")
     ap.add_argument("--size", default="1664*928", help="WxH，乘号写 *")
@@ -340,6 +394,12 @@ def main():
     ap.add_argument("--dry-run", action="store_true",
                     help="只写出提示词和调用计划，不调 API（自检用）")
     a = ap.parse_args()
+
+    if not a.ref and not a.allow_no_ref:
+        sys.exit("★ 缺少 --ref 风格参考图。\n"
+                 "  只给文字简报，出来的图一定是「通用插画脸」—— 这是本 skill 的硬规矩。\n"
+                 "  用法：--ref refs/T3-33.png（可多张；优先「内容不同、风格相同」的）\n"
+                 "  确实要纯文生图 / 只想自检提示词：加 --allow-no-ref。")
 
     outdir = pathlib.Path(a.outdir)
     outdir.mkdir(parents=True, exist_ok=True)
@@ -358,6 +418,28 @@ def main():
     print("阶段        : %s" % a.stage)
     print("模型 / 接口 : %s / %s" % (a.model, mode))
     print("画布        : %s" % a.size)
+    # ★ v2.8：简报按 IR 声明的比例写，API 却按 --size 出 —— 同一张图两个比例，
+    #   IR 里的归一化坐标全部失效。这里当场对账，别等到出完图才发现。
+    size_wh = parse_size(a.size)
+    ir_ratio = ir_ratio_dev = None
+    if a.ir and not size_wh:
+        print("  ⚠️ --size 要写成 W*H（如 1664*928），实得 %r —— 比例对账跳过" % a.size)
+    elif a.ir:
+        _ir = _load_ir_light(a.ir)
+        if _ir:
+            ir_ratio = declared_ratio(_ir)
+            ir_ratio_dev = ratio_deviation(_ir, size_wh)
+            if ir_ratio:
+                node, src = canvas_node(_ir)
+                bad = ir_ratio_dev is not None and ir_ratio_dev >= 0.12
+                print("画布比例    : 请求 %.2f，IR 声明 %.2f（%s）%s"
+                      % (size_wh[0] / size_wh[1], ir_ratio, src,
+                         ("  ❌ 偏差 %.0f%%" % (ir_ratio_dev * 100)) if bad else "  ✅"))
+                if bad:
+                    sw, sh, _ = canvas_for_brief(_ir)
+                    print("   ⚠️ 同一张图两个比例：简报按 IR 的比例写（建议 %d×%d），"
+                          "API 却按 %s 出 —— IR 的归一化坐标会失效。"
+                          % (sw, sh, a.size))
     all_ref = list(a.content_ref) + list(a.ref)
     # ★ 构图参考降级（v2.6.8）：扁平草图会把"扁平"渲染风格一起带进去，
     #   把风格参考稀释掉。render 档默认先降级成 layout-only（理由见文件头部）。
@@ -366,7 +448,8 @@ def main():
         cr_mode = "full" if a.stage == "sketch" else "layout"
     print("构图参考    : %s" % (", ".join(a.content_ref) if a.content_ref else "（无）"))
     print("构图参考模式: %s%s" % (cr_mode, "（auto -> 按 stage 定）" if a.content_ref_mode == "auto" else ""))
-    print("风格参考    : %s" % (", ".join(a.ref) if a.ref else "（无 —— 出来会偏通用）"))
+    print("风格参考    : %s" % (", ".join(a.ref) if a.ref
+          else "（无 —— 已用 --allow-no-ref 放行，出来会偏通用）"))
     print("提示词      : 已写出 %s（%d 字符，sha1 %s）"
           % (outdir / ("%s_prompt.txt" % a.stage), len(prompt),
              hashlib.sha1(prompt.encode("utf-8")).hexdigest()[:10]))
@@ -384,7 +467,10 @@ def main():
                  "  没 key 也可以用 --dry-run 自检提示词和调用计划。"
                  % (a.key_env, a.key_env, a.key_env))
     cfg = dict(key=key, base=base.rstrip("/"), model=a.model, size=a.size,
-               timeout=a.timeout)
+               timeout=a.timeout, prompt_extend=a.prompt_extend)
+    pe_eff = _prompt_extend(cfg, mode == "mm")
+    print("提示词扩展  : %s%s" % (pe_eff,
+          "（接口默认）" if a.prompt_extend is None else "（命令行指定）"))
 
     # ★ 构图参考降级（v2.6.8）：只把 --content-ref 降级；--ref 风格参考原样送
     sent = {}
@@ -419,6 +505,7 @@ def main():
 
     log = outdir / "calls.jsonl"
     ok = fail = 0
+    outs = []          # 本次成功落盘的文件名（收尾时逐条给闸口命令）
     for sd in seeds:
         t0 = time.time()
         print("[seed %d] %s ..." % (sd, a.model), flush=True)
@@ -427,20 +514,29 @@ def main():
         #   已经出的 seed 5 也没被记进调用记录。失败也要照常落 calls.jsonl）。
         #   失败重试一次；两次都失败就记 ok=False，继续下一个 seed。
         url, note = None, ""
-        for attempt in (1, 2):
+        tries = 3                       # v2.8：2 -> 3 次；限流时退避更久
+        for attempt in range(1, tries + 1):
             try:
                 url, note = mode_fn(cfg, prompt, negative, sd, refs)
             except Exception as e:
                 url, note = None, "%s: %s" % (type(e).__name__, e)
             if url:
                 break
-            if attempt == 1:
-                print("  … 第 1 次失败（%s）—— 3 秒后重试" % note, flush=True)
-                time.sleep(3.0)
+            if attempt < tries:
+                rl = _looks_rate_limited(note)
+                delay = 5.0 * (2 ** (attempt - 1)) if rl else 3.0
+                print("  … 第 %d 次失败（%s）—— %.0f 秒后重试（第 %d/%d 次尝试）%s"
+                      % (attempt, note, delay, attempt + 1, tries,
+                         "（限流，退避加倍）" if rl else ""), flush=True)
+                time.sleep(delay)
         rec = dict(stage=a.stage, model=a.model, mode=mode, size=a.size, seed=sd,
                    refs=[str(r) for r in all_ref],
                    content_refs=[str(r) for r in a.content_ref], n_ref=len(refs),
-                   content_ref_mode=cr_mode,
+                   content_ref_mode=cr_mode, prompt_extend=pe_eff,
+                   no_style_ref=not a.ref,
+                   ir_ratio=ir_ratio,
+                   ir_ratio_dev=(round(ir_ratio_dev, 4)
+                                 if ir_ratio_dev is not None else None),
                    content_ref_sent=[sent.get(str(r), str(r)) for r in a.content_ref],
                    prompt_sha1=hashlib.sha1(prompt.encode("utf-8")).hexdigest(),
                    prompt_chars=len(prompt), seconds=round(time.time() - t0, 1),
@@ -453,6 +549,7 @@ def main():
             download(url, out)
             rec["file"] = out.name
             rec["bytes"] = out.stat().st_size
+            outs.append(out.name)
             print("  ✓ %s  %.0f KB  (%s)" % (out.name, out.stat().st_size / 1024.0, note))
             chk = _ref_leak_check(out, a.ref, a.content_ref, skip=a.no_ref_check)
             if chk:
@@ -463,13 +560,26 @@ def main():
 
     print("=" * 66)
     print("成功 %d / 失败 %d | 调用记录 %s" % (ok, fail, log))
-    print("""
-★ 下一步（这两步不能跳）：
-  1. 草图/成品位图都要过物理闸口 —— 同一个 check_sketch.py 跑两次：
-       python3 scripts/check_sketch.py %s/%s_s*.png --ir <你的.ir.yaml>
-     它有半张输出是「必须你/模型看图逐条回答」的 IR 几何约束。
-     任何一条答"否" → 改简报重生，不要往下走。
-  2. 把选中的那张的位置记下来（seed 写进图注/README），否则复现不了。""" % (outdir, a.stage))
+    print("")
+    print("★ 下一步（这两步不能跳）：")
+    print("  1. 过物理闸口 —— 备选**一次全喂进去**（脚本支持多张，并落 json）：")
+    if outs:
+        files = " ".join("%s/%s" % (outdir, nm) for nm in outs)
+        print("       python3 scripts/check_sketch.py %s \\" % files)
+        print("           --ir <你的.ir.yaml> --json %s/check.json" % outdir)
+    else:
+        print("       （本次没有成功出图，先看上面对应 seed 的失败原因）")
+    print("     ★ render 档再加 --sketch <上一步的草图>：量「构图有没有沿用草图」，"
+          "低于 --fidelity-min 直接算硬伤。")
+    print("     ★ 出图四周有 1~2px 外框时，先 trim_border.py 裁掉再量"
+          "（或给 check_sketch.py 传 --trim N）。")
+    print('     它有半张输出是「必须你/模型看图逐条回答」的 IR 几何约束。')
+    print('     任何一条答"否" → 改简报重生，不要往下走。')
+    if len(outs) > 1:
+        print("  2. 排序挑图（别一张张肉眼过）—— 人眼只审没有硬伤的：")
+        print("       python3 scripts/pick_best.py %s/check.json" % outdir)
+    print("  3. 选定那张后**复制成固定名字**（如 %s/chosen.png）再进下一步，"
+          "别让下游脚本去猜 seed。" % outdir)
 
 
 if __name__ == "__main__":

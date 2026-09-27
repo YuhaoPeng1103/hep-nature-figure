@@ -1,4 +1,4 @@
-> # 📌 本分支 = 主线（v2.7）：三条路线合一
+> # 📌 本分支 = 主线（v2.8）：三条路线合一
 >
 > 三条路线都在本分支里，**默认走路线 3**：IR → 生图简报 → 草图（+矢量草图）→
 > 闸口① → 成品位图 → 闸口② → 重画/临摹成矢量 → 三道门禁 → 交付。
@@ -104,7 +104,8 @@
       ★ 简报侧先定风格档：ir_to_genbrief.py --stage render --style-mode auto
         （IR 写 3D/半写实 -> render3d 出 3D 渲染简报；参考图是风格书，不是内容模板）
    ↓
-⑦ ★ 闸口②：成品位图再过一次同一个闸口    scripts/check_sketch.py
+⑦ ★ 闸口②：成品位图再过一次同一个闸口    scripts/check_sketch.py --sketch 草图
+      ★ 多张备选先机器排序（人眼只审没硬伤的）    scripts/pick_best.py
    ↓
 ⑧ 位图 → 矢量：首选重画（按结构/物理分层、保留色彩与阴影）
    备用混合临摹（逐像素描摹 + 文字擦掉重写真 <text>）
@@ -354,10 +355,12 @@ python3 scripts/demo_combined.py
 │   ├── verify_scene.py          路线 1 的几何自检（量 IR 里写了数量的元素）
 │   ├── ir_to_genbrief.py        IR → 生图简报（--stage sketch / render）
 │   ├── ir_brief_audit.py       ★ IR → 简报的无损体检（哨兵法：字段没进简报 = IR 白写）
+│   ├── ir_canvas.py            内部：IR 画布的唯一读取口（composition.canvas 优先，兼容 figure.canvas）
 │   ├── gen_figure.py            ★ 第③步：生图（简报 → 草图 / 成品位图）。key 自备，支持 --ref
 │   ├── trim_border.py           ★ 裁掉生图模型稳定画的 1~2px 外框（幂等）
 │   ├── sketch_to_vector.py      ★ 第④步：草图矢量化成可改的 SVG（不用写 panels.py）
-│   ├── check_sketch.py          ★ 闸口①/②：草图与成品位图的物理检查
+│   ├── check_sketch.py          ★ 闸口①/②：草图与成品位图的物理检查（可一次查多张 + --json + --sketch 量构图保真）
+│   ├── pick_best.py             ★ 候选排序：吃 check_sketch --json 的报告，只把人眼留给没硬伤的
 │   ├── raster_to_vector.py      位图 → 矢量（临摹备用）：逐像素 + 混合文字 + --groups
 │   ├── raster_to_vector_semantic.py  位图 → 语义分层的全矢量 SVG（先理解再临摹）
 │   ├── raster_vector/           上面那条的库（quadtree / labels / elements / panels / groupvec / grad_fit / raster_ops）

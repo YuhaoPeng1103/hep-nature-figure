@@ -293,5 +293,12 @@ def main():
             print(f"  {f:<26} {p.stat().st_size//1024} KB")
 
 
+# ★ Windows：stdout 被管道/重定向时是 gbk —— 报告里的中文/✅ 会乱码
+#   或被 UnicodeEncodeError 打断（见 scripts/_console.py）。
+from _console import init_console
+
+init_console()
+
+
 if __name__ == "__main__":
     main()

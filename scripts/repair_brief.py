@@ -377,5 +377,12 @@ def main():
     return 1 if hard else 0
 
 
+# ★ Windows：stdout 被管道/重定向时是 gbk —— 报告里的中文/✅ 会乱码
+#   或被 UnicodeEncodeError 打断（见 scripts/_console.py）。
+from _console import init_console
+
+init_console()
+
+
 if __name__ == "__main__":
     sys.exit(main())

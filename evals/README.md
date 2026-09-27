@@ -5,7 +5,7 @@
 ## ① 工具回归测试（机器可跑）
 
 ```bash
-python3 evals/test_tools.py        # 31 个 case
+python3 evals/test_tools.py        # 38 个 case
 python3 evals/test_tools.py -v     # 显示每个 case 防的是什么坑
 python3 evals/test_tools.py geom   # 只跑名字含 geom 的
 ```
@@ -45,6 +45,13 @@ python3 evals/test_tools.py geom   # 只跑名字含 geom 的
 | `genbrief_carries_element_material` | IR 的 `material:` 必须进简报（以前**整段丢**，只用 primiti… |
 | `genbrief_lossless_render` | IR 里写了、简报里没有 = 从来没写过（编译器丢字段 = IR 白写） |
 | `jet_path_asymmetry_catches_inverted_vertex` | 喷注淬火：穿过介质的【路径长度】必须机器量的出来 |
+| `canvas_read_from_composition_not_silently_dropped` | 画布必须**只由 ir_canvas 读**：规范写 composition.canvas，旧代码读 figure.c… |
+| `ir_brief_audit_probes_canvas_at_spec_position` | 无损体检的探针必须跟规范同位置：哨兵原来塞在 figure.canvas 下，所以… |
+| `check_sketch_multi_image_json_and_pick_best` | 一次出多张要能**一次全查、机器排序、人眼只审入围的** |
+| `check_sketch_composition_fidelity_floor` | 闸口以前只查「照抄参考图」，没人查「成品位图有没有沿用草图的构图」 |
+| `gen_figure_requires_ref_and_records_prompt_extend` | 风格参考图是硬规矩（只给文字 -> 通用插画脸），缺了要直接报错 |
+| `gen_figure_warns_when_size_ratio_differs_from_ir` | 同一张图两个比例就废了 IR 的归一化坐标：简报按 IR 声明写、API 按 -… |
+| `gen_figure_backs_off_on_rate_limit` | 429/限流时**立刻重试只会再撞一次** |
 
 > **为什么需要它**：没有回归测试时，改一个工具会悄悄弄坏另一个 ——
 > 这正是"修一个坏一个"的根因。

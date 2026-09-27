@@ -50,6 +50,8 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
+import ir_canvas          # 画布的唯一读取口（composition.canvas 优先）
+
 # 图像生成模型最常犯的错——写进"禁止项"，比事后修便宜
 #
 # ★ 2026-09-27：原来第 4 条**无条件**写着「不是 3D 渲染图、不是写实材质」。
@@ -104,6 +106,26 @@ _RENDER3D_HINTS = (
     "渲染", "半写实", "高光", "环境遮蔽", "volumetric",
 )
 _FLAT_HINTS = ("扁平", "平涂", "纯色填充", "flat", "描边插画")
+
+
+def style_mode_hits(ir: dict):
+    """返回命中的关键词列表 —— 说清「风格档是凭哪个词判的」，便于事后对账。"""
+    st = ir.get("style") or {}
+    bits = []
+    for k in ("mode", "look", "render", "classification", "evidence",
+              "conventions", "note"):
+        v = st.get(k)
+        if v is None:
+            continue
+        if isinstance(v, (list, tuple)):
+            bits.extend(str(x) for x in v)
+        elif isinstance(v, dict):
+            bits.extend(str(x) for x in v.values())
+        else:
+            bits.append(str(v))
+    low = " ".join(bits).lower()
+    return [h for h in _RENDER3D_HINTS if h.lower() in low] + \
+           [h for h in _FLAT_HINTS if h.lower() in low]
 
 
 def resolve_style_mode(ir: dict, cli_mode: str = "auto") -> str:
@@ -218,8 +240,12 @@ def build(ir: dict, style: dict | None, stage: str = "sketch",
         style_mode = resolve_style_mode(ir)
     fig = ir.get("figure", {})
     elems = sorted(ir.get("elements", []), key=lambda e: e.get("z", 0))
-    cv = fig.get("canvas") or {}
-    W, H = cv.get("w", 1400), cv.get("h", 560)
+    # ★ 2026-09-27：画布只能由 ir_canvas 读。规范（references/ir-spec.md）把画布
+    #   写在 composition.canvas，这里以前读 figure.canvas —— 仓库 8 份 IR 有 6 份
+    #   按规范写，画布被**静默丢弃**：简报照默认 1400×560（2.50）走，gen_figure
+    #   又按 --size 默认请求 1664×928（1.79），同一张图三个比例。
+    cv, cv_src = ir_canvas.canvas_node(ir)
+    W, H, cv_why = ir_canvas.canvas_for_brief(ir)
 
     L = []
     if stage == "sketch":
@@ -277,7 +303,7 @@ def build(ir: dict, style: dict | None, stage: str = "sketch",
     L.append("  （实测：模型 3/3 会在四周画一条 1px 淡灰细框，"
              "导致出图被裁、构图检测也跟着失效。）")
     L.append("")
-    L.append(f"画布比例：{W}×{H}（宽高比 {W/H:.2f}）。白底。")
+    L.append(f"画布比例：{W}×{H}（宽高比 {W/H:.2f}；{cv_why}）。白底。")
     # ★ v2.6.10 无损体检：figure.archetype / canvas.用途 / canvas.ratio 以前整段丢。
     #   这几条是"这张图是什么性质"的上下文（示意图 ≠ 定量面板），
     #   但它们**不是画面内容** —— 明说不要画进图里，否则模型会当标题画上去。
@@ -288,6 +314,8 @@ def build(ir: dict, style: dict | None, stage: str = "sketch",
         _meta.append("用途 %s" % " ".join(str(cv["用途"]).split()))
     if cv.get("ratio"):
         _meta.append("IR 声明的画布比例 %s" % " ".join(str(cv["ratio"]).split()))
+    if cv_src == "figure.canvas":
+        _meta.append("画布写在 figure.canvas（旧写法；规范是 composition.canvas）")
     if _meta:
         L.append("（本图定位：" + "；".join(_meta) + " —— **仅供理解，不要画进图里**）")
     L.append("")
@@ -566,7 +594,10 @@ def build(ir: dict, style: dict | None, stage: str = "sketch",
 
     # ── 输出 ──
     L.append("═══ 六、输出 ═══")
-    L.append(f"  · 位图，长边 ≥ 2000 px（下一步要描摹，分辨率低了边会糊）")
+    # ★ 上限别写成 2000：gen_figure 的默认画布长边才 1664 —— 简报提一个
+    #   调用根本达不到的要求，模型只会把画布比例改坏去凑（v2.7.3 前实测）。
+    L.append(f"  · 位图，长边 ≥ {max(W, H)} px（按上面画布比例出 {W}×{H} 即可；"
+             "下一步要描摹，分辨率低了边会糊）")
     L.append(f"  · 白底，不要边框、不要外阴影")
     L.append(f"  · 文字清晰可读（尺寸不能太小，否则临摹时认不出）")
     L.append("")
@@ -628,9 +659,20 @@ def main():
 
     if a.out:
         Path(a.out).write_text(brief, encoding="utf-8")
-        print(f"已输出 {a.out}（{len(brief)} 字符，风格档 {style_mode}）")
+        _hits = style_mode_hits(ir)
+        print(f"已输出 {a.out}（{len(brief)} 字符，风格档 {style_mode}"
+              + ("；判据关键词：" + "/".join(_hits) if _hits
+                 else "；IR 的 style 段没给判据")
+              + "）")
     else:
         print(brief)
+
+
+# ★ Windows：stdout 被管道/重定向时是 gbk —— 报告里的中文/✅ 会乱码
+#   或被 UnicodeEncodeError 打断（见 scripts/_console.py）。
+from _console import init_console
+
+init_console()
 
 
 if __name__ == "__main__":
