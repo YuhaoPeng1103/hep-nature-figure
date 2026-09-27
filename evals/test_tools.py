@@ -976,5 +976,50 @@ def test_genbrief_is_lossless_for_render():
         assert bad not in render, "%r 不该进简报（%s）" % (bad, why)
 
 
+
+@case("jet_path_asymmetry_catches_inverted_vertex",
+      "喷注淬火：穿过介质的【路径长度】必须机器量的出来。顶点放在介质左侧时，"
+      "朝左下那条其实很短 —— 实测 3/3 草图都照抄了这个反的几何，旧的定性闸口全放行")
+def test_path_asymmetry():
+    """
+    ★ 实测（2026-09-27，喷注淬火算例）：IR 明写「朝左下穿过介质路径长（被淬火）、
+      朝右上短」，但按 IR 自己给的两个端点算，顶点偏左下 ⇒ 朝左下 0.09W 就出射、
+      朝右上反而 0.30W —— **恰好是反的**。闸口当时只有「谁在谁里面」这类定性约束，
+      没有一条能量出路径长度，所以 3/3 位图都"通过"了。
+
+    判据链（check_sketch.path_asym_check）：
+      介质 -> 凸包 -> 二阶矩拟合椭圆（必须走凸包：不透明喷注会把介质"咬"掉一块）；
+      两条喷注轴 -> 蓝锥/灰锥各自最大连通域的 PCA 主轴；
+      顶点 -> 蓝锥沿自身轴向的**极小投影点**（不能用两轴交点：背对背时两轴几乎平行，
+             交点病态，实测跑到 (-1.2, 2.9)）；
+      弦长 -> 顶点沿每条轴到拟合椭圆交点的解析解。
+
+    这里用合成图锁死两端：顶点偏右 = 通过；顶点偏左 = 必须报错。
+    """
+    import check_sketch as CS
+    from PIL import Image, ImageDraw
+
+    def synth(vertex):
+        W, H = 480, 400
+        im = Image.new("RGB", (W, H), "white")
+        d = ImageDraw.Draw(im)
+        # 介质：竖直拉长的橙色椭圆（bbox 190x304 = 高/宽 1.6）
+        d.ellipse([240 - 95, 200 - 152, 240 + 95, 200 + 152], fill=(240, 120, 30))
+        vx, vy = vertex
+        # 蓝锥（高饱和）朝右上；灰锥（低饱和）朝左下 —— 背对背
+        d.polygon([(vx, vy), (vx + 140, vy - 70), (vx + 150, vy - 40)],
+                  fill=(40, 70, 180))
+        d.polygon([(vx, vy), (vx - 280, vy + 120), (vx - 280, vy + 160)],
+                  fill=(150, 160, 180))
+        return im
+
+    spec = [{"名": "喷注路径不对称（弦长比）", "长路径色": "gray", "阈值": 1.8}]
+    _l, ok_hard = CS.path_asym_check(synth((320, 180)), spec)
+    assert not ok_hard, "顶点偏右（朝左下那条才是长路径）应通过，却报了 %s" % ok_hard
+    _l2, bad_hard = CS.path_asym_check(synth((160, 180)), spec)
+    assert bad_hard, ("顶点偏左 = 几何反了，必须报错 —— 这正是当初三张位图全漏掉的错。"
+                      "量测环节若整段失效（比如找不到介质/喷注），也必须算报错，"
+                      "不能静默通过")
+
 if __name__ == "__main__":
     sys.exit(main())

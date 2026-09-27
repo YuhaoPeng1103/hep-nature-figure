@@ -43,6 +43,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import math
 import sys
 from pathlib import Path
 
@@ -235,6 +236,216 @@ def lorentz_check(img, specs):
     return lines, hard
 
 
+
+# ══ 机器能判的几何：喷注穿过介质的路径长度不对称 ══════════════════════════
+# ★ 2026-09-27 实测抓到的问题（喷注淬火那张图）：IR 写「朝左下的喷注穿过介质
+#   路径长（被淬火）、朝右上的短」—— 但按 IR 自己给的两个端点算，
+#   顶点放在介质左下 ⇒ 朝左下 0.09W 就出射、朝右上反而 0.30W，**恰好是反的**。
+#   3/3 草图忠实照抄了这个反的几何。旧闸口全是「谁在谁里面」这类定性约束，
+#   没有一条能量出路径长度，所以三张都"通过"了闸口。
+#
+# 判据链（全部从像素来，不需要人回答）：
+#   ① 介质 = 整张图里最大的高饱和色块 → 取**凸包** → 二阶矩拟合椭圆。
+#      ★ 必须走凸包：喷注不透明、画在介质上，会把介质"咬"掉一块；直接在掩膜上
+#        量弦长会在喷注处提前出射（实测 s25 量成 62px，真值 ~300px）。
+#   ② 两条喷注轴 = 蓝锥（高饱和）/ 灰锥（低饱和）各自最大连通域的 PCA 主轴，
+#      按"从介质中心往外"定向 —— 只取方向，不取直线的位置。
+#   ③ 顶点 = 蓝锥掩膜沿自身轴向的**极小投影点**（= 锥尖 = 硬散射顶点）。
+#      ★ 不能用"两轴交点"：两个喷注背对背时两轴几乎平行（实测 s25 夹角偏差
+#        只有 0.4°），交点病态，算到 (-1.2, 2.9) 去了。
+#   ④ 弦长 = 顶点沿每条轴到拟合椭圆交点的解析解（不是像素步进）。
+#
+# IR 里这样写：
+#   geometry_constraints:
+#     机器:
+#       - 名: 喷注路径不对称（弦长比）
+#         长路径色: gray     # gray=低饱和那一侧的锥（被淬火）；反了就报错
+#         阈值: 1.8          # 长 / 短 ≥ 它才算成立
+_JET_MIN_PX = 1200        # 喷注锥连通域像素下限
+_JET_MIN_ELONG = 2.0      # 锥体细长比下限（s[0]/s[1]）
+
+
+def medium_ellipse(img):
+    """把介质（最大的高饱和色块）拟合成椭圆。返回 dict 或 None。
+
+    走凸包是为了补掉"不透明喷注压在介质上咬出的缺口"。
+    """
+    from scipy import ndimage as ndi
+    from scipy.spatial import ConvexHull
+    a = np.asarray(img.convert("RGB")).astype(np.int16)
+    H, W = a.shape[:2]
+    R, G, B = a[..., 0], a[..., 1], a[..., 2]
+    m = ((R > 150) & (G > 35) & (G < 215) & (B < 140)
+         & (R - B > 60) & (R - G > 25))
+    m = ndi.binary_closing(m, np.ones((13, 13)))
+    lab, n = ndi.label(ndi.binary_opening(m, np.ones((5, 5))))
+    if n == 0:
+        return None
+    sz = ndi.sum(m, lab, range(1, n + 1))
+    mm = ndi.binary_fill_holes(lab == (int(np.argmax(sz)) + 1))
+    ys, xs = np.nonzero(mm)
+    if len(xs) < 500:
+        return None
+    pts = np.stack([xs, ys], 1).astype(float)
+    try:
+        hp = pts[ConvexHull(pts).vertices]
+    except Exception:
+        return None
+    rows = np.full((H, 2), np.nan)
+    for i in range(len(hp)):
+        x0, y0 = hp[i]
+        x1, y1 = hp[(i + 1) % len(hp)]
+        if y0 == y1:
+            continue
+        for y in range(max(0, int(np.ceil(min(y0, y1)))),
+                       min(H - 1, int(np.floor(max(y0, y1)))) + 1):
+            t = (y - y0) / (y1 - y0)
+            x = x0 + t * (x1 - x0)
+            r = rows[y]
+            if np.isnan(r[0]) or x < r[0]:
+                r[0] = x
+            if np.isnan(r[1]) or x > r[1]:
+                r[1] = x
+    fill = np.zeros((H, W), bool)
+    for y in range(H):
+        if np.isnan(rows[y][0]):
+            continue
+        fill[y, max(0, int(np.floor(rows[y][0]))):
+                min(W, int(np.ceil(rows[y][1])) + 1)] = True
+    fy, fx = np.nonzero(fill)
+    if len(fx) < 500:
+        return None
+    cx, cy = float(fx.mean()), float(fy.mean())
+    C = np.cov(np.stack([fx - cx, fy - cy]).astype(float))
+    val, vec = np.linalg.eigh(C)
+    A = 2.0 * float(np.sqrt(max(val[1], 1e-9)))     # 半长轴
+    B = 2.0 * float(np.sqrt(max(val[0], 1e-9)))     # 半短轴
+    return {"cx": cx, "cy": cy, "A": A, "B": B,
+            "theta": float(np.arctan2(vec[1, 1], vec[0, 1])),
+            "mask": fill, "H": H, "W": W}
+
+
+def _jet_cone(mask, away, min_px=_JET_MIN_PX, min_elong=_JET_MIN_ELONG):
+    """mask 里最细长的连通域 → {c,d,px,elong,apex,span}；d 朝远离 away 的方向。"""
+    from scipy import ndimage as ndi
+    lab, n = ndi.label(ndi.binary_opening(mask, np.ones((3, 3))))
+    best = None
+    for i in range(1, n + 1):
+        mm = lab == i
+        ys, xs = np.nonzero(mm)
+        if len(xs) < min_px:
+            continue
+        P = np.stack([xs - xs.mean(), ys - ys.mean()], 1).astype(float)
+        _, s, vt = np.linalg.svd(P, full_matrices=False)
+        e = s[0] / max(s[1], 1e-6)
+        if e < min_elong:
+            continue
+        if best is not None and len(xs) <= best["px"]:
+            continue
+        c = np.array([xs.mean(), ys.mean()])
+        d = vt[0] / np.linalg.norm(vt[0])
+        if np.dot(d, c - away) < 0:
+            d = -d
+        pr = (xs - c[0]) * d[0] + (ys - c[1]) * d[1]
+        k = int(np.argmin(pr))
+        best = {"c": c, "d": d, "px": int(len(xs)), "elong": float(e),
+                "apex": np.array([xs[k], ys[k]]),
+                "span": float(pr.max() - pr.min())}
+    return best
+
+
+def _ray_ellipse(d, v, e):
+    """射线 v + t*d（d 单位）与椭圆 e 的交点 t。返回 (t_back, t_fwd) 或 None。"""
+    ct, st = math.cos(e["theta"]), math.sin(e["theta"])
+
+    def loc(u, w):
+        du, dw = u - e["cx"], w - e["cy"]
+        return du * ct + dw * st, -du * st + dw * ct
+
+    px, py = loc(v[0], v[1])
+    qx, qy = loc(v[0] + d[0], v[1] + d[1])
+    qx -= px
+    qy -= py
+    A, B = e["A"], e["B"]
+    a2 = (qx / A) ** 2 + (qy / B) ** 2
+    if a2 <= 1e-12:
+        return None
+    b2 = 2 * (px * qx / A ** 2 + py * qy / B ** 2)
+    c2 = (px / A) ** 2 + (py / B) ** 2 - 1
+    disc = b2 * b2 - 4 * a2 * c2
+    if disc <= 0:
+        return None
+    r = math.sqrt(disc)
+    return ((-b2 - r) / (2 * a2), (-b2 + r) / (2 * a2))
+
+
+def path_asym_check(img, specs):
+    """IR 的 `geometry_constraints.机器` 里名含「路径 / 弦长」的条目，逐条量。"""
+    from scipy import ndimage as ndi
+    lines, hard = [], []
+    e = medium_ellipse(img)
+    if e is None:
+        lines.append("  ⚠️ 找不到介质（应该是整张图里最大的高饱和色块）"
+                     "—— 这条没测成，别当成通过")
+        return lines, hard
+    H, W = e["H"], e["W"]
+    a = np.asarray(img.convert("RGB")).astype(np.int16)
+    R, G, B = a[..., 0].astype(int), a[..., 1].astype(int), a[..., 2].astype(int)
+    mx = np.maximum(np.maximum(R, G), B)
+    mn = np.minimum(np.minimum(R, G), B)
+    lum = 0.299 * R + 0.587 * G + 0.114 * B
+    blue = (B - R > 55) & (B > 140) & (G < 190)
+    gray = ((mx - mn) < 62) & (lum > 105) & (lum < 218) & (B >= R - 6) & (~blue)
+    away = np.array([e["cx"], e["cy"]])
+    cb = _jet_cone(blue, away)
+    cg = _jet_cone(gray, away, min_px=900, min_elong=1.6)
+    if cb is None or cg is None:
+        lines.append("  ⚠️ 只找到 %s —— 这条没测成，别当成通过"
+                     % ("蓝锥" if cb is None else "灰锥"))
+        return lines, hard
+    v = cb["apex"]
+    ang = 180.0 - math.degrees(math.acos(
+        float(min(1.0, max(-1.0, np.dot(cb["d"], cg["d"]))))))
+    r1 = _ray_ellipse(cb["d"], v, e)
+    r2 = _ray_ellipse(cg["d"], v, e)
+    l1 = 0.0 if r1 is None else max(float(r1[1]), 0.0)
+    l2 = 0.0 if r2 is None else max(float(r2[1]), 0.0)
+    print_apx = np.hypot(*(cg["apex"] - v))
+    lines.append("  介质椭圆 c=(%.2f,%.2f)  半轴 %.0f×%.0f px  高/宽=%.2f"
+                 % (e["cx"] / W, e["cy"] / H, e["B"], e["A"], 2 * e["A"] / (2 * e["B"])))
+    lines.append("  蓝锥（高饱和）轴=(%+.2f,%+.2f)  灰锥（低饱和）轴=(%+.2f,%+.2f)"
+                 "  夹角偏离 180° = %.1f°" % (cb["d"][0], cb["d"][1],
+                                              cg["d"][0], cg["d"][1], ang))
+    lines.append("  硬散射顶点（蓝锥锥尖，机器测）=(%.3f,%.3f)  在介质内=%s"
+                 "（灰锥锥尖离它 %.0f px）"
+                 % (v[0] / W, v[1] / H,
+                    e["mask"][int(v[1]), int(v[0])], print_apx))
+    for sp in specs:
+        try:
+            thr = float(sp.get("阈值", 1.8))
+        except (TypeError, ValueError):
+            thr = 1.8
+        want = str(sp.get("长路径色", "")).strip().lower()
+        if want.startswith(("b", "蓝")):
+            longl, shortl, wtxt = l1, l2, "蓝锥（高饱和那一侧）"
+        elif want.startswith(("g", "灰")):
+            longl, shortl, wtxt = l2, l1, "灰锥（低饱和那一侧）"
+        else:
+            longl, shortl = max(l1, l2), min(l1, l2)
+            wtxt = "长的那一侧（IR 没写 `长路径色`）"
+        ratio = longl / shortl if shortl > 1e-9 else float("inf")
+        good = ratio >= thr
+        lines.append("  %s 弦长（穿过介质）：蓝锥=%.0f px (%.3fW)  灰锥=%.0f px (%.3fW)"
+                     % ("✅" if good else "❌", l1, l1 / W, l2, l2 / W))
+        lines.append("     要的是「%s」更长：%.2f × 短的那侧，阈值 %.2f"
+                     % (wtxt, ratio, thr))
+        if not good:
+            hard.append("喷注穿过介质的路径长度不对称不成立"
+                        "（长/短=%.2f < %.2f）" % (ratio, thr))
+    return lines, hard
+
+
+
 def main():
     ap = argparse.ArgumentParser(description="位图闸口 —— 草图 / 成品位图通用，流程里跑两次")
     ap.add_argument("image")
@@ -319,13 +530,16 @@ def main():
     for c in ((ir.get("geometry_constraints") or {}).get("机器") or []):
         if not isinstance(c, dict):
             continue
-        # 现在只实现了"压扁/收缩"这一族；别的名字原样跳过（免得假装测了）
-        if "压扁" in str(c.get("名", "")) or "收缩" in str(c.get("名", "")):
-            mcons.append(c)
-    if mcons:
+        # 实现了"压扁/收缩"和"路径长度不对称"两族；别的名字原样跳过（免得假装测了）
+        nm = str(c.get("名", ""))
+        if ("压扁" in nm or "收缩" in nm):
+            mcons.append(("lorentz", c))
+        elif ("路径" in nm or "弦长" in nm):
+            mcons.append(("path", c))
+    if [c for k, c in mcons if k == "lorentz"]:
         print()
         print("  ├ Lorentz 收缩方向（★ 机器量的，不用人回答）")
-        lines, lhard = lorentz_check(img, mcons)
+        lines, lhard = lorentz_check(img, [c for k, c in mcons if k == "lorentz"])
         for ln in lines:
             print(ln)
         if lhard:
@@ -334,6 +548,19 @@ def main():
             print("       修法：IR 的 style.conventions 已写明形状 → 简报里"
                   "（ir_to_genbrief 会带过去）必须有这一条；没有就补上再重出。")
         hard += lhard
+
+    if [c for k, c in mcons if k == "path"]:
+        print()
+        print("  ├ 喷注穿过介质的路径长度（★ 机器量的，不用人回答）")
+        lines, phard = path_asym_check(img, [c for k, c in mcons if k == "path"])
+        for ln in lines:
+            print(ln)
+        if phard:
+            print("     → 能量损失 ∝ 穿过介质的路径长度。长路径那侧必须明显更长"
+                  "（阈值见 IR）。")
+            print("       修法：IR 里喷注的两个端点和顶点位置要配套 —— 顶点偏哪边，"
+                  "哪边的出射路径就短。改 IR 再重出，别改阈值。")
+        hard += phard
 
     # 风格（有档案时）
     if a.profile and Path(a.profile).exists():

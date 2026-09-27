@@ -211,6 +211,7 @@ python3 scripts/raster_to_vector_semantic.py fig.png -o fig.svg \
 
 | 方向 | 预览 | 看点 |
 |---|---|---|
+| **喷注淬火 / 双喷注不对称**（路线③，v2.7.2） | <a href="assets/demos/jet_quenching/cmp_bitmap_vs_svg.png"><img src="assets/demos/jet_quenching/cmp_bitmap_vs_svg.png" width="260" alt="喷注淬火：位图 vs 临摹矢量"></a> | 新闸口**机器量出「IR 自己把几何写反了」**：按 IR 给的端点算，被淬火那侧只有 0.09W 就出射、另一侧反而 0.30W，3/3 草图一致照抄。修 IR 后弦长比 **4.00x**；34,076 `<path>` / **6 `<text>`** / `<image>` **0**，PDF 全图 MAE **1.797** |
 | 自旋关联示意图（路线③ 全过程） | <a href="assets/demos/spin_semantic/cmp_preview.png"><img src="assets/demos/spin_semantic/cmp_preview.png" width="260" alt="自旋关联：位图 vs 临摹矢量"></a> | 上 = 生图模型的成品位图，下 = 临摹矢量回渲染；非文字区 MAE **0.518**、`<image>` **0** |
 | 形变核 → 火球四阶段链（路线③ 全过程） | <a href="assets/demos/evo_semantic/cmp_preview.png"><img src="assets/demos/evo_semantic/cmp_preview.png" width="260" alt="形变核→火球：位图 vs 临摹矢量"></a> | 上 = 成品位图，下 = 全矢量临摹；MAE **0.626**、31005 `<path>` / `<image>` **0**、PDF 183x102 mm 纯矢量 | 
 | **形变核 → 火球 3D 版**（v2.6.7 风格档） | <a href="assets/demos/evo3d_semantic/cmp_bitmap_vs_svg.png"><img src="assets/demos/evo3d_semantic/cmp_bitmap_vs_svg.png" width="260" alt="形变核→火球 3D：位图 vs 矢量"></a> | 同一份 IR + 同一张参考图，只把 `--style-mode` 判成 `render3d`：火球从**纯色圆盘**变成内亮外暗的多层半透明 3D 渐变；686 `<path>` / **5 `<text>`** / `<image>` **0**，MAE 0.994 |
@@ -380,7 +381,7 @@ python3 scripts/demo_combined.py
 │   ├── repair_brief.py          返修单（归一化坐标 + 具体改多少）
 │   └── demo_*.py                多工具联合 / 喷注淬火 / 时间线 示范
 ├── evals/
-│   ├── test_tools.py            28 个回归 case（每个对应一个真实踩过的坑）
+│   ├── test_tools.py            28 个回归 case（每个对应一个真实踩过的坑）│   ├── test_tools.py            29 个回归 case（每个对应一个真实踩过的坑）
 │   └── evals.json / README.md   评测清单
 └── assets/
     ├── style-profiles.json      风格档案（门禁用；存**区间**不存点值）
@@ -392,8 +393,9 @@ python3 scripts/demo_combined.py
         ├── evo_semantic/        形变核→火球四阶段链（v2.6.5，含 A/B 实验台 sweep.py）
         ├── evo3d_semantic/     形变核→火球 **3D 风格档**（同一份 IR，--style-mode render3d，v2.6.7）
         ├── evo3d_layoutref/    构图参考的 A/B/C（--content-ref-mode layout，v2.6.8）
-        └── evo3d_fireball_spec/ 火球 5 方对照：material 进简报前后（v2.6.9）
-```
+        ├── evo3d_fireball_spec/ 火球 5 方对照：material 进简报前后（v2.6.9）
+        └── jet_quenching/       喷注淬火全流程（v2.7.2：路径不对称闸口 + --q / --shade 边界）
+        ```
 
 ---
 
@@ -413,7 +415,8 @@ python3 scripts/demo_combined.py
 | `assets/demos/evo_semantic/README.md` | 想知道「真 `<gradient>` 到底帮不帮忙」—— 那里有 5 档参数的 A/B 表 |
 | `assets/demos/evo3d_semantic/` | 想知道「参考图 = 风格书，不是内容模板」怎么落地：同一份 IR 换个风格档，火球从纯色圆盘变成 3D 渐变 |
 | `assets/demos/evo3d_layoutref/` | 想知道「出了图又干又平、火球是纯色圆盘」怎么救：`--content-ref` 三种送法的 A/B/C 实测表（降级成 layout-only 后风格和构图**同时**变好） |
-| `assets/demos/evo3d_fireball_spec/` | 想知道「图看着很'AI'、火球像颗光滑糖球」怎么救：IR 的 `material` 进简报前后的 5 方对照 + 内部结构量化 |
+| `assets/demos/evo3d_fireball_spec/` || `assets/demos/jet_quenching/` | 想知道「IR 的几何要自洽」怎么落地：一个**被机器闸口量出写反了**的IR（弦长比 0.09W vs 0.30W），修好后 4.00x；顺带量到「路径数由 `--q` 定不是 `--R`」和「`--shade` 在羽化边缘上会碎」 |
+ 想知道「图看着很'AI'、火球像颗光滑糖球」怎么救：IR 的 `material` 进简报前后的 5 方对照 + 内部结构量化 |
 
 ---
 

@@ -1,0 +1,9 @@
+p              background           px=1205890  rects=12692  Panel background (white)
+p              medium               px=246836   rects=198109 QGP medium: vertically elongated semi-transparent ellipsoid (long axis = beam direction, vertical)
+p              vertex               px=3513     rects=3147   Hard-scattering starburst (bright yellow-white) at the dijet origin
+p              jet-unquenched-cone  px=32829    rects=17242  Unquenched jet: collimated cone going up-right. Short path -- it leaves the medium almost immediately, so it stays bright and saturated
+p              jet-unquenched-hadrons px=3819     rects=3702   Hadron cluster at the tip of the unquenched jet (many, bright, light blue)
+p              jet-quenched-cone    px=31192    rects=24079  Quenched jet: cone going down-left. Long path -- it traverses nearly the whole medium, so it is desaturated, grey-blue and fades out
+p              jet-quenched-hadrons px=8040     rects=7028   Hadron cluster at the tip of the quenched jet (only 2-3, darker, grey)
+p              gluon-radiation      px=5120     rects=4962   Gluon bremsstrahlung: small yellow-green dots and swirls along the quenched jet, only inside the medium (this is the energy-loss mechanism)
+p              beam-arrow           px=1773     rects=1598   Beam direction: short vertical double-headed arrow in the gap right of the medium
