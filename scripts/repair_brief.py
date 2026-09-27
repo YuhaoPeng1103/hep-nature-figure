@@ -38,7 +38,10 @@ from pathlib import Path
 HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE))
 
-import fitz  # noqa: E402
+try:
+    import pymupdf as fitz  # ok: PyMuPDF>=1.24 的新模块名（`import fitz` 已 deprecated）
+except ImportError:          # 老版本只有 fitz
+    import fitz
 import numpy as np  # noqa: E402
 from PIL import Image  # noqa: E402
 

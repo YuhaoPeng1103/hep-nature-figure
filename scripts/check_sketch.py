@@ -41,6 +41,10 @@ check_sketch —— 位图闸口（★ 同一个脚本在流程里跑 **两次**
 """
 from __future__ import annotations
 
+from _console import init_console
+
+init_console()  # Windows：stdout 被管道/重定向时切 UTF-8（否则打印 ✅ 会崩）
+
 import argparse
 import json
 import math

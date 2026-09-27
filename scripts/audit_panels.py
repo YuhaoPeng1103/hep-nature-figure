@@ -21,11 +21,19 @@ audit_panels —— 多面板对齐检查
     python3 audit_panels.py fig.pdf --layout 2x1
     python3 audit_panels.py fig.pdf --layout 2x1 --tol 1.5   # 容差 pt
 """
+
+from _console import init_console
+
+init_console()  # Windows：stdout 被管道/重定向时切 UTF-8（否则打印 ✅ 会崩）
+
 import argparse
 import sys
 from pathlib import Path
 
-import fitz
+try:
+    import pymupdf as fitz  # ok: PyMuPDF>=1.24 的新模块名（`import fitz` 已 deprecated）
+except ImportError:          # 老版本只有 fitz
+    import fitz
 
 MM = 72.0 / 25.4
 

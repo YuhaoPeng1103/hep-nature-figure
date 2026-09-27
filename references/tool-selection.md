@@ -110,7 +110,7 @@ Blender        ✅            ❌           仅本机
 
 | 项 | 为什么该测 | 怎么测 |
 |---|---|---|
-| **DALL·E / GPT-4o 图像生成** | 图型 #5 全靠它，我完全没测过 | 在 ChatGPT 里跑：草图 → 成图，看可控性和可复现性 |
+| **DALL·E / GPT-4o 图像生成** | 图型 #5 全靠它，我完全没测过 | 在 ChatGPT 里跑：草图 → 成图，看可控性 |
 | **Mathematica 2D 的精细度** | 是否值得作为 2D 备选 | 出一张 Nature 级 2D 图对比 matplotlib |
 | **Blender toon/flat 风格** | 我上次用的默认设置，不能代表上限 | 用 toon shader + flat lighting 重做一次 |
 | **ROOT 的出版级输出** | 本机可用，但如果质量不够就没必要 | 出一张多 panel 图对比 matplotlib |

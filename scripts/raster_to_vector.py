@@ -54,6 +54,10 @@ texts.yaml（模型看图后写）：
 """
 from __future__ import annotations
 
+from _console import init_console
+
+init_console()  # Windows：stdout 被管道/重定向时切 UTF-8（否则打印 ✅ 会崩）
+
 import argparse
 import sys
 from pathlib import Path

@@ -17,6 +17,11 @@ style_profile —— 从目标图提取【风格档案】（数字，不是图�
     # 查看档案
     python3 style_profile.py show profile.json
 """
+
+from _console import init_console
+
+init_console()  # Windows：stdout 被管道/重定向时切 UTF-8（否则打印 ✅ 会崩）
+
 import argparse
 import json
 import sys

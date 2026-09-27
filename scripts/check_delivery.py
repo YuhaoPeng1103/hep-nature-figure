@@ -10,14 +10,22 @@ Nature 硬性要求可编辑矢量（美术团队要重排版、换字体）。
     python3 check_delivery.py fig.pdf fig.eps
     python3 check_delivery.py --svg fig.svg      # 顺带查 SVG 合法性
 """
+
+from _console import init_console
+
+init_console()  # Windows：stdout 被管道/重定向时切 UTF-8（否则打印 ✅ 会崩）
+
 import argparse
 import sys
 from pathlib import Path
 
 try:
-    import fitz
+    import pymupdf as fitz      # PyMuPDF>=1.24 的新模块名（`import fitz` 已 deprecated）
 except ImportError:
-    sys.exit("需要 PyMuPDF：pip install pymupdf")
+    try:
+        import fitz
+    except ImportError:
+        sys.exit("需要 PyMuPDF：pip install pymupdf")
 
 
 # ── 位图门禁 ───────────────────────────────────────────────────────

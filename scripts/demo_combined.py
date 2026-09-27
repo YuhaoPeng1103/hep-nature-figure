@@ -18,13 +18,21 @@
 
   所以：**一张图，两个后端，拼版层合成。**
 """
+
+from _console import init_console
+
+init_console()  # Windows：stdout 被管道/重定向时切 UTF-8（否则打印 ✅ 会崩）
+
 import math
 import shutil
 import subprocess
 import sys
 from pathlib import Path
 
-import fitz
+try:
+    import pymupdf as fitz  # ok: PyMuPDF>=1.24 的新模块名（`import fitz` 已 deprecated）
+except ImportError:          # 老版本只有 fitz
+    import fitz
 
 HERE = Path(__file__).parent / "_demo_out"
 HERE.mkdir(exist_ok=True)

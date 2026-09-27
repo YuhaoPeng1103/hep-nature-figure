@@ -19,6 +19,11 @@ check_render —— SVG 渲染静默失败检测器
     python3 check_render.py fig.png --probe 200,196 --probe 76,196   # 元素采样点
     python3 check_render.py fig.png --json
 """
+
+from _console import init_console
+
+init_console()  # Windows：stdout 被管道/重定向时切 UTF-8（否则打印 ✅ 会崩）
+
 import argparse
 import json
 import sys

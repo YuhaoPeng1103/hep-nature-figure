@@ -9,6 +9,11 @@ skill 要能"按图选工具"，就得先知道**这台机器上有什么**。
     python3 check_tools.py            # 探测并给建议
     python3 check_tools.py --for 示意图   # 只报告某类图需要的工具
 """
+
+from _console import init_console
+
+init_console()  # Windows：stdout 被管道/重定向时切 UTF-8（否则打印 ✅ 会崩）
+
 import argparse
 import platform
 import shutil
@@ -32,7 +37,7 @@ TOOLS = [
          figures=["示意图"]),
     dict(key="fitz", cmd=None, name="PyMuPDF",
          use="PDF 几何审计、复合图拼版、从论文切图",
-         check="import fitz",
+         check="pymupdf|fitz",   # 新名优先；老版 pymupdf 只有 fitz
          install={"linux": "pip install pymupdf", "win": "pip install pymupdf"},
          figures=["拼版"]),
     # ★ 下面两项是补漏：原本表里没有它们，于是"缺工具"报告在目标平台上
@@ -88,9 +93,14 @@ TOOLS = [
     dict(key="illustrator", cmd=None, name="Adobe Illustrator",
          use="Nature 官方首选（线稿/示意图/合成）。**需人工操作**，"
              "skill 只能产出它可直接打开的分层 SVG",
-         check_file=[
-             "/mnt/c/Program Files/Adobe/Adobe Illustrator 2024/Support Files/Contents/Windows/Illustrator.exe",
-             "/Applications/Adobe Illustrator 2024/Adobe Illustrator.app",
+         # ★ 原来只写死 2024 版 + WSL 路径（/mnt/c/...）：
+         #   原生 Windows 上装了任何版本的 Illustrator 都会被报成"缺失"。
+         #   改成通配升级：版本号用 * 吃掉，三个平台一次覆盖（实测 2026-09-27）。
+         check_glob=[
+             "C:/Program Files/Adobe/Adobe Illustrator */Support Files/Contents/Windows/Illustrator.exe",
+             "C:/Program Files (x86)/Adobe/Adobe Illustrator */Support Files/Contents/Windows/Illustrator.exe",
+             "/mnt/c/Program Files/Adobe/Adobe Illustrator */Support Files/Contents/Windows/Illustrator.exe",
+             "/Applications/Adobe Illustrator */Adobe Illustrator.app",
          ],
          install={"linux": "不支持（Windows/macOS 专有）",
                   "win": "Adobe Creative Cloud 订阅"},
@@ -113,7 +123,10 @@ def probe(t):
         if p:
             try:
                 v = subprocess.run([t["cmd"], "--version"], capture_output=True,
-                                   text=True, timeout=25)
+                                   # ★ 显式 utf-8：text=True 在中文 Windows 会用 gbk
+                                   #   去解工具输出，遇非 ASCII 直接 UnicodeDecodeError
+                                   #   （svg_lib 的 fc-list 踩过同一个坑）
+                                   encoding="utf-8", errors="replace", timeout=25)
                 return True, (v.stdout or v.stderr).strip().split("\n")[0][:48]
             except Exception:
                 return True, p
@@ -121,20 +134,34 @@ def probe(t):
         return False, ""
     # Python 模块
     if t.get("check"):
-        try:
-            __import__(t["check"].replace("import ", "").strip())
-            mod = t["check"].replace("import ", "").strip()
-            m = sys.modules[mod]
-            return True, getattr(m, "__version__", "已安装")
-        except Exception:
-            return False, ""
+        # 允许 "a|b"：同一个库的不同模块名（如 pymupdf / fitz），命中任一即算已装
+        for mod in t["check"].replace("import ", "").split("|"):
+            mod = mod.strip()
+            try:
+                __import__(mod)
+            except Exception:
+                continue
+            return True, getattr(sys.modules[mod], "__version__", "已安装")
+        return False, ""
     # 特定文件
     if t.get("check_file"):
         for f in t["check_file"]:
             if Path(f).exists():
                 return True, f
         return False, ""
+    # 通配路径（版本号带 *，跨平台各写一条）
+    if t.get("check_glob"):
+        import glob
+        for pat in t["check_glob"]:
+            hits = sorted(glob.glob(pat))
+            if hits:
+                return True, hits[-1]      # 取版本号最大的那个
+        return False, ""
     return False, ""
+
+
+# kpsewhich 是否存在 —— 没有它时不报错、只报"没装 LaTeX"
+_KPSEWHICH = shutil.which("kpsewhich")
 
 
 def main():
@@ -193,13 +220,25 @@ def main():
     print("\n" + "=" * 72)
     print("LaTeX 宏包（缺了公式会编译失败）")
     print("=" * 72)
+    if not _KPSEWHICH:
+        print("  （本机没有 kpsewhich：没装 LaTeX 时下面整排只能是 ✗，"
+              "这不是探测坏了）\n")
     for pkg, why in [("amsmath.sty", "数学公式基础"),
                      ("amssymb.sty", "数学符号"),
                      ("tikz.sty", "TikZ 绘图"),
                      ("newtxtext.sty", "Times 风格字体（可选，实测常缺）"),
                      ("standalone.cls", "单图编译")]:
-        r = subprocess.run(["kpsewhich", pkg], capture_output=True, text=True)
-        got = bool(r.stdout.strip())
+        # ★ 必须容错：没装 LaTeX 的机器上 kpsewhich 不存在，
+        #   直接 subprocess.run(["kpsewhich",...]) 会 FileNotFoundError
+        #   把整个"缺工具探测"脚本打死 —— 而这恰恰是最需要它工作的场景（已复现）。
+        got = False
+        if _KPSEWHICH:
+            try:
+                r = subprocess.run([_KPSEWHICH, pkg], capture_output=True,
+                                   encoding="utf-8", errors="replace", timeout=20)
+                got = bool((r.stdout or "").strip())
+            except Exception:
+                got = False
         print(f"  {'✓' if got else '✗'} {pkg:<18}{why}")
     print("\n  缺失安装：sudo apt install texlive-latex-recommended "
           "texlive-pictures texlive-fonts-extra")
@@ -208,7 +247,9 @@ def main():
     print("    能装的环境：缺工具不是放弃的理由 —— 先装，再调用。")
     print("    装不了的环境（无网络沙箱）：按上面「装不了时」给的替代路径走，"
           "**不要建议用户安装任何东西**。")
-    return 0 if not missing else 0
+    # ★ 永远返回 0：缺工具是"报告"，不是"失败"。
+    #   （原来写成 `0 if not missing else 0`，两分支同值，是明显的笔误）
+    return 0
 
 
 if __name__ == "__main__":

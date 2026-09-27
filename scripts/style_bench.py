@@ -43,6 +43,11 @@ style_bench —— 图的风格度量与基准比对
     # 只看单张图的指标
     python3 style_bench.py measure myfigure.png
 """
+
+from _console import init_console
+
+init_console()  # Windows：stdout 被管道/重定向时切 UTF-8（否则打印 ✅ 会崩）
+
 import argparse
 import json
 import math

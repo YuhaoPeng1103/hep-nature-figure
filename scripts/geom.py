@@ -16,6 +16,11 @@ geom —— 几何布尔运算 → SVG path
 用法：
     from geom import poly_to_path, union_circles, outline_offset
 """
+
+from _console import init_console
+
+init_console()  # Windows：stdout 被管道/重定向时切 UTF-8（否则打印 ✅ 会崩）
+
 import math
 
 try:

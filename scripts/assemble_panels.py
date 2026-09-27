@@ -26,7 +26,10 @@ import argparse
 import sys
 from pathlib import Path
 
-import fitz  # PyMuPDF
+try:
+    import pymupdf as fitz  # ok: PyMuPDF>=1.24 的新模块名（`import fitz` 已 deprecated）
+except ImportError:          # 老版本只有 fitz
+    import fitz
 
 MM = 72.0 / 25.4          # mm -> pt
 

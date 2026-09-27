@@ -18,6 +18,11 @@ auto_converge —— 自动把复现图迭代到接近参考图
     python3 auto_converge.py --ref 参考图.png \
         --script repro_T3-03_param.py --max-iter 20
 """
+
+from _console import init_console
+
+init_console()  # Windows：stdout 被管道/重定向时切 UTF-8（否则打印 ✅ 会崩）
+
 import argparse
 import json
 import shutil

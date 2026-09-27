@@ -20,12 +20,20 @@ audit_composition —— 局部构图审计（补 delivery_gate 的缺口）
     python3 audit_composition.py fig.pdf
     python3 audit_composition.py fig.pdf --json
 """
+
+from _console import init_console
+
+init_console()  # Windows：stdout 被管道/重定向时切 UTF-8（否则打印 ✅ 会崩）
+
 import argparse
 import json
 import sys
 from pathlib import Path
 
-import fitz
+try:
+    import pymupdf as fitz  # ok: PyMuPDF>=1.24 的新模块名（`import fitz` 已 deprecated）
+except ImportError:          # 老版本只有 fitz
+    import fitz
 import numpy as np
 
 MM = 72.0 / 25.4

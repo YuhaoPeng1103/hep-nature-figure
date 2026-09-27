@@ -35,6 +35,10 @@ verify_scene —— Scene Graph 往返验证：**重组后结构变没变**
 """
 from __future__ import annotations
 
+from _console import init_console
+
+init_console()  # Windows：stdout 被管道/重定向时切 UTF-8（否则打印 ✅ 会崩）
+
 import argparse
 import json
 import re

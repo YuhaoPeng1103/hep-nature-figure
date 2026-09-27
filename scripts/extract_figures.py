@@ -24,7 +24,10 @@ import json
 import sys
 from pathlib import Path
 
-import fitz  # PyMuPDF
+try:
+    import pymupdf as fitz  # ok: PyMuPDF>=1.24 的新模块名（`import fitz` 已 deprecated）
+except ImportError:          # 老版本只有 fitz
+    import fitz
 
 
 def cluster_rects(rects, gap=14.0, max_iters=60):

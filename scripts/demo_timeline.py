@@ -9,6 +9,11 @@
 
 实现后自动核对 IR 里的 5 条 geometry_constraints。
 """
+
+from _console import init_console
+
+init_console()  # Windows：stdout 被管道/重定向时切 UTF-8（否则打印 ✅ 会崩）
+
 import math
 import random
 import sys

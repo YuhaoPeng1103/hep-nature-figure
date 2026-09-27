@@ -1,5 +1,69 @@
 # 变更记录
 
+## v2.7.3 — 2026-09-27
+
+**自动化里"一打印就崩"：Windows 管道下 stdout 是 gbk；顺带修 3 处探测/文档**
+
+### 症状
+
+在 agent / CI / `python x.py > log.txt` 里跑
+
+```bash
+python evals/test_tools.py
+python scripts/check_tools.py
+```
+
+**100% 崩**，而且崩在**打印报告的中途**：
+
+```
+UnicodeEncodeError: 'gbk' codec can't encode character '\u2705' in position 0
+```
+
+交互式手敲同一条命令却完全正常 —— 所以这个问题**只在自动化里出现**，
+而自动化（agent 跑脚本、读报告）正是本 skill 的主要用法。
+
+### 根因
+
+中文 Windows 上 Python 只在 **stdout 是交互式控制台（isatty=True）** 时才用 UTF-8；
+一旦 stdout 被**管道 / 重定向**，就退回本地编码 gbk(cp936)。
+而本项目的报告里满是 ✅ / ❌ / ⚠️ / ✗，GBK 编不出来 —— 于是在 print 的中途抛异常。
+实测：47 个脚本文件里 **23 个**的 print 行含这类字符（`check_sketch` / `check_delivery`
+各 12 处），`check_tools` / `test_tools` 首当其冲。
+
+> 同一个坑其实早被作者在 `svg_lib` 的 `fc-list` 上踩过一次 —— 但那次修的是
+> **读子进程输出**（`encoding="utf-8"`），没意识到**自己写 stdout** 也有同样的问题。
+
+### 改了什么
+
+1. 新增 `scripts/_console.py`：`init_console()` 把 stdout/stderr `reconfigure` 成
+   UTF-8（`errors="replace"` 兜底，幂等，失败静默）。**22 个脚本 + `evals/test_tools.py`
+   顶部调用一次**，不改任何行为。
+2. `scripts/check_tools.py`：没装 LaTeX 时 `kpsewhich` 不存在，原来直接
+   `FileNotFoundError` 把整个探测脚本打死 —— 而那**恰是最需要它工作**的场景
+   （"缺工具"探测）。现在正常报 ✗ + 装机指引。**已复现（PATH 只留一个空目录）。**
+3. `check_tools.py` 的 Illustrator 探测：原来只写死 **2024 版 + WSL 路径**（`/mnt/c/...`），
+   原生 Windows / macOS 上装了任何版本都被报"缺失"。改成通配（版本号用 `*`），
+   并去掉 `return 0 if not missing else 0` 这个两分支同值的笔误。
+4. `import fitz` → `import pymupdf as fitz`（12 处）：PyMuPDF 1.26+ 已对 `fitz` 报
+   `DeprecationWarning`、将来移除；探测表同步支持 `pymupdf|fitz`。
+5. 文档：README 版本横幅 v2.6 → **v2.7**（CHANGELOG 早已到 v2.7.2）；`evals/README.md`
+   的 case 表由 **13** 行补齐为**真实清单 31 行**；修 README 目录树里一个
+   **8 空格缩进的代码围栏**（CommonMark 不认 ≥4 空格的闭合围栏 → 会把 README 后半段
+   整段染成代码块）、以及一处被拼成一行的表格条。
+6. 删掉**「可复现性」**相关的担忧与判据（作者判定：不重要）。具体是 `SKILL.md` /
+   `README.md` 里两处 ⚠️「同 prompt 两次输出是否一致 = 这条路线的死穴 / 最大的未解问题」、
+   路线选型表里的「可复现」整行、位图→矢量对比表里的「复现」整行，以及
+   `references/ir-spec.md` 的「★ 可复现性因此成立」小节；`calls.jsonl` 那行的标题
+   由「可复现」改成「**调用留痕**」（理由改成溯源 / 核对计费）。
+   **保留**「复现论文配图」这个任务类型 —— 那是功能，不是担忧。
+
+### 回归测试（+2，共 31）
+
+| case | 防什么 |
+|---|---|
+| `console_utf8_survives_piped_stdout` | 强制 `PYTHONIOENCODING=gbk`，`_console` 与 `check_tools` 都必须照常打印完整报告 |
+| `tool_detection_survives_missing_latex` | PATH 里没有 `kpsewhich` 时，探测脚本不许崩，且要照常给 ✗ + 装机指引 |
+
 ## v2.7.2 — 2026-09-27
 
 **闸口新增「喷注路径长度不对称」—— 机器自己量出「IR 自己写反了」**

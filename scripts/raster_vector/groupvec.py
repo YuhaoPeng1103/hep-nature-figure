@@ -16,6 +16,11 @@
   python groupvec.py src.png out.svg _words.txt [--W 1200] [--R 16] [--K 7]
                       [--erase] [--manifest out.json] [--stats]
 """
+
+from _console import init_console
+
+init_console()  # Windows：stdout 被管道/重定向时切 UTF-8（否则打印 ✅ 会崩）
+
 import sys, os, json, colorsys
 import numpy as np
 from PIL import Image, ImageDraw, ImageFont

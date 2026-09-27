@@ -1,8 +1,8 @@
-> # 📌 本分支 = 主线（v2.6）：三条路线合一
+> # 📌 本分支 = 主线（v2.7）：三条路线合一
 >
 > 三条路线都在本分支里，**默认走路线 3**：IR → 生图简报 → 草图（+矢量草图）→
 > 闸口① → 成品位图 → 闸口② → 重画/临摹成矢量 → 三道门禁 → 交付。
-> 观感最好，代价是两次生图、可复现最差。
+> 观感最好，代价是两次生图。
 >
 > `route-a` / `route-b1` / `route-b2` 是早期「一个分支一条路线」的旧版，
 > 保留但不再更新；新装直接用 `main`。
@@ -127,19 +127,15 @@
 | 中间产物 | 无 | 草图 PNG + **矢量草图 SVG** | 草图 PNG + **矢量草图 SVG** + 成品位图 |
 | 谁保证物理 | 代码（`geometry_constraints` 直接可算） | 闸口① | 闸口① + 闸口② |
 | 观感 | 教科书插画 | 中 | **最好** |
-| 可复现 | **最好**（逐字节） | 中 | **最差**（两次生图） |
 | 成本 | 低 | 中 | 高 |
 
-- **默认 = 路线 3。** "质感"这件事生图模型比代码强得多；只有要确定性时才退回 1。
-- **只要确定性 / 要批量扫参数** → 路线 1（`scene_render.py` IR 直渲，或 `svg_lib` 手写）
+- **默认 = 路线 3。** "质感"这件事生图模型比代码强得多；只有要代码直渲时才退回 1。
+- **要批量扫参数 / 要代码直渲** → 路线 1（`scene_render.py` IR 直渲，或 `svg_lib` 手写）
 - **要人插手改草图** → 路线 2（矢量草图交给人在 Illustrator 里改，再代码完善）
 
 > 路线 2 和 3 的**前两段完全一样**（IR → 简报 → 生图 → 矢量草图 → 闸口①）。
 > 区别只在第三段：2 是代码接着完善草图，3 是多跑一张成品位图再矢量化。
 > 所以**默认的路线 3 也算复现任务** —— 位图临摹回矢量那一段就是复现。
-
-> ⚠️ **可复现性尚未验证**：同 prompt 同 seed 两次输出是否一致，决定这条路能否做**交付**
-> 而不只是**出稿**。这是当前最大的未解问题。
 
 > ⚠️ **生图 key 由使用者自备**（环境变量 `DASHSCOPE_API_KEY`），skill 里不存任何 key；
 > 没 key 也能 `gen_figure.py --dry-run` 走通全流程自检。
@@ -155,7 +151,6 @@
 | 文字 | 真 `<text>` | **OCR + 逐词对齐**，真 `<text>` | 模型写 `--text-spec` 后擦掉重写 |
 | 渐变 | **真 `<gradient>`**（保住色彩和阴影） | 色阶台阶，但**误差可量化可调**（`--R`） | 退化成色阶台阶 |
 | 图层 | 按**结构/物理**（人手定） | 按**物理元素**（命名图层树，**不夹颜色层**） | 按**颜色**分，`--groups` 可归组 |
-| 复现 | 两次不一样 | **逐字节相同** | 逐字节相同 |
 | 依赖 | 无（模型干活） | `numpy scipy Pillow cairosvg cairocffi fontTools` | 还要 `cv2` / `skimage` |
 
 选法：
@@ -351,10 +346,11 @@ python3 scripts/demo_combined.py
 ├── requirements.txt             依赖（numpy / scipy / Pillow / shapely / cairosvg / PyMuPDF …）
 ├── references/                  写作与排查时翻的规范（见下面「内置参考」）
 ├── scripts/
+│   ├── _console.py             内部：Windows 控制台编码兜底（所有脚本 import 它；拷脚本要一起拷）
 │   ├── svg_lib.py               SVG 图元库（火球 / 圆柱 / 核子 / 壳 / 环 / 坐标轴 / 图层）
 │   ├── geom.py                  shapely 布尔运算 → SVG path（外轮廓、有机团块）
 │   ├── cartoon_lib.py           卡通示意（手绘感）图元
-│   ├── scene_render.py          路线 1：IR 直渲（确定性，可批量扫参数）
+│   ├── scene_render.py          路线 1：IR 直渲（可批量扫参数）
 │   ├── verify_scene.py          路线 1 的几何自检（量 IR 里写了数量的元素）
 │   ├── ir_to_genbrief.py        IR → 生图简报（--stage sketch / render）
 │   ├── ir_brief_audit.py       ★ IR → 简报的无损体检（哨兵法：字段没进简报 = IR 白写）
@@ -381,7 +377,7 @@ python3 scripts/demo_combined.py
 │   ├── repair_brief.py          返修单（归一化坐标 + 具体改多少）
 │   └── demo_*.py                多工具联合 / 喷注淬火 / 时间线 示范
 ├── evals/
-│   ├── test_tools.py            29 个回归 case（每个对应一个真实踩过的坑）
+│   ├── test_tools.py            31 个回归 case（每个对应一个真实踩过的坑）
 │   └── evals.json / README.md   评测清单
 └── assets/
     ├── style-profiles.json      风格档案（门禁用；存**区间**不存点值）
@@ -395,7 +391,7 @@ python3 scripts/demo_combined.py
         ├── evo3d_layoutref/    构图参考的 A/B/C（--content-ref-mode layout，v2.6.8）
         ├── evo3d_fireball_spec/ 火球 5 方对照：material 进简报前后（v2.6.9）
         └── jet_quenching/       喷注淬火全流程（v2.7.2：路径不对称闸口 + --q / --shade 边界）
-        ```
+```
 
 ---
 
@@ -415,8 +411,8 @@ python3 scripts/demo_combined.py
 | `assets/demos/evo_semantic/README.md` | 想知道「真 `<gradient>` 到底帮不帮忙」—— 那里有 5 档参数的 A/B 表 |
 | `assets/demos/evo3d_semantic/` | 想知道「参考图 = 风格书，不是内容模板」怎么落地：同一份 IR 换个风格档，火球从纯色圆盘变成 3D 渐变 |
 | `assets/demos/evo3d_layoutref/` | 想知道「出了图又干又平、火球是纯色圆盘」怎么救：`--content-ref` 三种送法的 A/B/C 实测表（降级成 layout-only 后风格和构图**同时**变好） |
-| `assets/demos/evo3d_fireball_spec/` || `assets/demos/jet_quenching/` | 想知道「IR 的几何要自洽」怎么落地：一个**被机器闸口量出写反了**的IR（弦长比 0.09W vs 0.30W），修好后 4.00x；顺带量到「路径数由 `--q` 定不是 `--R`」和「`--shade` 在羽化边缘上会碎」 |
- 想知道「图看着很'AI'、火球像颗光滑糖球」怎么救：IR 的 `material` 进简报前后的 5 方对照 + 内部结构量化 |
+| `assets/demos/evo3d_fireball_spec/` | 想知道「图看着很'AI'、火球像颗光滑糖球」怎么救：IR 的 `material` 进简报前后的 5 方对照 + 内部结构量化 |
+| `assets/demos/jet_quenching/` | 想知道「IR 的几何要自洽」怎么落地：一个**被机器闸口量出写反了**的IR（弦长比 0.09W vs 0.30W），修好后 4.00x；顺带量到「路径数由 `--q` 定不是 `--R`」和「`--shade` 在羽化边缘上会碎」 |
 
 ---
 

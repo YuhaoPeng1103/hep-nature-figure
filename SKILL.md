@@ -25,10 +25,6 @@ description: >-
 **结论：不要试图用代码把图"画好看"——那条路性价比极低。**
 代码该干的是**把模型的输出卡对**。
 
-> ⚠️ 唯一的硬约束：**同 prompt 两次输出是否一致**（可复现性）。
-> 这是图像生成路线的死穴，也是 T3 测试要回答的问题。
-> 如果不可复现，那这条路线只能做"初稿"，最终交付仍需确定性管线。
-
 ### 架构（2026-09-26 定稿）
 
 **三条职责，各管一段：**
@@ -160,7 +156,7 @@ python3 scripts/raster_to_vector_semantic.py fig.png -o fig.svg --words words.tx
 ### `scene_render.py` 的定位（别当新概念）
 
 它是 **"IR 直接渲染成 SVG" 的可选后端**，不是什么新的一层。
-**它只在"需要逐字节可复现 / 批量参数扫描"时有用** ——
+**它只在"要批量扫描参数 / 要代码直渲"时有用** ——
 自由创作和复现都用不到它。
 
 > 走过的弯路：一度把它包装成"Scene Graph 层"，说成 A/B 共用的枢纽。
@@ -174,16 +170,15 @@ python3 scripts/raster_to_vector_semantic.py fig.png -o fig.svg --words words.tx
 | 中间产物 | 无 | 草图 PNG + **草图 SVG** | 草图 PNG + **草图 SVG** + 成品位图 |
 | 谁保证物理 | 代码（`geometry_constraints` 直接可算） | 闸口① | 闸口① + 闸口② |
 | 观感 | 教科书插画 | 中 | **最好** |
-| 可复现 | **最好**（逐字节） | 中 | **最差**（两次生图） |
 | 成本 | 低 | 中 | 高 |
 
 - **默认 = 路线 3**（生图草图 → 成品位图 → 重画/临摹成矢量）
-- **只要确定性 / 要批量扫参数** → 路线 1（`scene_render.py` IR 直渲，或 `svg_lib` 手写）
+- **要批量扫参数 / 要代码直渲** → 路线 1（`scene_render.py` IR 直渲，或 `svg_lib` 手写）
 - **要人插手改草图** → 路线 2（草图矢量化后交给人在 Illustrator 里改，再代码完善）
 
 > 路线 2 和 3 的**前两段完全一样**（IR → 简报 → 生图 → 矢量化草图 → 闸口①）。
 > 区别只在第三段：2 是代码/模型接着完善草图，3 是再多跑一张成品位图。
-> **默认走 3**，因为"质感"这件事生图模型比代码强得多；只有要确定性时才退回 1。
+> **默认走 3**，因为"质感"这件事生图模型比代码强得多；只有要代码直渲时才退回 1。
 
 ### ★ 生图那一步的三条硬规矩
 
@@ -670,7 +665,7 @@ python3 scripts/repair_brief.py fig.svg --profile assets/style-profiles.json
 | **image 字段** | 本地图 → **base64 data URI**（自动）；公网 URL 直接透传 | mm 端点**只收**公网 URL 或 base64，**不认 `oss://`** —— 实测提交报 400 `Image must be either a public URL or a Base64 encoded string`（v2.6.1 修）|
 | **两个产物** | 草图 PNG + **草图 SVG** + 成品位图，全部落盘 | 用户要能拿到中间产物 |
 | **裁外框** | 出图后跑 `scripts/trim_border.py in.png -o out_clean.png` | 模型**稳定**在四周画 1~2px 外框，简报与 `--negative` 都拦不住（实测 5/5）→ 确定性裁掉，别求模型 |
-| **可复现** | `gen/calls.jsonl` 记 model/seed/size/refs/prompt 指纹 | 复现和核对计费都靠它 |
+| **调用留痕** | `gen/calls.jsonl` 记 model/seed/size/refs/prompt 指纹 | 出图后要能溯源、核对计费 |
 | **单个 seed 抖动** | 失败**重试 1 次**，两次都失败记 `ok=False` 继续下一个 seed | 实测 2026-09-27：seed 7 撞 TimeoutError 让整批 traceback 退出 —— seed 9 根本没跑、已出的 seed 5 也没进 `calls.jsonl` |
 | 没 key 时 | `--dry-run` 只写提示词和调用计划 | 自检不用花钱 |
 
@@ -838,10 +833,6 @@ material: >
 **机器判不了物理。** 把"检查物理"从一句原则变成**必须填的动作**，
 才拦得住"图像模型把喷注画反、把非中心碰撞画成同心"这类错。
 
-> ⚠️ **两次生图都没验证过可复现性。** 每次生图都是非确定的，两次就是两次漂移机会。
-> 用 `calls.jsonl` 里的 seed 复跑同一 seed，实测能否得到同一张图 —— 这仍是
-> 这条路线的死穴；**不可复现就意味着最终交付仍需人工复核一遍**。
-
 ### ★ 位图 → 矢量的三种实现（第 7 步到底用哪个）
 
 | | **模型看图重画**（首选） | `raster_to_vector_semantic.py`（备用） | `raster_to_vector.py`（备用） |
@@ -850,7 +841,6 @@ material: >
 | 文字 | 真 `<text>` | **OCR + 逐词对齐**，真 `<text>` | 模型写 `--text-spec` 后擦掉重写 |
 | 渐变 | **真 `<gradient>`**（能保住色彩和阴影） | 细调色板/不量化时**肉眼看不到台阶**（实测贴边比 0.62×源图）；也能合成真 `<gradient>`（`panels.py` 的 `GRADIENTS`，见下） | 退化成色阶台阶 |
 | 图层 | 按**结构/物理**（人手定） | 按**物理元素**（命名图层树，**不再夹颜色层**） | 按**颜色**分，`--groups` 可归组 |
-| 复现 | 两次不一样 | **逐字节相同**（已实测三次） | 逐字节相同 |
 | 依赖 | 无（模型干活） | `numpy scipy Pillow cairosvg cairocffi fontTools` | 还要 `cv2`/`skimage` |
 
 选法：
@@ -1075,3 +1065,4 @@ python3 scripts/auto_converge.py --ref 参考图.png \
 | `raster_to_vector.py` | **位图 → 矢量（临摹备用路径）**：逐像素描摹 + 混合文字（`--text-spec`）+ 语义归组（`--groups`） |
 | `raster_to_vector_semantic.py` | **位图 → 语义分层的全矢量**（先理解再临摹）：真 `<text>`、物理元素图层树、误差可量化。库在 `scripts/raster_vector/`，用法见其 `README.md` |
 | `ir_brief_audit.py` | **★ IR → 简报的无损体检**（哨兵法：字段没进简报 = IR 白写）。改 IR 格式 / 简报模板后必跑，可挂 CI |
+| `_console.py` | **内部：控制台编码兜底**。把 stdout/stderr 切 UTF-8 —— 中文 Windows 上 stdout 一旦被管道/重定向（agent、CI、`> log.txt`）就是 gbk，报告里的 ✅/⚠️ 编不出来 → `UnicodeEncodeError` 把脚本打在打印中途。**不影响交互式手敲**，所以只在自动化里炸。拷脚本（扁平布局）时必须一起拷 |

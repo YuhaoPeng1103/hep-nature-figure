@@ -52,6 +52,13 @@ def _resolve_scripts():
 SCRIPTS, _SCRIPT_WHY = _resolve_scripts()
 sys.path.insert(0, str(SCRIPTS))
 
+# ★ Windows：stdout 被管道/重定向时是 gbk，打印报告里的 ✅/⚠️ 会
+#   UnicodeEncodeError 把整个测试跑挂（见 scripts/_console.py）。
+from _console import init_console
+
+init_console()
+
+
 # 风格档案可能在三处：skills 布局的 assets/、扁平布局的 assets/、
 # 或者干脆和脚本平铺在一起（解包时最容易出现的一种）。
 _PROFILE_CANDIDATES = [
@@ -231,7 +238,10 @@ def test_out_of_bounds():
       "构图审计能抓到文字重叠")
 def test_text_overlap():
     sys.path.insert(0, str(SCRIPTS))
-    import fitz
+    try:
+        import pymupdf as fitz  # ok: PyMuPDF>=1.24 的新模块名（`import fitz` 已 deprecated）
+    except ImportError:          # 老版本只有 fitz
+        import fitz
     from audit_composition import check_text_text
     # 两个重叠 50% 的文字块
     a = {"bbox": fitz.Rect(0, 0, 100, 20), "text": "AAA"}
@@ -339,6 +349,53 @@ def test_tool_install_hint():
     for mod in ("shapely", "yaml"):
         assert mod in out.lower(), \
             f"check_tools 的探测表应包含 {mod}（实际会被 import，漏了就是假绿）"
+
+
+# ══════════════════════════════════════════════════════════════
+#  坑 7：Windows 控制台编码（2026-09-27 实测）
+# ══════════════════════════════════════════════════════════════
+
+@case("console_utf8_survives_piped_stdout",
+      "Windows 上 stdout 被【管道/重定向】时 Python 改用 gbk 编码，而报告里的 "
+      "✅/⚠️ 编不出来 → UnicodeEncodeError 把脚本打在打印中途。"
+      "实测 test_tools.py / check_tools.py 在管道下 100% 崩，交互式手敲同一句却正常 "
+      "—— 也就是说这个坑只在 agent / CI 里炸，正是本 skill 的主要用法。"
+      "防：只在 isatty 下能用")
+def test_console_encoding():
+    import os
+    env = dict(os.environ, PYTHONIOENCODING="gbk")   # 强制复现 Windows 管道代码页
+    code = ("import sys; sys.path.insert(0, r'%s'); import _console; "
+            "print('✅ 纯矢量 ⚠️ \\u2717')" % SCRIPTS)
+    r = subprocess.run([sys.executable, "-c", code], capture_output=True,
+                       text=True, encoding="utf-8", errors="replace",
+                       env=env, timeout=60)
+    assert r.returncode == 0, \
+        "_console 没把 stdout 切到 UTF-8，强制 gbk 下打印 ✅ 直接崩：\n" + r.stderr[-500:]
+    assert "UnicodeEncodeError" not in r.stderr
+
+    # 端到端：真脚本（报告里满是 ✅/❌）在 gbk 管道下也不能崩
+    r2 = subprocess.run([sys.executable, str(SCRIPTS / "check_tools.py")],
+                        capture_output=True, text=True, encoding="utf-8",
+                        errors="replace", env=env, timeout=180)
+    assert r2.returncode == 0, \
+        "check_tools 在 gbk 管道下崩了（报告打印到一半就断）：\n" + r2.stderr[-500:]
+    assert "已可用" in r2.stdout, "报告应完整打印出来，而不是中途崩掉"
+
+
+@case("tool_detection_survives_missing_latex",
+      "没装 LaTeX 的机器上 kpsewhich 不存在 —— 探测脚本必须照常报「✗ 需安装」，"
+      "不能自己 FileNotFoundError 崩掉。那恰好是最需要它工作的场景（实测已复现）")
+def test_tool_detection_no_kpsewhich():
+    import os
+    stub = Path(tempfile.mkdtemp(prefix="nolatex_"))   # 拿一个空目录当 PATH
+    env = dict(os.environ, PATH=str(stub))
+    r = subprocess.run([sys.executable, str(SCRIPTS / "check_tools.py")],
+                       capture_output=True, text=True, encoding="utf-8",
+                       errors="replace", env=env, timeout=180)
+    assert r.returncode == 0, \
+        "没有 LaTeX 时 check_tools 应正常退出并给装机指引，实际崩了：\n" + r.stderr[-500:]
+    assert "FileNotFoundError" not in r.stderr, "不该让 kpsewhich 的缺席变成崩溃"
+    assert "amsmath.sty" in r.stdout, "LaTeX 宏包段应照常打印（逐条标 ✗）"
 
 
 # ══════════════════════════════════════════════════════════════

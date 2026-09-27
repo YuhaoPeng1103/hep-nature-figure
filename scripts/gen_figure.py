@@ -81,6 +81,10 @@ gen_figure —— 第 ② 步：把 IR 简报变成【草图】或【成品位�
 """
 from __future__ import annotations
 
+from _console import init_console
+
+init_console()  # Windows：stdout 被管道/重定向时切 UTF-8（否则打印 ✅ 会崩）
+
 import argparse
 import base64
 import hashlib

@@ -13,7 +13,7 @@
 
 **解法**：用 Python 拼 SVG 字符串。光影在 SVG 里是**确定性代码**：
 `linearGradient` 做柱面明暗，`radialGradient` 做发光，`feGaussianBlur` 做柔光，
-`opacity` 做半透明叠加。可复现、可 diff、矢量、可编辑。
+`opacity` 做半透明叠加。可 diff、矢量、可编辑。
 
 **边界**：这是「示意图」方案，不是「数据图」方案。
 - 有数据的图（谱、曲线、热图）→ 用 matplotlib，别用这个
@@ -40,7 +40,7 @@
    把参考图拆成「物理元素」而不是「图形」：
    ✗ "一个橙色椭圆"          ✓ "QGP 火球（发光体，半径 r）"
    ✗ "一条红线"              ✓ "椭圆流方向箭头（从火球指向外）"
-   这一步必须写下来，是后续所有工作的依据，也是「可复现」的地基。
+   这一步必须写下来，是后续所有工作的依据。
 
 3. 选图元（查 §3 速查表）
 
@@ -134,7 +134,7 @@ FONT_CJK   = "SimHei"        # 含中文字形 —— 只有需要中文标注�
 |---|---|---|
 | `s.fireball(cx, cy, r, glow)` | QGP 火球（发光体） | `glow` 控制外晕倍数 |
 | `s.cylinder(cx, cy, w, h, squash, amp, waves)` | 纵向剖面圆柱 | `squash` 决定 3D 感（★关键）；`amp/waves` 做波形起伏 |
-| `s.nucleus(cx, cy, r, n, seed)` | 原子核 / 核碎片 | `seed` 固定保证可复现 |
+| `s.nucleus(cx, cy, r, n, seed)` | 原子核 / 核碎片 | `seed` 固定 → 形状稳定 |
 | `s.ellipsoid(cx, cy, rx, ry, base, a)` | 半透明介质 / 火球外壳 | `dash` 做虚线轮廓 |
 | `s.ring3d(cx, cy, R, r, tilt)` | 环形探测器 | `tilt` 是透视压缩比 |
 | `s.sphere(cx, cy, r, base)` | 通用受光球 | |
@@ -316,7 +316,7 @@ python3 compare_ref.py 参考图.png fig.png -o compare.png
 ## 7. 禁止事项
 
 1. **禁止用 GPT Image / DALL·E 替代精确复现。**
-   它出的是位图、不可复现、结构不可控。可以用于"概念草图/灵感"，但不能冒充
+   它出的是位图、结构不可控。可以用于"概念草图/灵感"，但不能冒充
    Benchmark 要求的复现输出。
 2. **禁止在渲染失败时降级糊弄。**
    装不上 cairosvg 就报告阻塞，不要改用别的方式糊一张"差不多"的图。

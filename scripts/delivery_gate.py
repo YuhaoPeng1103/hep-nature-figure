@@ -27,6 +27,10 @@ delivery_gate —— 阻断式交付门禁
     # 交付成套检查
     python3 delivery_gate.py fig.png --target 参考图.png --pdf fig.pdf
 """
+from _console import init_console
+
+init_console()  # Windows：stdout 被管道/重定向时切 UTF-8（否则打印 ✅ 会崩）
+
 import argparse
 import json
 import sys
@@ -408,7 +412,10 @@ def check_ir(rep, ir_path):
 
 def check_delivery(rep, pdf_path):
     """③ 投稿合规"""
-    import fitz
+    try:
+        import pymupdf as fitz  # ok: PyMuPDF>=1.24 的新模块名（`import fitz` 已 deprecated）
+    except ImportError:          # 老版本只有 fitz
+        import fitz
     print(f"\n③ 投稿合规（{Path(pdf_path).name}）")
     p = fitz.open(pdf_path)[0]
     n_img = len(p.get_images())
