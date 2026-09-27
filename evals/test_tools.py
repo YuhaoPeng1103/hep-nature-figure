@@ -629,6 +629,48 @@ def test_ir_brief_list_params():
     assert "阶段1 在左" in out and "阶段2 在中间" in out, "composition.layout 是列表时要逐条排版"
 
 
+@case("genbrief_style_mode_not_hardcoded_flat",
+      "生图简报的风格**不许写死成扁平矢量**：IR 的 style 段说要 3D（半写实 / 球面明暗 / "
+      "网格线 / 体积），简报就必须出 3D 渲染档（写明「允许 3D 渲染的立体感」），"
+      "而不是反过来写「不是 3D 渲染图」。"
+      "修的是（2026-09-27 实测）：形变核->火球 算例 IR 要 3D、简报却禁 3D，"
+      "模型照简报走 -> 火球被画成一个纯色圆盘")
+def test_genbrief_style_mode():
+    import ir_to_genbrief as IG
+
+    # 1) IR 的 style 段出现 3D 词汇 -> render3d，且不再出现「不是 3D 渲染图」
+    ir3d = {"figure": {"canvas": {"w": 100, "h": 60}}, "elements": [],
+            "style": {"classification": "半写实插画",
+                      "evidence": "形体是 3D 的椭球，体积感来自球面明暗与表面网格线"}}
+    assert IG.resolve_style_mode(ir3d) == "render3d"
+    out3d = IG.build(ir3d, None, "render")
+    assert "不是 3D 渲染图" not in out3d, "3D 档不许再写「不是 3D 渲染图」"
+    assert "允许" in out3d and "3D 渲染的立体感" in out3d
+    assert "3D 渲染的期刊插画风" in out3d
+
+    # 2) 扁平 IR -> flat；扁平档仍然禁 3D（老行为不丢）
+    irflat = {"figure": {"canvas": {"w": 100, "h": 60}}, "elements": [],
+              "style": {"classification": "扁平矢量插画"}}
+    assert IG.resolve_style_mode(irflat) == "flat"
+    assert "不是 3D 渲染图" in IG.build(irflat, None, "render")
+
+    # 3) 判不出 -> ref（跟随参考图，不默认扁平）；CLI 能强制覆盖
+    irnone = {"figure": {"canvas": {"w": 100, "h": 60}}, "elements": []}
+    assert IG.resolve_style_mode(irnone) == "ref"
+    assert IG.resolve_style_mode(irnone, "render3d") == "render3d"
+    assert IG.resolve_style_mode(ir3d, "flat") == "flat"
+
+    # 4) 参考图 = 风格书：本图内容可以完全不同于参考图（必须写进简报）
+    outref = IG.build(irnone, None, "render")
+    assert "参考图是**风格书**" in outref
+    assert "内容可以和参考图完全不同" in outref
+
+    # 5) sketch 档保持扁平（那是切矢量图层的需要），但要说明它不是最终风格
+    outsk = IG.build(ir3d, None, "sketch")
+    assert "扁平矢量风" in outsk
+    assert "不是最终风格" in outsk
+
+
 @case("gen_figure_survives_dead_seeds",
       "生图时**单个 seed 的网络抖动不许打断整批**：防 seed 7 撞 TimeoutError -> "
       "整批 traceback 退出、后面的 seed 根本没跑、已经出的 seed 也没进 calls.jsonl")

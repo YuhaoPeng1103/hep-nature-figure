@@ -24,6 +24,21 @@ ir_to_genbrief —— IR → 给图像生成模型的**约束简报**
 
     python3 ir_to_genbrief.py ir/sketch6_spin_polarization.ir.yaml
     python3 ir_to_genbrief.py ir/xxx.ir.yaml --style-profile ../assets/style-profiles.json
+
+## 风格档（2026-09-27）
+
+    --style-mode auto | flat | render3d      （默认 auto）
+
+    auto     = 按 IR 的 `style` 段判断：含 3D/体积/网格线/半写实 等词 -> render3d；
+               含 扁平/平涂 -> flat；判不出 -> **ref（跟随参考图）**
+    flat     = 扁平矢量插画（老行为）
+    render3d = 3D 渲染的期刊插画（球面明暗 + 高光 + 柔和阴影 + 真渐变 + 网格线）
+
+★ 修的是这个坑：简报以前**把风格写死成扁平矢量**并禁止 3D，与 IR 的 `style`
+  段无关。实测（形变核->火球）：IR 要「半写实 3D / 球面明暗 + 网格线 /
+  火球橙->红渐变」，简报却写「不是 3D 渲染图」-> 火球被画成纯色圆盘。
+  现在 render 档按风格档分叉，`sketch` 档**保持扁平**（那是为了能切矢量图层，
+  不是最终风格）。
 """
 from __future__ import annotations
 
@@ -36,16 +51,85 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 # 图像生成模型最常犯的错——写进"禁止项"，比事后修便宜
-COMMON_FAILURES = [
+#
+# ★ 2026-09-27：原来第 4 条**无条件**写着「不是 3D 渲染图、不是写实材质」。
+#   后果（形变核->火球 算例实测）：IR 的 style 明写「半写实插画 / 3D 椭球 /
+#   球面明暗 + 网格线 / 火球橙->红渐变」，生成的简报却反过来禁止 3D ——
+#   IR 与简报**直接打架**，模型照简报走，火球被画成一个纯色圆盘。
+#   3D 渲染风（球面明暗/高光/柔和阴影/平滑渐变/网格线）在矢量化时会变成
+#   真 <gradient>，**并不**降低交付质量，不该被禁。现在按风格档分叉。
+_COMMON_FAILURES_HEAD = [
     "**不要添加 IR 元素清单里没有的东西**。模型最爱加装饰性的光晕、粒子、星星、"
     "多余箭头——那些会被带进矢量，且违背物理内容。",
     "**文字不要画错**。位图里的文字只当占位（下一步会重写成真 `<text>`），"
     "但拼写和数字必须对，否则临摹时会照抄错值。",
     "**不要改视角或投影**。IR 里写了视角约定就照办；换视角会让几何约束全部失效。",
-    "**不要画成照片级**。目标是**矢量插画风**（干净的形体 + 明确的描边），"
+]
+_COMMON_FAILURES_TAIL_FLAT = [
+    "**不要画成照片级**。目标是**扁平矢量插画风**（干净的形体 + 明确的描边），"
     "不是 3D 渲染图、不是写实材质。",
     "**不要加渐变背景、光斑、镜头光晕**这些摄影感的东西。",
 ]
+_COMMON_FAILURES_TAIL_3D = [
+    "**不要画成照片级**。**允许** 3D 渲染的立体感（球面明暗 / 高光 / 柔和阴影 / "
+    "平滑渐变 / 表面网格线）—— 这些矢量化后是真 `<gradient>`，是加分项；"
+    "但**不要**照片级材质纹理、颗粒噪点、景深虚化、镜头光晕。",
+    "**不要加渐变背景、装饰性光斑**这些摄影感的东西（背景保持纯白）。",
+]
+
+
+def common_failures(style_mode: str = "flat"):
+    """按风格档给「明确禁止」清单：扁平档禁 3D，3D 档反而鼓励 3D。"""
+    tail = (_COMMON_FAILURES_TAIL_FLAT if style_mode == "flat"
+            else _COMMON_FAILURES_TAIL_3D)
+    return _COMMON_FAILURES_HEAD + tail
+
+
+# ★ 2026-09-27：风格档。生图简报以前**把风格写死成扁平矢量**，与 IR 的
+#   style 段无关 —— IR 说了要 3D 也没用。现在三档：
+#     flat     = 扁平矢量插画（旧行为）
+#     render3d = 3D 渲染的期刊插画（球面明暗/高光/柔和阴影/真渐变）
+#     ref      = 跟随参考图（参考图 = 风格书；IR 没提示时的默认）
+STYLE_MODE_LABELS = {
+    "flat": "扁平矢量插画风",
+    "render3d": "3D 渲染的期刊插画风",
+    "ref": "跟随参考图（参考图是风格书）",
+}
+# 判据关键词：IR 的 style 段里出现这些 = 这张图要的是 3D 渲染质感
+_RENDER3D_HINTS = (
+    "3d", "3D", "三维", "立体", "体积感", "球面明暗", "网格线", "经纬",
+    "渲染", "半写实", "高光", "环境遮蔽", "volumetric",
+)
+_FLAT_HINTS = ("扁平", "平涂", "纯色填充", "flat", "描边插画")
+
+
+def resolve_style_mode(ir: dict, cli_mode: str = "auto") -> str:
+    """定风格档：命令行 > IR 的 style 段关键词 > 默认 ref（跟随参考图）。
+
+    ★ 不默认 flat：参考图是风格书，默认应该跟着参考图走，而不是退回扁平。
+      （实测教训：IR 要 3D，简报却写死扁平 -> 火球变纯色圆盘。）
+    """
+    if cli_mode in ("flat", "render3d"):
+        return cli_mode
+    st = ir.get("style") or {}
+    bits = []
+    for k in ("mode", "look", "render", "classification", "evidence",
+              "conventions", "note"):
+        v = st.get(k)
+        if v is None:
+            continue
+        if isinstance(v, (list, tuple)):
+            bits.extend(str(x) for x in v)
+        elif isinstance(v, dict):
+            bits.extend(str(x) for x in v.values())
+        else:
+            bits.append(str(v))
+    low = " ".join(bits).lower()
+    if any(h.lower() in low for h in _RENDER3D_HINTS):
+        return "render3d"
+    if any(h.lower() in low for h in _FLAT_HINTS):
+        return "flat"
+    return "ref"
 
 
 def load_ir(path: Path) -> dict:
@@ -125,7 +209,10 @@ def _fmt_num(v):
         return str(v)
 
 
-def build(ir: dict, style: dict | None, stage: str = "sketch") -> str:
+def build(ir: dict, style: dict | None, stage: str = "sketch",
+          style_mode: str | None = None) -> str:
+    if style_mode is None:
+        style_mode = resolve_style_mode(ir)
     fig = ir.get("figure", {})
     elems = sorted(ir.get("elements", []), key=lambda e: e.get("z", 0))
     cv = fig.get("canvas") or {}
@@ -151,6 +238,8 @@ def build(ir: dict, style: dict | None, stage: str = "sketch") -> str:
         L.append("★ 这一步要求**质感和光影到位**（上一步只出了构图稿）。")
         L.append("  但仍然：形体要清楚可辨认，不要靠模糊和噪点营造氛围 ——")
         L.append("  因为下一步还要把它转成矢量。")
+        L.append(f"★ 风格基调：**{STYLE_MODE_LABELS.get(style_mode, style_mode)}**"
+                 "（详见第四节；参考图是风格书，质感照它）")
     L.append("")
     L.append("★ **必须随本简报一起，把参考图传给模型**"
              "（`gen_figure.py --ref 图.png`，可多张）。")
@@ -176,6 +265,10 @@ def build(ir: dict, style: dict | None, stage: str = "sketch") -> str:
              "出的图会直接变成参考图的样子。选参考图优先「**内容不同、风格相同**」；"
              "只有同类图时，就裁它的配色/材质局部当参考。出图后跑 "
              "`scripts/ref_leak_check.py` 量一下，r>=0.85 就是照抄。）")
+    L.append("  ★ **反过来也成立：本图内容可以和参考图完全不同。** 参考图是**风格书**"
+             "（配色 / 线条 / 材质 / 光影 / 渲染方式），**不是内容模板** —— "
+             "不是每个任务都要照它的布局、物体、箭头画。参考图里**没有**的物理对象，"
+             "按本文（一、二、三节）画出来即可，绝不会因为「参考图里没有」就不画。")
     L.append("")
     L.append("★ **不要画外框**：图片四周不要边框、不要矩形画框、不要装饰性的外框线。")
     L.append("  （实测：模型 3/3 会在四周画一条 1px 淡灰细框，"
@@ -320,15 +413,58 @@ def build(ir: dict, style: dict | None, stage: str = "sketch") -> str:
         L.append("**扁平矢量风：平涂纯色 + 细描边。**")
         L.append("明确**禁止**：渐变填充、投影/内阴影、高光、反射、")
         L.append("3D 立体渲染、画布质感（噪点/纸纹/颗粒）。")
+        L.append("★ 这里的「扁平」**只是这一步的要求**（为了能自动切成矢量图层），")
+        L.append("  **不是最终风格** —— 最终质感由成品位图那步跟随参考图决定：")
+        L.append("  参考图是 3D 渲染风，成品就该是 3D 渲染风（本步扁平不影响它）。")
         L.append("比「好看」更重要的一件事：**形体边界要清晰**（下一步靠边界切图层）。")
         L.append("")
-    else:
-        L.append("═══ 四、风格 ═══")
-        L.append("目标是**期刊矢量插画风**，不是 3D 渲染图。具体：")
+    elif style_mode == "flat":
+        L.append("═══ 四、风格（扁平矢量插画风）═══")
         L.append("  · 形体用清晰的**深色描边**勾出来（参考图的描边是实的，不是发光的）")
-        L.append("  · 体积感来自**明暗渐变**，不是靠投影滤镜")
+        L.append("  · 体积感来自**少量明暗渐变**，不是靠投影滤镜")
         L.append("  · **先定一个全局光源**（比如左上方 45°），"
                  "所有高光、阴影、投影都从它推导 —— 不要每个物体各拍一个方向")
+    elif style_mode == "render3d":
+        L.append("═══ 四、风格（★ 3D 渲染的期刊插画风 —— 这一步就要质感）═══")
+        L.append("目标是**期刊里 3D 渲染的矢量插画**（`_T3精选` 里 T3-02 那条线）：")
+        L.append("  · 形体是**有体积的 3D 椭球/团块**：球面明暗 + 高光 + 环境遮蔽（AO），"
+                 "表面可带**经纬网线**表现三维（参考图就是这么做的）")
+        L.append("  · **允许并鼓励**平滑渐变 / 高光 / 柔和阴影 / 半透明叠色 —— "
+                 "这些在矢量化时会变成真 `<gradient>` 与 `fill-opacity`，"
+                 "**不会**降低交付质量，正是这一步要的东西")
+        L.append("  · 火球/热区：**内亮外暗的多层半透明渐变**（亮核 → 橙 → 红），"
+                 "内部核子球互相重叠；边缘柔和但不模糊")
+        L.append("  · **先定一个全局光源**（比如左上方 45°），"
+                 "所有高光、阴影、投影都从它推导 —— 不要每个物体各拍一个方向")
+        L.append("  · **仍然不要**：照片级材质纹理、颗粒/噪点、景深虚化、镜头光晕、"
+                 "渐变背景 —— 这些矢量化后是噪声，会毁掉图层结构")
+    else:  # ref —— 跟随参考图
+        L.append("═══ 四、风格（★ 跟随参考图 —— 参考图是**风格书**）═══")
+        L.append("**渲染风格由参考图决定，不要默认成扁平矢量风。**")
+        L.append("  · 先看参考图是哪种：2D 扁平矢量 / 3D 渲染插画 / 半写实 —— 照它来；")
+        L.append("  · 参考图若是 **3D 渲染**：就画成有体积的 3D 形体（球面明暗 + 高光 + "
+                 "柔和阴影 + 平滑渐变 + 表面网格线），配色 / 材质 / 光源方向照参考图；")
+        L.append("  · **允许并鼓励**平滑渐变 / 高光 / 柔和阴影 / 半透明叠色"
+                 "（矢量化时变成真 `<gradient>`，不降低交付质量）；")
+        L.append("  · **仍然不要**：照片级材质纹理、颗粒/噪点、景深虚化、镜头光晕、渐变背景。")
+    if stage == "render":
+        _ist = ir.get("style") or {}
+        if _ist.get("classification"):
+            L.append(f"  · IR 给的风格定位：{_ist['classification']}")
+        _pal = _ist.get("palette")
+        if _pal:
+            L.append("  · IR 指定的配色（**照这个用**）：")
+            if isinstance(_pal, dict):
+                for _k, _v in _pal.items():
+                    L.append(f"     {_k}: {_v}")
+            elif isinstance(_pal, (list, tuple)):
+                L.append("     " + " / ".join(str(x) for x in _pal))
+            else:
+                L.append(f"     {_pal}")
+        _lw = _ist.get("line_widths")
+        if isinstance(_lw, dict) and _lw:
+            L.append("  · IR 指定的线宽：" + "，".join(
+                f"{k}={v}" for k, v in _lw.items()))
     if style and stage == "render":
         L.append(f"  · 风格类的量测参考（{style['class']}，"
                  f"n={style['n_sources']}）：")
@@ -340,7 +476,7 @@ def build(ir: dict, style: dict | None, stage: str = "sketch") -> str:
 
     # ── 禁止 ──
     L.append("═══ 五、明确禁止 ═══")
-    for i, f in enumerate(COMMON_FAILURES, 1):
+    for i, f in enumerate(common_failures(style_mode), 1):
         L.append(f"{i}. {f}")
     L.append("")
 
@@ -389,6 +525,12 @@ def main():
     ap.add_argument("--stage", choices=("sketch", "render"), default="sketch",
                     help="sketch=中间稿（只求构图，路径1 用）；"
                          "render=成品位图（要质感，路径2 的第二段用）")
+    ap.add_argument("--style-mode", choices=("auto", "flat", "render3d"),
+                    default="auto",
+                    help="生图风格档。auto=按 IR 的 style 段判断（含 3D/体积/"
+                         "网格线 等词 -> render3d；含 扁平/平涂 -> flat；"
+                         "判不出 -> 跟随参考图）。flat=扁平矢量；"
+                         "render3d=3D 渲染的期刊插画（球面明暗/高光/真渐变）")
     ap.add_argument("-o", "--out", default=None)
     a = ap.parse_args()
 
@@ -397,11 +539,12 @@ def main():
         raise SystemExit(f"找不到 {p}")
     ir = load_ir(p)
     style = load_style(a.style_profile, a.want_class)
-    brief = build(ir, style, a.stage)
+    style_mode = resolve_style_mode(ir, a.style_mode)
+    brief = build(ir, style, a.stage, style_mode=style_mode)
 
     if a.out:
         Path(a.out).write_text(brief, encoding="utf-8")
-        print(f"已输出 {a.out}（{len(brief)} 字符）")
+        print(f"已输出 {a.out}（{len(brief)} 字符，风格档 {style_mode}）")
     else:
         print(brief)
 

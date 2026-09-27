@@ -1,0 +1,37 @@
+# 图层清单 — evo2_faithful.svg
+
+图层树：`面板 panel` → `物理元素 element` → `<path>`。
+★ 图层只按【物理元素】分，**不按颜色分层** —— 人打开图层面板看到的应该是
+物理（nucleus-A / photon-B / arrow-b…），不是 white / orange / gray。
+同色矩形仍会并成一条 path（那只是体积优化），颜色挂在 `data-color` 上；
+要把一个元素再拆成子结构（如 `nucleus-A-body` / `nucleus-A-outline`），用 `panels.py` 的 `SPLIT` 显式写，而不是靠自动的颜色分组。
+在 Illustrator 里打开「图层」面板即可按下面的名字点选；在 Inkscape 里是子图层。
+
+| 面板 | 物理元素 | 说明 | 包围盒 (x0,y0,x1,y1) | 路径数 | 像素 |
+|---|---|---|---|---|---|
+| `p` | `p-background` | Panel background (white) | 0,0,1663,927 | 166 | 1296356 |
+| `p` | `p-stage1-nucleus` | Stage 1: one deformed nucleus (tilted ellipsoid with surface mesh) | 54,227,280,527 | 3918 | 42589 |
+| `p` | `p-stage2-fluctuations` | Stage 2: quantum fluctuations -- the same nucleus in three orientations (three overlapping ellipses) | 471,238,725,522 | 2871 | 53495 |
+| `p` | `p-stage3-nucleus-A` | Stage 3: projectile nucleus A, left lobe of the colliding pair | 853,283,1054,460 | 2706 | 21383 |
+| `p` | `p-stage3-nucleus-B` | Stage 3: target nucleus B, right lobe of the colliding pair | 854,308,1204,491 | 3525 | 24708 |
+| `p` | `p-stage4-fireball` | Stage 4: QGP fireball (orange radial-gradient disc) | 1039,219,1649,562 | 9246 | 61244 |
+| `p` | `p-arrow-1` | Evolution arrow 1 (stage 1 -> 2, thick, pointing right) | 311,366,420,420 | 450 | 2613 |
+| `p` | `p-arrow-2` | Evolution arrow 2 (stage 2 -> 3, thick, pointing right) | 733,369,833,422 | 412 | 2378 |
+| `p` | `p-arrow-3` | Evolution arrow 3 (stage 3 -> 4, thick, pointing right) | 1217,370,1316,424 | 420 | 2362 |
+| `p` | `p-stage4-nucleons` | Stage 4: nucleons inside the fireball (four overlapping discs) | 1390,308,1577,492 | 6518 | 26283 |
+| `p` | `p-stage3-overlap` | Stage 3: overlapping (participating) matter -- vertical lens | 996,333,1053,455 | 1983 | 4692 |
+| `p` | `p-stage1-nucleons` | Stage 1: nucleons inside the deformed nucleus (three grey discs) | 100,330,204,427 | 943 | 3498 |
+| `p` | `p-text` | text layer (5 editable <text>) | - | 5 | - |
+
+## 怎么改
+
+- 改某个物理内容（火球 / 核子 / 流箭头 / 曲面 / 坐标轴 / 介质管…）：选中对应 `panel-element` 图层改颜色或形状。
+- 改文字：选中 `panel-text` 里的真 `<text>`，字体、字号、内容都可直接编辑。
+- 要重命名/调整元素范围：编辑 `panels.py` 的 `ELEMENTS`（框 + 颜色条件）与 `SPLIT`，再重跑 groupvec.py。
+- 元素名字带「+ 真X渐变 body + 明度层」的：该元素的整体颜色就是一条真渐变，
+  改 <defs> 里那条 gradient 的 stop 即整体改色；明暗层是黑/白 + fill-opacity，
+- 元素名字带「+ 基色xN + 明度层」的：N 个基色块各有一个 fill（整体改色的把手），
+  明暗层是黑/白 + fill-opacity（不含颜色），换基色时明暗关系自动跟着走。
+- 元素名字带「+ 真 radialGradient/linearGradient」的：该元素的大片平滑渐变已
+  合并成一条 `data-role="gradient-shape"` 的 path（渐变定义在文件末尾的 `<defs>`），
+  底色台阶已丢掉；改渐变色/中心就在 `<defs>` 里改那个 gradient。

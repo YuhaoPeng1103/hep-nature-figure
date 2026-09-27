@@ -133,6 +133,27 @@ def choose_fam(runs, bold=False):
     return (FONT_B, FAM_B) if bold else (FONT_R, FAM_R)
 
 
+
+def fam_candidates(runs, bold=False):
+    """本标签可试的字体，**按优先级**：[主字体] + [常用无衬线体候选]。
+
+    ★ 2026-09-27：位图里的标签是生图模型画的，字体每张图都可能不同。以前只拿
+      主字体（Arial）硬套，字面比例一变就过不了 `align` 的 dh 验收，标签退回成
+      色块轮廓 —— 投稿门禁「文字必须可编辑」直接失守。改成逐标签试候选字体，
+      取第一个过验收的（见 groupvec 的 kept 循环）。
+      ★ 含数学符号（⊥ ≳ ⟨⟩）的标签走数学兜底字体，**不轮换** —— 换回 Arial
+      只会更缺字。
+    """
+    fam = choose_fam(runs, bold)
+    out = [fam]
+    math = fonts.pick_math()
+    if math[0] and fam[0] == math[0]:
+        return out
+    for f in fonts.pick_candidates(bold):
+        if f[0] != fam[0] and f not in out:
+            out.append(f)
+    return out
+
 def width_em(runs, bold=False, ss=SUB_S):
     w = 0.0
     for t, k in runs:

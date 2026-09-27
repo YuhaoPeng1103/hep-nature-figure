@@ -101,6 +101,8 @@
 ⑤ ★ 闸口①：草图过物理检查（不能跳）      scripts/check_sketch.py
    ↓
 ⑥ 出成品位图（--content-ref 草图 + --ref 风格） scripts/gen_figure.py --stage render
+      ★ 简报侧先定风格档：ir_to_genbrief.py --stage render --style-mode auto
+        （IR 写 3D/半写实 -> render3d 出 3D 渲染简报；参考图是风格书，不是内容模板）
    ↓
 ⑦ ★ 闸口②：成品位图再过一次同一个闸口    scripts/check_sketch.py
    ↓
@@ -211,6 +213,7 @@ python3 scripts/raster_to_vector_semantic.py fig.png -o fig.svg \
 |---|---|---|
 | 自旋关联示意图（路线③ 全过程） | <a href="assets/demos/spin_semantic/cmp_preview.png"><img src="assets/demos/spin_semantic/cmp_preview.png" width="260" alt="自旋关联：位图 vs 临摹矢量"></a> | 上 = 生图模型的成品位图，下 = 临摹矢量回渲染；非文字区 MAE **0.518**、`<image>` **0** |
 | 形变核 → 火球四阶段链（路线③ 全过程） | <a href="assets/demos/evo_semantic/cmp_preview.png"><img src="assets/demos/evo_semantic/cmp_preview.png" width="260" alt="形变核→火球：位图 vs 临摹矢量"></a> | 上 = 成品位图，下 = 全矢量临摹；MAE **0.626**、31005 `<path>` / `<image>` **0**、PDF 183x102 mm 纯矢量 | 
+| **形变核 → 火球 3D 版**（v2.6.7 风格档） | <a href="assets/demos/evo3d_semantic/cmp_bitmap_vs_svg.png"><img src="assets/demos/evo3d_semantic/cmp_bitmap_vs_svg.png" width="260" alt="形变核→火球 3D：位图 vs 矢量"></a> | 同一份 IR + 同一张参考图，只把 `--style-mode` 判成 `render3d`：火球从**纯色圆盘**变成内亮外暗的多层半透明 3D 渐变；686 `<path>` / **5 `<text>`** / `<image>` **0**，MAE 0.994 |
 | UPC 示意图（三条落点并排） | <a href="assets/demos/upc_semantic/cmp_preview.png"><img src="assets/demos/upc_semantic/cmp_preview.png" width="260" alt="UPC：生图位图 / 语义临摹 / 代码直写"></a> | 1 生图位图 / 2 语义临摹 / 3 代码直写 —— 同一条主线的三种落点 |
 | 生图模型的成品位图（原图） | <a href="assets/demos/upc_semantic/src_upc.png"><img src="assets/demos/upc_semantic/src_upc.png" width="260" alt="UPC 生图位图"></a> | 路线③ 的中间产物：只当作"更好的草图"，它过了闸口才允许照它画 |
 | 手绘草图（路线②③ 的输入） | <a href="assets/demos/sketch_upc.png"><img src="assets/demos/sketch_upc.png" width="260" alt="手绘草图输入"></a> | 草图只要求"构图清晰、元素齐全"，质感由后面的生图负责 |
@@ -372,7 +375,7 @@ python3 scripts/demo_combined.py
 │   ├── repair_brief.py          返修单（归一化坐标 + 具体改多少）
 │   └── demo_*.py                多工具联合 / 喷注淬火 / 时间线 示范
 ├── evals/
-│   ├── test_tools.py            24 个回归 case（每个对应一个真实踩过的坑）
+│   ├── test_tools.py            25 个回归 case（每个对应一个真实踩过的坑）
 │   └── evals.json / README.md   评测清单
 └── assets/
     ├── style-profiles.json      风格档案（门禁用；存**区间**不存点值）
@@ -381,7 +384,8 @@ python3 scripts/demo_combined.py
     └── demos/
         ├── upc_semantic/        UPC 完整算例（词表 / 元素表 / 源图 / 并排预览）
         ├── spin_semantic/       自旋关联完整算例（同上，v2.6.3）
-        └── evo_semantic/        形变核→火球四阶段链（v2.6.5，含 A/B 实验台 sweep.py）
+        ├── evo_semantic/        形变核→火球四阶段链（v2.6.5，含 A/B 实验台 sweep.py）
+        └── evo3d_semantic/     形变核→火球 **3D 风格档**（同一份 IR，--style-mode render3d，v2.6.7）
 ```
 
 ---
@@ -400,6 +404,7 @@ python3 scripts/demo_combined.py
 | `CHANGELOG.md` | 想知道某个坑是什么时候、怎么修的（每条都带实测数字） |
 | `assets/demos/upc_semantic/`、`assets/demos/spin_semantic/`、`assets/demos/evo_semantic/` | 想照抄一个完整算例（词表 + 元素表 + 命令 + 实测数字） |
 | `assets/demos/evo_semantic/README.md` | 想知道「真 `<gradient>` 到底帮不帮忙」—— 那里有 5 档参数的 A/B 表 |
+| `assets/demos/evo3d_semantic/` | 想知道「参考图 = 风格书，不是内容模板」怎么落地：同一份 IR 换个风格档，火球从纯色圆盘变成 3D 渐变 |
 
 ---
 

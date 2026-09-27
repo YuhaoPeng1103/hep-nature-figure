@@ -209,29 +209,49 @@ def main():
         if len(cand) < n0:
             print("  词表里 %d 条与 MANUAL 重叠，已丢弃（同一句只画一遍）" % (n0 - len(cand)))
 
-    kept = []
+    kept, fam_swapped = [], 0
     for x, y, w, h, txt, bold, blh, raw in cand:
         runs = LB.parse(txt)
         if not LB.can_render(runs, bold):
             continue
-        # 主字体缺字（⊥ ≳ 这类）→ 整条换数学兜底字体。★ 必须在 align() 之前 set：
-        #   align 靠字体度量 + cairo 栅格化选字号/字距，换字体会改这两样。
-        fam = LB.choose_fam(runs, bold)
-        LB.set_fam(*fam)
         raw_runs = None if bold else LB.parse(raw)
-        res = LB.align(a, (x, y, w, h), runs, bold=bold, bl_hint=blh, raw_runs=raw_runs)
-        if res is None:
-            continue
-        # 验收：重叠残差要明显优于「不画字」，且渲染墨迹高度与原图一致
-        # dh 的门限按字号缩放 —— 写死 2px 会在高工作分辨率下误杀好拟合（见 labels.dh_lim）
-        if res[0] > max(0.14, 0.70 * res[7]["ink"]) or res[7]["dh"] > LB.dh_lim(res[7]):
+
+        def _accept(r):
+            # 验收：重叠残差要明显优于「不画字」，且渲染墨迹高度与原图一致。
+            # dh 门限按字号缩放 —— 写死 2px 会在高工作分辨率下误杀好拟合
+            # （见 labels.dh_lim）。
+            return (r is not None
+                    and r[0] <= max(0.14, 0.70 * r[7]["ink"])
+                    and r[7]["dh"] <= LB.dh_lim(r[7]))
+
+        # ★ 2026-09-27：**逐标签选字体**。位图里的标签是生图模型画的，
+        #   字体每张图都可能不同；以前只拿主字体（Arial）硬套，字面比例
+        #   一变（实测 Tahoma 那类窄高体）就过不了 dh 验收 → 标签
+        #   退回成色块轮廓，「文字必须可编辑」直接失守。
+        #   默认字体先试（不改老行为），不过关再依次试候选字体。
+        #   字体**必须在 align() 之前 set**：align 靠字体度量 + cairo 栅格化
+        #   选字号/字距，换字体会改这两样。
+        res, fam = None, None
+        for fi, tf in enumerate(LB.fam_candidates(runs, bold)):
+            LB.set_fam(*tf)
+            r = LB.align(a, (x, y, w, h), runs, bold=bold, bl_hint=blh,
+                         raw_runs=raw_runs)
+            if _accept(r):
+                res, fam = r, tf
+                if fi:
+                    fam_swapped += 1
+                    print("    · 标签 %r 主字体不过验收 → 换 %s" % (txt, tf[1]))
+                break
+        if fam is None:
             continue
         x0, y0, x1, y1 = LB.word_box((x, y, w, h), Wd, H)
         sub = a[y0:y1, x0:x1].reshape(-1, 3)
         col = sub[sub.mean(1).argmin()]
         kept.append(dict(box=(x, y, w, h), runs=runs, bold=bold, res=res, fam=fam,
                          color="#%02x%02x%02x" % tuple(int(v) for v in col), raw=raw))
-    print("  文字对象 %d 个（OCR+手工候选 %d，逐词自校验通过）" % (len(kept), len(cand)))
+    print("  文字对象 %d 个（OCR+手工候选 %d，逐词自校验通过%s）"
+          % (len(kept), len(cand),
+             ("；其中 %d 条换了字体" % fam_swapped) if fam_swapped else ""))
 
     # ---------- 1b. 旋转标签 ----------
     #   labels.align() 的墨迹模型只认水平文字，旋转标签（斜排的箭头说明）

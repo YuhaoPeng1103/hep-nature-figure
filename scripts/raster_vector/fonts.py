@@ -95,6 +95,58 @@ def pick_math():
     return _cache["math"]
 
 
+# ★ 2026-09-27：可轮换的字体候选。
+#   位图里的标签是生图模型画的，**字体每张图都可能不同**（同一份简报、换个 seed
+#   就可能从 Arial 那类比例换到 Tahoma 那类窄高体）。矢量化时只拿 Arial 硬套，
+#   字面比例一变就过不了 labels.align 的 dh 验收，标签会退回成色块轮廓 ——
+#   投稿门禁「文字必须可编辑」直接失守。实测（形变核->火球 新版位图，5 个标签）：
+#     Arial    : deformed dh=6 / collision dh=5 / QGP fireball dh=10 dw=9（3 条不过）
+#     Tahoma   : deformed dh=5 / collision dh=3 / QGP fireball dh=3 dw=0（3 条全过）
+#   所以给 labels.fam_candidates 提供这张有序表，逐标签试到过为止。
+_CAND_LIST = {
+    False: [r"C:/Windows/Fonts/arial.ttf",
+            r"C:/Windows/Fonts/tahoma.ttf",
+            r"C:/Windows/Fonts/verdana.ttf",
+            r"C:/Windows/Fonts/calibri.ttf",
+            r"C:/Windows/Fonts/segoeui.ttf",
+            r"C:/Windows/Fonts/DejaVuSans.ttf",
+            "/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf",
+            "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf"],
+    True:  [r"C:/Windows/Fonts/arialbd.ttf",
+            r"C:/Windows/Fonts/tahomabd.ttf",
+            r"C:/Windows/Fonts/verdana_bd.ttf",
+            r"C:/Windows/Fonts/calibrib.ttf",
+            r"C:/Windows/Fonts/segoeuib.ttf",
+            r"C:/Windows/Fonts/DejaVuSans-Bold.ttf",
+            "/usr/share/fonts/truetype/liberation/LiberationSans-Bold.ttf",
+            "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf"],
+}
+_famtried = {}
+
+
+def pick_candidates(bold=False):
+    """可轮换的字体候选 [(路径, 族名), ...]（只含**存在且能读出族名**的）。
+
+    ★ 族名一律从字体文件本身读（`_family_of`），不许按文件名猜 ——
+      这是本模块的头号纪律：量字宽的字体必须和 SVG 里写的族名一致。
+    """
+    if "cands%d" % bold in _cache:
+        return _cache["cands%d" % bold]
+    out = []
+    for path in _CAND_LIST[bold]:
+        if not os.path.exists(path):
+            continue
+        if path not in _famtried:
+            try:
+                _famtried[path] = _family_of(path)
+            except Exception:
+                _famtried[path] = None
+        if _famtried[path] and (path, _famtried[path]) not in out:
+            out.append((path, _famtried[path]))
+    _cache["cands%d" % bold] = out
+    return out
+
+
 def pick(bold=False):
     """返回 (字体文件路径, SVG 里该写的 font-family 单值)。找不到就报错，不静默降级。"""
     if bold in _cache:

@@ -148,7 +148,7 @@ python3 scripts/raster_to_vector_semantic.py fig.png -o fig.svg --words words.tx
 页面就是图本身，白底矩形总是顶到边 → `audit_composition` 会报「出界」（白上白被裁
 不可见，现已不计）；渐变填充会被 MuPDF 当成嵌入位图 →
 `check_delivery` 会报「72 dpi 位图」（现已改成扫 xref 认真 `/Subtype /Image`）。
-完整算例（含实测数字）：`assets/demos/upc_semantic/`。
+完整算例（含实测数字）：`assets/demos/upc_semantic/`、`assets/demos/spin_semantic/`、`assets/demos/evo_semantic/`（质感）与 `assets/demos/evo3d_semantic/`（**3D 风格档**：同一份 IR，`--style-mode render3d`，火球从纯色圆盘变成内亮外暗的 3D 渐变）。
 
 ### ★ 物理检查要在【最终矢量】上做
 
@@ -189,9 +189,13 @@ python3 scripts/raster_to_vector_semantic.py fig.png -o fig.svg --words words.tx
 
 1. **API key 由使用者自己提供** —— `gen_figure.py` 读环境变量 `DASHSCOPE_API_KEY`，
    脚本里**不存任何 key**。别人装了 skill 就用他自己的 key（没 key 也能 `--dry-run` 自检）。
-2. **必须给风格参考图**（`--ref`，可多张）—— 参考图 = Nature 风格书。
+2. **必须给风格参考图**（`--ref`，可多张）—— 参考图 = Nature **风格书**。
    只给文字简报，出来的图一定很"通用"。`_T3精选` 这类本地图直接传就行；
    要公开发布时用 `assets/t3-exemplars/` 里那 2 张 CC-BY 的（见纪律 0）。
+   ★ 给的是**风格**（配色/线条/材质/光影/**渲染方式**），**不是内容模板** ——
+   本图内容可以和参考图**完全不同**；参考图里没有的物理对象照 IR 画出来就行，
+   不要因为"参考图里没有"就不画。**「期刊矢量插画风」≠「扁平 2D」**：
+   T3-02 那条线本身就是 3D 渲染的矢量插画（见「参考图 = 风格书」一节）。
 3. **两个产物都要落盘 + 记调用记录** —— 草图、成品位图都要输出出来
    （草图还要矢量化成 SVG），`gen/` 里同时写 `calls.jsonl`（model/seed/size/refs/
    prompt 指纹/输出文件），复现和核对计费都靠它。
@@ -493,6 +497,9 @@ python3 scripts/sketch_to_vector.py gen/sketch_s1_clean.png -o gen/sketch_s1.svg
 python3 scripts/check_sketch.py gen/sketch_s1_clean.png --ir ir/xxx.ir.yaml
 
 # ── 5. 出成品位图（★ 草图 + 风格参考图都要带）──────────────
+#   ★ 风格档：--style-mode auto|flat|render3d（默认 auto，按 IR 的 style 段判）
+#     IR 写 3D/半写实/体积/网格线 -> render3d（球面明暗+高光+真渐变）；
+#     判不出 -> ref（跟随参考图）。参考图是风格书，不是内容模板。
 python3 scripts/ir_to_genbrief.py ir/xxx.ir.yaml --stage render -o brief2.md
 python3 scripts/gen_figure.py --brief brief2.md --stage render \
     --content-ref gen/sketch_s1_clean.png --ref refs/T3-33.png --seeds 21,22 --outdir gen/
@@ -517,6 +524,15 @@ python3 scripts/check_sketch.py gen/render_s22_clean.png --ir ir/xxx.ir.yaml
 #       形变核→火球 算例实测  --q 0 --R 5 -> MAE 0.626 / 贴边比 0.62
 #                            --q 16 --R 10 -> MAE 1.195 / 贴边比 1.48（台阶肉眼可见）
 #     代价：path 数 31005 vs 934、体积 3.99 MB vs 1.22 MB。要小体积再退回 --q 32。
+#   ★ 逐标签选字体（2026-09-27）：位图里的标签是**生图模型画的，字体每张图都可能
+#     不同**。矢量化以前只拿主字体（Arial）硬套，字面比例一变（实测 Tahoma 那类
+#     窄高体）就过不了 labels.align 的墨迹高度验收 → 标签**退回成色块轮廓**，
+#     "文字必须可编辑"直接失守。现在 `labels.fam_candidates` 会按
+#     Arial → Tahoma → Verdana → Calibri → Segoe UI → DejaVu 依次试，取第一个过
+#     验收的（默认字体就过时行为不变）。
+#       实测（形变核→火球 3D 版，5 个标签）：只试 Arial -> 5 条里 2 条成 <text>；
+#         逐标签选字体 -> **5 条全成 <text>**（其中 3 条换成 Tahoma）。
+#     SVG 里写的是**实际量字宽用的那个字体族名**（从字体文件读，不靠猜）。
 python3 scripts/raster_to_vector_semantic.py gen/render_s22_clean.png -o fig.svg \
         --words words.txt --panels my_panels.py --W 1662 --R 5 --K 7 --q 0 \
         --legend fig_layers.md --el_txt fig_el_table.txt --check
@@ -613,6 +629,53 @@ python3 scripts/ref_leak_check.py gen/render_s22.png \
 
 > ⚠️ **测不到的**：只抄一部分（r 会掉到 0.3 左右）、以及"照搬构图但换配色"。
 > 这两种要靠闸口①的构图逐条核对 + 人眼。别把 `ref_leak_check` 通过当成"没抄"的证明。
+
+### ★ 参考图 = 风格书，不是内容模板（v2.6.7）
+
+**要的是**：参考图提供**风格**（配色 / 线条 / 材质 / 光影 / **渲染方式**），
+**不提供内容** —— 不要求布局、物体、箭头、文字跟参考图一样。
+**「期刊矢量插画风」不等于「扁平 2D」**：`_T3精选` 里 T3-02 那条线本身就是
+**3D 渲染**的矢量插画（核子球面明暗 + 高光 + 经纬网格线 + 火球橙→红多层渐变）。
+参考图里**没有**的物理对象，按 IR 画出来就行，不要因为"参考图里没有"就不画。
+
+**据此定风格档**（`ir_to_genbrief.py --style-mode`，默认 `auto`）：
+
+| 档 | 简报第四节怎么写 | 什么时候用 |
+|---|---|---|
+| `flat` | 扁平矢量：平涂 + 细描边 | IR 明说要扁平（简单的流程图式示意图） |
+| `render3d` | 3D 渲染插画：球面明暗 + 高光 + 柔和阴影 + **真 `<gradient>`** + 网格线 | IR 明说 3D / 半写实 / 体积 / 网格线（T3-02 那条线） |
+| `ref` | **跟随参考图**：先看参考图是 2D 还是 3D，照它的渲染方式来 | `auto` 判不出时的默认 |
+
+`auto` 的判据 = IR 的 `style` 段（`classification` / `evidence` / `conventions`）
+关键词：含 `3D` / 体积 / 网格线 / 半写实 → `render3d`；含 扁平 / 平涂 → `flat`；
+都没有 → `ref`。**只有 `sketch` 档永远保持扁平**（那是为了能自动切矢量图层，
+**不是最终风格**）；成品位图档按上表走。
+
+### ★ 反过来：该学的风格没学到怎么办（v2.6.7）
+
+**现象**：出的图又干又平，火球是个**纯色圆盘**，完全没有参考图那种 3D 质感 ——
+用了 diffusion model 却没用它的好处。
+
+**根因（实测，形变核→火球 算例）**：不是模型不行，是**简报把风格写死了**。
+IR 的 `style` 明写「半写实插画 / 3D 椭球 / 球面明暗 + 网格线 / 火球橙→红渐变」，
+而 `ir_to_genbrief.py` 生成的简报却写着「目标是期刊矢量插画风，**不是 3D 渲染图**」
+—— IR 与简报**直接打架**，模型照简报走，于是出纯色圆盘。
+
+> ⚠️ 这和上面「抄成参考图」是**两个相反方向的病**：
+> 一个嫌它太像参考图（内容被抄，查 `ref_leak_check` r 太高）；
+> 一个嫌它不像参考图（风格没学到，查**简报里有没有禁止 3D**）。
+> 别用同一套排查。
+
+排查顺序：
+1. 打开简报看**第四节（风格）+ 第五节（禁止项）**：出现「不是 3D 渲染图」
+   → 风格档错了（IR 要 3D 却给了 flat）。重出简报：
+   ```bash
+   python3 scripts/ir_to_genbrief.py ir/xxx.ir.yaml --stage render \
+       --style-mode render3d -o brief2.md     # 或 --style-mode auto，让 IR 自己判
+   ```
+2. 简报第四节现在会把 IR 的 `style.palette` / `line_widths` **原样带出来**；
+   要是没有，就往 IR 的 `style` 段补配色和线宽（`render3d` 档尤其需要）。
+3. 到这里才对不上，才考虑换模型 / 加 seed。
 
 ### `check_sketch.py` 为什么要分两类输出（`references/ir-spec.md` 有详述）
 
