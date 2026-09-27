@@ -1021,5 +1021,156 @@ def test_path_asymmetry():
                       "量测环节若整段失效（比如找不到介质/喷注），也必须算报错，"
                       "不能静默通过")
 
+
+
+# ── v2.7.3：颜色纪律 + 视觉层级 ─────────────────────────────────────
+# 工具：scripts/style_bench.py 的 stray_color / m_color_families / m_hierarchy
+
+
+def _sb_fig(size=(700, 500), neon=False):
+    """合成图：白底 + 橙块 + 蓝条 + 灰条（+ 可选一块荧光绿）。"""
+    from PIL import Image, ImageDraw
+    im = Image.new("RGB", size, "white")
+    d = ImageDraw.Draw(im)
+    k = size[0] / 700.0
+    for box, col in (([60, 60, 380, 380], (226, 120, 48)),
+                     ([430, 90, 640, 200], (60, 90, 180)),
+                     ([430, 260, 640, 340], (150, 150, 155))):
+        d.rectangle([v * k for v in box], fill=col)
+    if neon:
+        d.rectangle([470 * k, 380 * k, 660 * k, 470 * k], fill=(60, 230, 40))
+    return im
+
+
+def _sb_arr(im, n=700):
+    import numpy as np
+    from PIL import Image
+    w, h = im.size
+    sc = n / max(w, h)
+    if sc < 1:
+        im = im.resize((max(8, int(w * sc)), max(8, int(h * sc))), Image.LANCZOS)
+    return np.asarray(im).astype("float32") / 255.0
+
+
+@case("stray_color_needs_an_explicit_palette",
+      "越界色必须【手给完整色板】才能判。这个 case 锁死两个被实测否掉的错误设计")
+def test_stray_color():
+    """
+    ★ 实测（2026-09-27）否掉的两个设计，都在这里钉住不许回来：
+
+    设计一（用本图自己的 k-means 色板）：**永远测不出来**。合成图加一整块荧光绿
+      （占墨迹 10%），读数仍是 0.0000 —— 够大的异色会自己挣到一个簇中心。
+      测的是"稀有色的长尾"，不是颜色纪律。
+
+    设计二（用自动抽的 top-6 色板当目标）：**判不了**。k-means 按像素数排名，
+      深描边/次要色族挤不进前 6 —— 实测自比 0.031、同风格异图 0.021（地板），
+      而换一张正常的不同图就是 0.33~0.89。那不是越界，是色板不完整。
+
+    最终设计：`stray_color(a, pal)` 是纯函数，色板由调用者给。下面锁三件事：
+      ① 色板完整 -> 读数≈0（且模糊/抗锯齿不许把它顶上去）
+      ② 色板缺一个色族 -> 能把那一族的占比报出来
+      ③ 加异色 -> 单调上升
+    """
+    import check_sketch  # noqa: F401  （保证 scripts 在 sys.path 上）
+    import style_bench as SB
+    from PIL import ImageFilter
+
+    MINE = ["#e27832", "#3c5ab4", "#96969b"]          # 正好覆盖那三块
+    JET = ["#e27832", "#d9451f", "#ffd257", "#2f6fd0", "#1b3f8f",
+           "#c9d2de", "#fffdf0", "#2a2d33"]           # 缺灰家族
+
+    a_clean = _sb_arr(_sb_fig())
+    a_neon = _sb_arr(_sb_fig(neon=True))
+    # 2.5px 高斯模糊 = 造出大片抗锯齿过渡色（模拟 JPEG/低分辨率参考图）
+    a_blur = _sb_arr(_sb_fig().filter(ImageFilter.GaussianBlur(2.5)))
+
+    # ① 色板完整 -> ≈0
+    v_ok = SB.stray_color(a_clean, MINE)
+    assert v_ok < 0.02, "色板完整时报了 %.4f，应该≈0" % v_ok
+    # ★ 抗锯齿守卫：没有 solid_ink 这一层的话，模糊版会报 0.3+（见模块校准记录）
+    v_blur = SB.stray_color(a_blur, MINE)
+    assert v_blur < 0.05, (
+        "模糊（抗锯齿过渡带）被算成越界了：%.4f —— solid_ink 那层守卫失效，"
+        "任何图都会'满屏杂色'" % v_blur)
+
+    # ② 色板缺一个色族 -> 报出那一族的占比（灰家族实测 11.7%）
+    v_miss = SB.stray_color(a_clean, JET)
+    assert v_miss > 0.08, ("色板缺灰家族却只报 %.4f —— 漏检了整族颜色" % v_miss)
+
+    # ③ 异色单调上升
+    v_neon = SB.stray_color(a_neon, JET)
+    assert v_neon > v_miss + 0.05, (
+        "加了荧光绿后 %.4f 没有明显高于 %.4f —— 单调性不成立" % (v_neon, v_miss))
+
+    # ④ 没给色板 -> 明确返回 0.0（宁可不报，不可瞎报）
+    assert SB.stray_color(a_clean, []) == 0.0
+    assert SB.stray_color(a_clean, ["不是颜色", "#12"]) == 0.0
+
+
+@case("color_families_and_hierarchy_are_scale_stable",
+      "色族数 + 视觉层级在 1400px→350px 之间必须稳（它们是'可跨来源'的前提）")
+def test_metrics_scale_stable():
+    """
+    ★ 实测（2026-09-27，合成 3 色图，1400/1000/700/500/350 五档）：
+        色族 3/3/3/3/3   hero_share 0.7178→0.7160（-0.3%）
+        hier_gap 4.40→4.37（-1%）   hero_contrast 0.3891→0.3905
+    这个 case 守的是"缩放不该改变结论"。真实图上的 JPEG 敏感性另见
+    style_bench.py 末尾的校准记录（color_families 会 ±1，hier_gap 在≈100 时会飘）。
+    """
+    import check_sketch  # noqa: F401
+    import style_bench as SB
+    from PIL import Image
+
+    big = _sb_fig((1400, 1000))
+    small = big.resize((350, 250), Image.LANCZOS)
+    ab, as_ = _sb_arr(big), _sb_arr(small)
+
+    assert SB.m_color_families(ab) == 3, "3 色图该报 3 个色族"
+    assert SB.m_color_families(as_) == 3, "缩到 350px 后色族数变了"
+    assert SB.m_color_families(_sb_arr(_sb_fig(neon=True))) == 4, (
+        "多了一个够大的色族（荧光绿）却没数出来")
+
+    hb, hs = SB.m_hierarchy(ab), SB.m_hierarchy(as_)
+    for k in ("hero_share", "hier_gap", "hero_contrast"):
+        rel = abs(hs[k] - hb[k]) / max(abs(hb[k]), 1e-9)
+        assert rel < 0.10, "%s 在 1400->350 缩放下漂了 %.0f%%" % (k, rel * 100)
+
+
+@case("hierarchy_detects_missing_hero",
+      "视觉层级：'一个主角 + 4 个小块'必须和'6 个势均力敌的块'量得出来不一样")
+def test_hierarchy_hero():
+    """
+    表里那栏问的是「Is there a hero element? How big is the primary/secondary
+    contrast?」—— 落到两个纯像素量：
+      hero_share 最大墨迹连通域 / 全部墨迹   （有没有 hero）
+      hier_gap   最大 / 次大                （主次对比；1.0 = 势均力敌）
+
+    ★ 实测（2026-09-27 合成图）：1 大 + 4 小 -> hero_share 0.860 / gap 24.45；
+      6 个等大 -> hero_share 0.176 / gap 1.00。
+    没有 hero 的图（多面板、平权并列）就靠这两个数被抓出来 ——
+    它看着"很满"，但读者不知道该先看哪里。
+    """
+    import check_sketch  # noqa: F401
+    import style_bench as SB
+    from PIL import Image, ImageDraw
+
+    def blobs(sizes):
+        im = Image.new("RGB", (700, 500), "white")
+        d = ImageDraw.Draw(im)
+        x = 40
+        for w in sizes:
+            d.ellipse([x, 60, x + w, 60 + w], fill=(226, 120, 48))
+            x += w + 30
+        return im
+
+    hero = SB.m_hierarchy(_sb_arr(blobs([300, 60, 60, 60, 60])))
+    flat = SB.m_hierarchy(_sb_arr(blobs([90] * 6)))
+    assert hero["hero_share"] > 0.70, "有主角的图 hero_share 只报了 %.3f" % hero["hero_share"]
+    assert hero["hier_gap"] > 5.0, "有主角的图 hier_gap 只报了 %.2f" % hero["hier_gap"]
+    assert flat["hero_share"] < 0.30, "6 个等大的图 hero_share 报了 %.3f" % flat["hero_share"]
+    assert flat["hier_gap"] < 1.30, "6 个等大的图 hier_gap 报了 %.2f" % flat["hier_gap"]
+    assert hero["hero_share"] > flat["hero_share"], "两个应该分得开"
+
+
 if __name__ == "__main__":
     sys.exit(main())

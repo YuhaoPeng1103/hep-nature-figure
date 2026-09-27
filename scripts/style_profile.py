@@ -26,7 +26,7 @@ import numpy as np
 from PIL import Image
 
 sys.path.insert(0, str(Path(__file__).parent))
-from style_bench import measure, METRIC_ROBUST
+from style_bench import measure, METRIC_ROBUST, palette
 
 # 除了全局统计，再提取一批【可直接照着做的量】
 EXTRA_KEYS = ["stroke_width_est", "palette", "text_area_ratio",
@@ -55,29 +55,6 @@ def stroke_width_est(a):
         if 2 <= len(ys) <= 5000:
             widths.append(2.0 * np.sqrt(len(ys) / np.pi))
     return float(np.median(widths)) if widths else 0.0
-
-
-def palette(a, k=6, max_px=60000):
-    """主色板：k-means 聚类出图中最主要的 k 个颜色（hex）"""
-    px = a.reshape(-1, 3)
-    if len(px) > max_px:
-        idx = np.random.default_rng(0).choice(len(px), max_px, replace=False)
-        px = px[idx]
-    px = px[px.mean(axis=1) < 0.96]          # 去掉白底
-    if len(px) < 50:
-        return []
-    try:
-        from scipy.cluster.vq import kmeans2
-        cent, _ = kmeans2(px.astype(float), k, minit="++", seed=0)
-        cent = np.clip(cent, 0, 1)
-        # 按出现的像素数排序
-        d = ((px[:, None, :] - cent[None, :, :]) ** 2).sum(axis=2)
-        lab = d.argmin(axis=1)
-        order = np.argsort([-(lab == i).sum() for i in range(k)])
-        return ["#%02x%02x%02x" % tuple(int(v * 255) for v in cent[i])
-                for i in order]
-    except Exception:
-        return []
 
 
 def text_area_ratio(a):
@@ -132,7 +109,8 @@ def show(prof):
     print(f"\n风格档案: {prof['name']}   （来自 {prof['n_sources']} 张图）")
     print("─" * 62)
     for k in ["whitespace", "saturation", "edge_density", "dark_ratio",
-              "stroke_width_est", "text_area_ratio", "bg_luminance"]:
+              "stroke_width_est", "text_area_ratio", "bg_luminance",
+              "color_families", "hero_share", "hier_gap", "hero_contrast"]:
         if k not in s:
             continue
         v = s[k]

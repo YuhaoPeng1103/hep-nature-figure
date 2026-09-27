@@ -960,6 +960,26 @@ AI 盲测时自己写了扫描脚本，数对了；我目测，数错了。
 ```
 **第 3 步是关键。** 直接从指标跳到调参数必然伤及无辜。
 
+★ **补的两栏是量出来的，不是想出来的**（v2.7.3）：风格维度表里 Colour discipline 与
+Visual hierarchy 两栏现在有量了 —— `color_families` / `hero_share` / `hier_gap` /
+`hero_contrast`。**但四个都是诊断量，且两个不可跨来源**：
+
+| 量 | 读法 |
+|---|---|
+| `hero_share` | 最大墨迹连通域占比。**< 0.3 ≈ 没有主角** —— 图"很满"但读者不知道先看哪 |
+| `hier_gap` | 最大/次大。≈1 = 势均力敌（无 hero）；**≈100 不可读**（次大是抗锯齿碎片） |
+| `hero_contrast` | 主角与其余区域的饱和度差。≈0 = 主角没在颜色上跳出来 |
+| `color_families` | 色族数。看**量级**（3 vs 8），不是 3.0 vs 3.2 —— 它是计数，±1 就是 25~33% |
+
+★ **「越界色」不能用图自己的色板判**（这是本次最重要的否定结论）：
+用本图 k-means 色板 → 任何够大的异色都自己挣到一个簇中心，**永远报 0**；
+用自动抽的 top-6 当目标色板 → 深描边挤不进前 6，正常的不同图会报 0.33~0.89 的假越界。
+正确用法只有一种：**手给完整色板**（IR 的 `style.palette`）：
+`python3 scripts/style_bench.py stray fig.png --palette "#e27832,#2f6fd0"`。
+软明暗的 3D 图要把 tol 放大（实测 tol=90 才合理，48 太严）。
+完整实测数字见 `style_bench.py` 末尾的「校准记录 2026-09-27」。
+
+
 ### 纪律 4：物理正确性无法自动验证
 
 - 复现任务：有参考图当 ground truth，可对照检查
@@ -1054,7 +1074,7 @@ python3 scripts/auto_converge.py --ref 参考图.png \
 | `svg_lib.py` | SVG 图元库（火球/圆柱/核子/壳/环/坐标轴/场线…） |
 | `check_render.py` | 渲染静默失败检测，四项检查 |
 | `compare_ref.py` | 参考图与成图并排对比 |
-| `style_bench.py` | 风格度量与基准比对（**是诊断工具，不是优化目标**） |
+| `style_bench.py` | 风格度量与基准比对（**是诊断工具，不是优化目标**）；含 `color_families` / `hero_share` / `hier_gap` / `hero_contrast`（v2.7.3）与 `stray` 子命令（越界色，**必须手给完整色板**） |
 | `assemble_panels.py` | 复合图拼版，保矢量 |
 | `extract_figures.py` | 从论文 PDF 自动切图 |
 | `audit_composition.py` | **局部构图审计**：文字重叠/线穿文字/出界/留白分布 |
