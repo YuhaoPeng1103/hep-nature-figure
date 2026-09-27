@@ -381,7 +381,7 @@ python3 scripts/demo_combined.py
 │   ├── repair_brief.py          返修单（归一化坐标 + 具体改多少）
 │   └── demo_*.py                多工具联合 / 喷注淬火 / 时间线 示范
 ├── evals/
-│   ├── test_tools.py            28 个回归 case（每个对应一个真实踩过的坑）│   ├── test_tools.py            29 个回归 case（每个对应一个真实踩过的坑）
+│   ├── test_tools.py            29 个回归 case（每个对应一个真实踩过的坑）
 │   └── evals.json / README.md   评测清单
 └── assets/
     ├── style-profiles.json      风格档案（门禁用；存**区间**不存点值）
