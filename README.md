@@ -381,7 +381,7 @@ python3 scripts/demo_combined.py
 │   ├── repair_brief.py          返修单（归一化坐标 + 具体改多少）
 │   └── demo_*.py                多工具联合 / 喷注淬火 / 时间线 示范
 ├── evals/
-│   ├── test_tools.py            28 个回归 case（每个对应一个真实踩过的坑）│   ├── test_tools.py            29 个回归 case（每个对应一个真实踩过的坑）│   ├── test_tools.py            32 个回归 case（每个对应一个真实踩过的坑）
+│   ├── test_tools.py            28 个回归 case（每个对应一个真实踩过的坑）│   ├── test_tools.py            29 个回归 case（每个对应一个真实踩过的坑）
 │   └── evals.json / README.md   评测清单
 └── assets/
     ├── style-profiles.json      风格档案（门禁用；存**区间**不存点值）
@@ -409,7 +409,7 @@ python3 scripts/demo_combined.py
 | `references/multi-tool.md` | 一张图要多个工具合做，或要定交付格式时 |
 | `references/style-bench.md` | 要用风格指标做诊断时 —— 含 4 个测量陷阱 |
 | `references/gotchas.md` | 渲染"看着成功其实失败"时（静默失败详解） |
-| `evals/test_tools.py` | 改完任何工具之后 —— 跑一遍防"修一个坏一个" || `scripts/style_bench.py` 末尾的「校准记录」 | 想知道某个风格指标**能不能信**：每个指标都带缩放/JPEG 退化实测（v2.7.3 那段还记了三个候选设计里被否掉的两个） |
+| `evals/test_tools.py` | 改完任何工具之后 —— 跑一遍防"修一个坏一个" |
 | `CHANGELOG.md` | 想知道某个坑是什么时候、怎么修的（每条都带实测数字） |
 | `assets/demos/upc_semantic/`、`assets/demos/spin_semantic/`、`assets/demos/evo_semantic/` | 想照抄一个完整算例（词表 + 元素表 + 命令 + 实测数字） |
 | `assets/demos/evo_semantic/README.md` | 想知道「真 `<gradient>` 到底帮不帮忙」—— 那里有 5 档参数的 A/B 表 |

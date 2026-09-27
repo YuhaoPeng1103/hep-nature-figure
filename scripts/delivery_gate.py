@@ -55,16 +55,7 @@ from style_bench import measure, METRIC_ROBUST
 BLOCKING_METRICS = {"whitespace"}
 # ② 类内分散的指标 → 通常仅提醒，**但超出太多就升级为阻断**
 ADVISORY_METRICS = {"saturation", "edge_density", "dark_ratio",
-                    "stroke_width_est"}# ★ v2.7.3 新加四项（颜色纪律 + 视觉层级）默认**只诊断**：
-#   它们要么不可跨来源（color_families / hier_gap），要么本来就该是连续量
-#   （hero_share / hero_contrast）。放进 advisory 只是让门禁表里看得见，
-#   真要升级成阻断仍受两条既有保险约束（类内 IQR 一致 + 有真区间兜底）。
-#   （越界色 stray_color 不在这里：它要一个**完整**色板才有意义，
-#     自动抽的 6 色板判不了，见 style_bench.py 里的实测。）
-ADVISORY_METRICS = {"saturation", "edge_density", "dark_ratio",
-                    "stroke_width_est",
-                    "color_families", "hero_share", "hier_gap",
-                    "hero_contrast"}
+                    "stroke_width_est"}
 # ★ 偏离的度量：相对【区间边界】，不是相对区间宽度。
 #   踩过的坑：saturation=0.002 vs 区间 [0.242,0.370]
 #     用「区间宽度」归一 → (0.242-0.002)/0.128 = 1.9，看着"只是偏一点"
