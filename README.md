@@ -100,7 +100,7 @@
    ↓
 ⑤ ★ 闸口①：草图过物理检查（不能跳）      scripts/check_sketch.py
    ↓
-⑥ 出成品位图（同样带 --ref）             scripts/gen_figure.py --stage render
+⑥ 出成品位图（--content-ref 草图 + --ref 风格） scripts/gen_figure.py --stage render
    ↓
 ⑦ ★ 闸口②：成品位图再过一次同一个闸口    scripts/check_sketch.py
    ↓
@@ -213,7 +213,11 @@ python3 scripts/raster_to_vector_semantic.py fig.png -o fig.svg \
 ## 你需要提供
 
 - **物理内容** —— 这张图要表达什么（几句话也行）。它是 IR 里 `physics` 的来源，也是闸口的判据。
-- **参考图 / 草图**（可选但强烈建议）—— 风格参考走 `--ref`；复现任务要另给原图。
+- **参考图 / 草图**（可选但强烈建议）—— 上一步的**草图**走 `--content-ref`（构图依据，
+  出图本来就该像它）；**风格参考**走 `--ref`（只给配色/线条/材质，**不许抄内容**）。
+  复现任务要另给原图。★ 参考图别选「内容同类」的：`qwen-image` 是图生图，内容越像
+  越容易被整幅照抄（出的图会变成参考图的样子）—— 出图后跑
+  `scripts/ref_leak_check.py` 量一次，`r >= 0.85` 就是照抄。
 - **目标规格** —— 单栏 / 双栏、目标期刊、要 SVG / PDF / PNG 里的哪些。
 - **生图模型的 API key**（走路线②③时）—— 本 skill **不携带、不保存**任何 key，用你自己的
   （`gen_figure.py` 读环境变量 `DASHSCOPE_API_KEY`；没 key 可以 `--dry-run` 只出自检计划）。
@@ -355,6 +359,7 @@ python3 scripts/demo_combined.py
 │   ├── audit_panels.py          多面板对齐审计
 │   ├── assemble_panels.py       复合图拼版（保矢量）
 │   ├── compare_ref.py           参考图与成图并排对比
+│   ├── ref_leak_check.py        ★ 量「出图把参考图抄了」：r>=0.85 判照抄（可当门禁）
 │   ├── style_bench.py / style_profile.py   风格量化与建档
 │   ├── auto_converge.py         自动收敛循环（量 → 定位 → 修正 → 复测）
 │   ├── extract_figures.py       从论文 PDF 自动切图
