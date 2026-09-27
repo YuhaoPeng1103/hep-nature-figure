@@ -535,11 +535,15 @@ def emit(src, out, man, stats, a, H, Wd, kept, R, K, legend=None, rot=None, shad
                 items = sorted(per[cid][eid].items(),
                                key=lambda t: -sum(w * h for _, _, w, h in t[1]))
                 lv = int(spec.get("levels", 16))
-                got = SHD.fit(items, levels=lv, kmax=int(spec.get("kmax", 3)),
-                              tol=float(spec.get("tol", 1.35)),
-                              resid_cap=float(spec.get("resid_cap", 8.0)),
-                              kforce=spec.get("k"),
-                              rem_err=float(spec.get("rem_err", 60.0)))
+                # flat=False = 这个元素只走真渐变 body（不算平涂模型）——
+                # 平涂模型在 levels 很小时残差指标不可比，会误胜。
+                got = None
+                if spec.get("flat", True):
+                    got = SHD.fit(items, levels=max(1, lv), kmax=int(spec.get("kmax", 3)),
+                                  tol=float(spec.get("tol", 1.35)),
+                                  resid_cap=float(spec.get("resid_cap", 8.0)),
+                                  kforce=spec.get("k"),
+                                  rem_err=float(spec.get("rem_err", 60.0)))
                 # ★ 径向渐变（火球）用「平涂基色 + N 档明度层」近似时，每一档会沿
                 #   等半径连成一个**环**（实测 N=24 球面上肉眼可见同心色环）。真渐变
                 #   body 把那条平滑 ramp 交给 <radialGradient>，明度层只补残差。
@@ -554,7 +558,9 @@ def emit(src, out, man, stats, a, H, Wd, kept, R, K, legend=None, rot=None, shad
                                       nstops=int(spec.get("nstops", 16)),
                                       tol=float(spec.get("grad_tol", 26)),
                                       minpx=int(spec.get("grad_minpx", 800)),
-                                      rem_err=float(spec.get("rem_err", 60.0)))
+                                      rem_err=float(spec.get("rem_err", 60.0)),
+                                      dbg=eid,
+                                      drop_tol=spec.get("drop_tol"))
                 if gr is not None and (got is None or gr["resid"] < got["resid"]):
                     SH[(cid, eid)] = gr
                     print("    · 明度重写 %-22s 真%7s 渐变 x %d 档 | 残差 %.2f | %d 色块 -> %d path"
@@ -686,10 +692,18 @@ def emit(src, out, man, stats, a, H, Wd, kept, R, K, legend=None, rot=None, shad
                 gid = "%s-%s-grad" % (cid, eid)
                 gdefs.append(GFT.svg_defs(gid, shd["g"]))
                 d, npts = shd["shape"]
-                L.append('<path id="%s-%s-body" data-role="element-body" data-gradient="%s" '
-                         'data-gradient-resid="%.2f" data-px="%d" fill="url(#%s)" d="%s"/>'
-                         % (cid, eid, shd["g"]["kind"], shd["g"]["resid"],
-                            int(shd["g"]["mask"].sum()), gid, d))
+                body = ('<path id="%s-%s-body" data-role="element-body" data-gradient="%s" '
+                        'data-gradient-resid="%.2f" data-px="%d" fill="url(#%s)" d="%s"/>'
+                        % (cid, eid, shd["g"]["kind"], shd["g"]["resid"],
+                           int(shd["g"]["mask"].sum()), gid, d))
+                # ★ aradial 的 body 坐标在**局部空间**，必须包一层 <g transform> 拉回画布；
+                #   渐变定义也按局部坐标写（cx=0 cy=0 r=1）。见 shade.fit_grad 的注释。
+                xf = shd.get("xform")
+                if xf:
+                    body = ('<g transform="matrix(%.6f %.6f %.6f %.6f %.2f %.2f)" '
+                            'data-role="gradient-wrap">%s</g>'
+                            % (xf[0], xf[1], xf[2], xf[3], xf[4], xf[5], body))
+                L.append(body)
                 einfo["colors"].append({"color": "url(#%s)" % gid, "family": "gradient",
                                         "role": "element-body",
                                         "stops": ["#%02x%02x%02x" % (int(round(c[0])),

@@ -1,0 +1,4 @@
+132.0	1224.0	424.0	50.0	deformed nucleus
+866.0	1222.0	504.0	54.0	quantum fluctuations
+1942.0	1224.0	186.0	50.0	collision
+2810.0	1224.0	282.0	52.0	QGP fireball

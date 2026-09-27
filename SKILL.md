@@ -587,6 +587,20 @@ python3 scripts/raster_to_vector_semantic.py gen/render_s22_clean.png -o fig.svg
 #       连成一个环，16 档时球面是肉眼可见的同心色环 —— 那就是最忌的"色阶退化"。
 #     语法 --shade k:levels:grad（如 auto:16:1 / 3:128:1 / auto:16:0）
 #     或写进 panels.py：SHADING = {"*": {"k": None, "levels": 16, "gradient": True}}
+#   ★★ 真渐变 vs 逐像素：**先量再选路，别凭感觉**（2026-09-27 实测）
+#     判据只有一个：**回渲染后该区域的 MAE**。不要用 gradfit 的拟合残差当判据 ——
+#     它会把「等色线不同心」的像素当离群点丢掉，残差看着只有 5.5，画出来差 31 倍。
+#       · 等色线真同心（球心高光 / 均匀辉光）→ 真 <radialGradient>：path 少、可整体改色
+#       · 最亮核心**偏离几何中心**、或内部有结构（颗粒/丝带/多个球）→ 逐像素
+#     实测（形变核→火球，同一元素、同一张位图，只换画法）：
+#       逐像素     火球区 MAE 0.455
+#       真 aradial 火球区 MAE 14.324（亮核偏心 → 同心等色线整圈错位成亮/暗环）
+#     ★ aradial 现在**已支持**（body 写局部坐标 + <g transform>，绕开 cairosvg 不认
+#       gradientTransform 的问题）。开法：SHADING 里写
+#       {"gradient": True, "levels": 0, "flat": False, "drop_tol": 60, "nstops": 64}
+#     ★ 元素掩膜最外 1~3px 是抗锯齿过渡像素：**拟合要腐蚀过、判「body 盖不到」要
+#       膨胀过**。否则拟合中心被带偏（火球实测 dev 中位 21 → 6.3），且那圈过渡像素
+#       会被逐条按原色画出来 = 一圈硬边。
 python3 scripts/raster_to_vector_semantic.py gen/render_s22_clean.png -o fig_edit.svg \
         --words words.txt --panels my_panels.py --W 1662 --R 5 --K 7 --q 0 \
         --shade auto:16:1 --legend fig_edit_layers.md --check
@@ -879,6 +893,12 @@ AI 盲测时自己写了扫描脚本，数对了；我目测，数错了。
 
 **哪些必须量**：元素个数、圆/多边形边数、角度与夹角、缩放比例、
 相对坐标、颜色值、线宽。
+★ **最容易漏的一个：`panels.py` 里 `ELEMENTS` 的每个框。** 换一张位图，元素位置
+全变；框沿用上一张的坐标 → IoU 全为 0 → 走兜底规则把元素**判给邻居**。实测：三个
+箭头的框抄了上一张的 `y 405..463`（新图在 `y 351..400`），三个箭头全被判给相邻阶段，
+`stage1-nucleus` 的包围盒被拉到 `x 62..1319` —— 图层面板直接没法用。**每张图都要用
+连通域 / 颜色掩膜把框重量一遍**（可用 `--elmap` 出的元素划分自检图核对）。
+
 
 **哪些可以看**：风格分类、物理角色、叠放顺序、视觉层次。
 

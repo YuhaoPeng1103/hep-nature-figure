@@ -127,6 +127,8 @@ def fit(items, levels=16, kmax=3, tol=1.35, resid_cap=8.0, kforce=None, rem_err=
     """
     if not items:
         return None
+    # levels<=0 = 「不要明暗层」（只对真渐变 body 有意义）；平涂模型仍需一个档数，兜底 1。
+    levels = max(1, int(levels))
     C = np.stack([np.asarray(c, np.float32) for c, _ in items])
     W = np.array([sum(float(r[2]) * float(r[3]) for r in rs) for _, rs in items], np.float64)
     if W.sum() <= 0:
@@ -178,7 +180,7 @@ def hexs(c):
 
 # --------------------------------------------------- 真渐变 body（径向渐变上的色环解药）
 def fit_grad(a, mask, items, levels=16, nstops=16, tol=26, minpx=800, eps=1.0,
-             rem_err=60.0):
+             rem_err=60.0, dbg="", drop_tol=None):
     """元素 = **一条真 <radialGradient>/<linearGradient> body** + 少量明度层残差。
 
     为什么不能只用平涂基色：径向渐变（火球）用「平涂基色 + N 档明度层」近似时，
@@ -195,6 +197,8 @@ def fit_grad(a, mask, items, levels=16, nstops=16, tol=26, minpx=800, eps=1.0,
     from scipy import ndimage
     m = np.asarray(mask, bool)
     if m.sum() < minpx:
+        if dbg:
+            print("      · 真渐变放弃 %s：掩膜太小（%d px < %d）" % (dbg, m.sum(), minpx))
         return None
     # ★ 元素掩膜常常是「1 大块 + 若干小碎块」（擦字补背景的散点、被 SPLIT 切走的
     #   核子留下的洞边）。轮廓跟踪只能跟**单连通**区域，所以：只把最大连通块当 body
@@ -202,14 +206,36 @@ def fit_grad(a, mask, items, levels=16, nstops=16, tol=26, minpx=800, eps=1.0,
     m2 = ndimage.binary_fill_holes(ndimage.binary_closing(m, np.ones((3, 3)), iterations=2))
     lab, n = ndimage.label(m2)
     if n < 1:
+        if dbg:
+            print("      · 真渐变放弃 %s：填洞后掩膜为空" % dbg)
         return None
     if n > 1:
         cnt = ndimage.sum(m2, lab, np.arange(1, n + 1))
         m2 = lab == (int(np.argmax(cnt)) + 1)
     if m2.sum() < 0.98 * m.sum():
+        if dbg:
+            print("      · 真渐变放弃 %s：掩膜不是单连通（最大块只占 %.1f%%）"
+                  % (dbg, 100.0 * m2.sum() / max(1, m.sum())))
         return None
-    g = GFT.fit(a, m, nstops=nstops, tol=tol, minpx=minpx)
-    if g is None or g["kind"] == "aradial":
+    # ★★ 拟合要用**腐蚀后的内部掩膜**，这是「真渐变版出现同心环 / 大片斑块」的真根因：
+    #   元素掩膜的最外 1~3px 是「半透明边缘与白底混合」的抗锯齿像素（实测火球这一圈
+    #   有 6656 px / 8.2%，颜色 (253,209,181) 这种浅粉）。_candidates 的**几何**（中心 +
+    #   协方差椭圆）是全体像素云算出来的 —— 一圈浅色像素会把中心和白化矩阵一起带偏，
+    #   于是整条径向 ramp 错位，内部才出现同心环状的模型误差（实测：不腐蚀 dev 中位 21、
+    #   腐蚀后 6.3）。腐蚀只影响**拟合**，body 形状仍用完整掩膜。
+    from scipy import ndimage as _ndi2
+    m_er = _ndi2.binary_erosion(m, np.ones((3, 3)), iterations=3)
+    m_fit = m_er if m_er.sum() >= minpx else m
+    # ★ drop_tol 管的是「哪些色块算渐变的台阶、可以丢」：默认 min(tol,20) 很紧
+    #   ——适合有网格线的冷灰球（丢多了网格线会断）。但对**有噪点的火球**，
+    #   紧阈值会把噪点块留下按原色画 -> 大片平滑区里出现硬边斑块。
+    #   放宽到 rem_err（=「色相偏到连明度都补不回来」的界）就是结构模型：
+    #   渐变吸收一切噪声，只留真正的结构（组元颗粒/丝线）当 remnant。
+    g = GFT.fit(a, m_fit, nstops=nstops, tol=tol, minpx=minpx, drop_tol=drop_tol)
+    if g is None:
+        if dbg:
+            print("      · 真渐变放弃 %s：拟合残差 > tol=%s（这块不是干净渐变）"
+                  % (dbg, tol))
         return None
     stops = np.asarray(g["stops"], np.float64)
     cols, cx, cy, area, flat = [], [], [], [], []
@@ -234,7 +260,15 @@ def fit_grad(a, mask, items, levels=16, nstops=16, tol=26, minpx=800, eps=1.0,
     ed = np.abs(C - P * (1.0 - dt)[:, None]).mean(1)
     el = np.abs(C - (P + U * ls[:, None])).mean(1)
     dark = ed <= el
-    lev = np.round(np.where(dark, dt, ls) * levels) / levels
+    # ★ levels=0 = **不要明暗层**：只留 body 的平滑渐变 + 结构残块。
+    #   为什么需要它：明暗层是「黑/白 + fill-opacity」，其形状是残差的等值线 ——
+    #   模型误差是低频的，等值线就是一大片，一条 0.5 的黑层压在亮黄上直接变橄榄绿，
+    #   白层压上去就是硬边亮斑（实测「真渐变版出现硬边/斑块」的另一个根因）。
+    #   而对**平滑渐变**这类元素，残差本来就不是该画出来的东西。
+    if levels > 0:
+        lev = np.round(np.where(dark, dt, ls) * levels) / levels
+    else:
+        lev = np.zeros(len(C), np.float64)
     e = np.where(dark, ed, el)
     W = np.asarray(area, np.float64)
     resid_bands = float((e * W).sum() / W.sum())
@@ -243,20 +277,49 @@ def fit_grad(a, mask, items, levels=16, nstops=16, tol=26, minpx=800, eps=1.0,
     #   块内平均色 ≠ 块心处的渐变色 —— 补出来就是一块块斑（实测形变核上
     #   出现明显的方块）。渐变本身的残差才是"这条路值不值得走"的真判据。
     resid = float(g["resid"])
-    d, npts = GFT.mask_path(m2, eps)
-    if not d:
-        return None
+    # ★ aradial（等色线 = 区域协方差椭圆）不能用径向 gradientTransform —— 实测 cairosvg
+    #   会忽略它。所以与 gradfit.svg_shape 用**同一套约定**绕过去：把形状写进
+    #   `<g transform>`、渐变定义在**局部坐标系**里（局部 u = (Q/tmax)(p-c)，
+    #   渐变 cx=0 cy=0 r=1）。这样任何渲染器都对，火球这种「等色线是椭圆」的
+    #   3D 球面明暗才能用一条真渐变画出来（否则只能退回逐像素块斑）。
+    xform = None
+    if g["kind"] == "aradial":
+        Qn = np.asarray(g["geom"]["Q"], float) / max(float(g["tmax"]), 1e-6)   # user -> local
+        R = np.linalg.inv(Qn)                                                  # local -> user
+        c = np.array([g["geom"]["cx"], g["geom"]["cy"]])
+        pts = GFT.dp(GFT.trace_outer(m2), eps)
+        if len(pts) < 3:
+            if dbg:
+                print("      · 真渐变放弃 %s：aradial 外轮廓点数不足" % dbg)
+            return None
+        u = (np.asarray(pts, float) - c) @ Qn.T
+        d = "M" + " ".join("%.3f %.3f" % (a, b) for a, b in u) + "Z"
+        npts = len(pts)
+        xform = (float(R[0, 0]), float(R[1, 0]), float(R[0, 1]), float(R[1, 1]),
+                 float(c[0]), float(c[1]))
+    else:
+        d, npts = GFT.mask_path(m2, eps)
+        if not d:
+            if dbg:
+                print("      · 真渐变放弃 %s：外轮廓跟踪失败" % dbg)
+            return None
     assign = []
     for i in range(len(flat)):
         tone = int(0 if dark[i] else 1)
         if e[i] > rem_err:
             tone = 2
         assign.append((cols[i], flat[i], tone, float(lev[i])))
-    # body 盖不到的色块（小碎块）：原样按平涂色块画，别让它们落在背景上变白
+    # body 盖不到的色块（小碎块）：原样按平涂色块画，别让它们落在背景上变白。
+    # ★ 但要对 m2 先**膨胀几像素**再判：元素掩膜的最外 1~3px 是「半透明边缘与白底混合」
+    #   的抗锯齿过渡像素 —— 它们在轮廓之外、颜色又各不相同（实测火球这一圈有 1589 种浅色），
+    #   逐条按原色画出来就是一圈**硬边**（正是「真渐变版反而出现硬边/斑块」的根因）。
+    #   膨胀后它们落入 body 内 -> 被 body 的渐变吸收，边缘重新变成渐变的柔和收边。
+    from scipy import ndimage as _ndi
+    m2d = _ndi.binary_dilation(m2, np.ones((3, 3)), iterations=3)
     leftover = [(cols[i], flat[i]) for i in range(len(flat))
-                if not m2[min(m2.shape[0] - 1, int(cy[i])), min(m2.shape[1] - 1, int(cx[i]))]]
+                if not m2d[min(m2d.shape[0] - 1, int(cy[i])), min(m2d.shape[1] - 1, int(cx[i]))]]
     nleft = len({c for c, _ in leftover})
     nrem = len({c for c, _, t, _ in assign if t == 2})
     return dict(mode="grad", g=g, resid=resid, resid_bands=resid_bands, assign=assign,
-                shape=(d, npts), leftover=leftover, nleft=nleft, nrem=nrem,
+                shape=(d, npts), xform=xform, leftover=leftover, nleft=nleft, nrem=nrem,
                 levels=int(levels))
