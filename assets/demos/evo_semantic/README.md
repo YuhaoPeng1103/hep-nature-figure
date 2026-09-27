@@ -29,6 +29,10 @@
 | `sweep_panels.py` / `sweep_cases.json` / `sweep.py` | A/B 实验台：真渐变开/关 × 调色板粗细 |
 | `cmp_preview.png` | 上＝成品位图，下＝交付矢量回渲染 |
 | `measure_stages.py` | 四阶段几何/颜色量测（闸口人答题出数字用） |
+| `evo_edit.svg` | ★ **可编辑版**：541 `<path>`（含真 `<radialGradient>`/`<linearGradient>`），1.84 MB —— 每个物理元素 = 1 条 body（基色/真渐变）+ 少量黑/白明暗层，**能整体改一个物理色块** |
+| `evo_edit_layers.md` | 可编辑版图层清单（元素行会标 `+ 基色xN + 明度层` 或 `+ 真X渐变 body + 明度层`） |
+| `cmp_edit_pdf.png` | 可编辑版 PDF 回渲染 vs 成品位图 |
+| `eval_svg.py` | 拿同一套指标（MAE/贴边比/path/体积）批量给 SVG 打分 |
 
 IR 在 `assets/ir/sketch7_deformed_to_fireball.ir.yaml`。
 
@@ -132,6 +136,49 @@ PDF 回渲染 MAE 1.297 (MAEmax 1.535) | >8 3.71% | >32 0.87% | PSNR 28.27 dB
    **细条（min(w,h)<3）一律不丢**。
 6. **`--elmap` 把 `_elem_table.txt` 落在 cwd** -> 改成跟着 `out_png` 走
    （否则会覆盖别的图的同名文件）。
+
+## 可编辑版 `evo_edit.svg`（v2.6.6）：为什么需要它
+
+逐像素临摹的产物**结构上必然**是「一种颜色一条 `<path>`」。数交付版 `evo.svg` 的元素内部：
+
+| 元素 | `<path>` | 不同 fill |
+|---|---|---|
+| `stage1-nucleus` | 5162 | 5162 |
+| `stage4-fireball` | 6696 | 6696 |
+| `stage3-overlap` | 1613 | 1613 |
+
+path 数 = 颜色数 —— **一条同色都并不到一起**。图层按物理元素分了 ✅，但元素内部是
+颜色集合：改色只能一条条改，`Select > Same > Fill Color` 也救不了（跨元素同灰/白会一起变）。
+`--q 32` 只把 6696 降到 693，结构没变。
+
+`--shade`（`scripts/raster_vector/shade.py`）把元素重写成
+「1 条基色块 / 1 条真渐变 body + 若干条 `fill-opacity` 明暗层」。明暗层是黑/白、
+**不含颜色**，所以改基色块的 fill 时整个元素的明暗关系自动跟着走。
+
+| 交付 | 结构 | `<path>` | 体积 | MAE | >8% | 贴边比 | PDF 回渲染 MAE |
+|---|---|---|---|---|---|---|---|
+| `evo.svg` 忠实版 | 逐色临摹 | 31005 | 3.99 MB | **0.626** | 0.74% | 0.62 | 1.297 |
+| `evo_edit.svg` 可编辑版 | 基色/真渐变 + 明暗层 | **541** | 1.84 MB | 0.919 | 2.59% | 0.60 | 1.287 |
+
+逐元素：`stage1-nucleus` 5162→34、`stage2-fluctuations` 10884→31、
+`stage3-nucleus-A` 4395→35、`stage3-nucleus-B` 2185→22、
+`stage4-fireball` 6696→28（真 `radialGradient`）、`stage4-nucleons` 4338→16、
+`stage3-overlap` 1613→19（真 `linearGradient`）、`arrow-1/2/3` →26/31/31。
+
+★ **径向渐变必须走真渐变 body**：用「平涂基色 + N 档明度层」近似时，每一档会沿等半径
+连成一个**环** —— 16 档实测火球球面上是肉眼可见的同心色环（就是最忌的"色阶退化"）。
+模型选型用**渐变本身的残差**（不是"渐变+明度层"的残差：后者按色块中心的预测色补，
+大色块横跨 ramp 时块内均值 ≠ 块心预测值，补出来是一块块斑，实测形变核上出现明显方块）。
+
+参数取舍（都实测）：`auto:16:1` 541 path / MAE 0.919；`auto:128:1` 2086 / 0.820；
+`auto:16:0`（关真渐变）541 但火球出色环。
+
+```bash
+python3 $S/raster_to_vector_semantic.py src_render.png -o evo_edit.svg \
+    --words words_render31.txt --panels panels_evo.py \
+    --W 1662 --R 5 --K 7 --q 0 --legend evo_edit_layers.md --check
+# 或直接给参数：--shade auto:16:1   （k:levels:grad；SHADING 也写在 panels_evo.py 里）
+```
 
 ## 已知偏差（不掩饰）
 

@@ -54,6 +54,8 @@ def to_argv(a):
     if a.no_text:
         argv.append("--no-text")
     if a.panels:
+        if a.shade:
+            argv += ["--shade", str(a.shade)]
         argv += ["--panels", str(a.panels)]
     if a.manifest:
         argv += ["--manifest", str(a.manifest)]
@@ -112,6 +114,9 @@ def main():
     ap.add_argument("-o", "--out", default="vectorized.svg")
     ap.add_argument("--words", default="", help="OCR 词表；不给就等价于 --no-text")
     ap.add_argument("--panels", default="", help="版式/元素表 .py（默认用包里的示例）")
+    ap.add_argument("--shade", default="",
+                    help="元素级「基色+明度层」重写：k:levels（如 3:16，auto:16 = 自适应基色数）；"
+                         "把一个物理元素压成 k 个基色块 + 若干条 fill-opacity 明暗层，做到整体改色")
     ap.add_argument("--W", type=int, default=1200, help="工作分辨率宽度（默认 1200）")
     ap.add_argument("--R", type=float, default=16.0,
                     help="四叉树色差阈值：小=更准更大，大=更小更粗（默认 16）")

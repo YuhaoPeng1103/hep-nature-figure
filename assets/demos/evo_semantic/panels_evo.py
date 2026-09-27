@@ -250,3 +250,19 @@ def element_of(cid, bbox, rgb):
                     bk, bb = k, (eid, label)
         return bb
     return best
+
+
+# ---------------------------------------------------------------- 明度重写（可选）
+# 为什么：逐像素临摹的产物**结构上必然是「一种颜色一条 <path>」**（实测本图
+# stage1-nucleus 5162 条 path = 5162 种 fill，stage4-fireball 6696 = 6696）。
+# 图层虽然按物理元素分了，但元素内部还是"色素集合"—— 改色只能一条一条改，
+# 改不了"整个火球"。开了下面这张表，元素会被重写成
+#     1 条基色块 / 1 条真渐变 body（整体改色的把手）+ 少量黑/白 fill-opacity 明暗层
+# 实测（--q 0 --R 5，见 README 的「可编辑版」表）：
+#     31005 条 path -> 1411 条，全图 MAE 0.626 -> 0.898
+# 关掉（删掉这张表）就回到逐色临摹的原样输出。
+# 每条 = {"k": 基色个数(None=自适应) | "levels": 明度档数 | "gradient": 要不要试真渐变}
+SHADING = {
+    "*": {"k": None, "levels": 16, "gradient": True,
+          "grad_tol": 26, "grad_minpx": 800, "rem_err": 60.0},
+}

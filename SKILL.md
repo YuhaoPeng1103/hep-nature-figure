@@ -521,6 +521,20 @@ python3 scripts/raster_to_vector_semantic.py gen/render_s22_clean.png -o fig.svg
         --words words.txt --panels my_panels.py --W 1662 --R 5 --K 7 --q 0 \
         --legend fig_layers.md --el_txt fig_el_table.txt --check
 #    --legend 人读图层清单 / --el_txt 元素明细 / --check 回渲染自检（MAE/PSNR）
+#   ★ 要「整体改一个物理色块」（而不是按色素一条条改）就加 --shade：
+#     逐像素临摹结构上必然是「一种颜色一条 path」—— 实测形变核→火球：stage1-nucleus
+#     5162 条 path = 5162 种 fill，fireball 6696 = 6696（同色都并不起来）。图层按物理
+#     元素分了，但元素内部还是颜色集合，改色只能一条条改。
+#     --shade 把元素重写成「1 条基色块 / 1 条真 <radialGradient>/<linearGradient> body
+#     + 少量 fill:#000/#fff + fill-opacity 的明暗层（不含颜色，所以换基色时明暗自动跟着走）」。
+#     实测（同一张图 --q 0 --R 5）：31005 条 path -> 541 条，MAE 0.626 -> 0.919，3.99 -> 1.84 MB。
+#     ★ 径向渐变（火球）必须走真渐变 body：用「平涂基色 + N 档明度层」近似，每档沿等半径
+#       连成一个环，16 档时球面是肉眼可见的同心色环 —— 那就是最忌的"色阶退化"。
+#     语法 --shade k:levels:grad（如 auto:16:1 / 3:128:1 / auto:16:0）
+#     或写进 panels.py：SHADING = {"*": {"k": None, "levels": 16, "gradient": True}}
+python3 scripts/raster_to_vector_semantic.py gen/render_s22_clean.png -o fig_edit.svg \
+        --words words.txt --panels my_panels.py --W 1662 --R 5 --K 7 --q 0 \
+        --shade auto:16:1 --legend fig_edit_layers.md --check
 
 # ── 8. 三道门禁 + 返修单 → 交付 ───────────────────────────
 python3 scripts/check_render.py fig.png --probe 0.5,0.10
@@ -636,6 +650,11 @@ python3 scripts/ref_leak_check.py gen/render_s22.png \
   实测（形变核→火球）：真渐变全开 MAE 1.016 / 贴边比 1.39 vs 全关 MAE 0.626 / 0.62。
   只有**必须用粗调色板**（`--q <= 16` 压体积）时才按元素打开 `GRADIENTS`
   （算法与实测见 `scripts/raster_vector/gradfit.py` + `CHANGELOG.md` v2.6.5）。
+- ★ **临摹要「能整体改」就加 `--shade`**：临摹产物结构上必然是「一种颜色一条 path」
+  （实测 5162 path = 5162 种 fill），元素内部是颜色集合、改不了一整块。`--shade` 把元素
+  重写成「1 条基色块 / 1 条真渐变 body + 少量黑/白 fill-opacity 明暗层」，改一个 fill
+  就整体换色。实测 31005 -> 541 条 path，MAE 0.626 -> 0.919。
+  径向渐变必须用真渐变 body，否则出色环（见上一条）。
 - 图**本来就该拆成图元** → 别临摹，直接写 IR / 写 SVG，渐变是真渐变。
 - ⚠️ **重画的忠实度天生低于临摹。** 这是选择和位图"像不像"的取舍，
   **不是**"矢量后质量就比位图差" —— 重画的上限在人的水平，不在格式。

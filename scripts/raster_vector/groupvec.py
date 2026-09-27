@@ -20,6 +20,7 @@ import sys, os, json, colorsys
 import numpy as np
 from PIL import Image, ImageDraw, ImageFont
 from . import gradfit as GFT
+from . import shade as SHD
 
 # 颜色量化前的原图。渐变合并按它拟合 —— 量化误差（±255/(2(Q-1))）不该被算进
 # 渐变模型里，否则「台阶」反而比「真渐变」更贴量化图，MAE 会假性地变好。
@@ -315,7 +316,8 @@ def main():
                     out_png=opt("--el_png", "_el_overlay.png"),
                     out_txt=opt("--el_txt", "_el_table.txt"))
         return
-    return emit(src, out, man, stats, a, H, Wd, kept, R, K, opt("--legend", ""), rot=rot)
+    return emit(src, out, man, stats, a, H, Wd, kept, R, K, opt("--legend", ""), rot=rot,
+                shade=opt("--shade", ""))
 
 
 # ------------------------------------------------------------------ 元素归组
@@ -442,8 +444,9 @@ def dump_elements(a, R, K, out_png="_elem_overlay.png"):
 
 
 # ------------------------------------------------------------------ 输出
-def emit(src, out, man, stats, a, H, Wd, kept, R, K, legend=None, rot=None):
+def emit(src, out, man, stats, a, H, Wd, kept, R, K, legend=None, rot=None, shade=""):
     rot = rot or []
+    shade = shade or ""
     idx = P.cell_index(H, Wd)
     meta, order = P.meta(), P.order()
     named = _name_pass(a, R, K)
@@ -474,8 +477,77 @@ def emit(src, out, man, stats, a, H, Wd, kept, R, K, legend=None, rot=None):
         gdefs.append(GFT.svg_defs(gid, g))
         print("  · 渐变 %s: %s 残差 %.2f | 渐变内 %dpx | %d 档"
               % (eid, g["kind"], g["resid"], g["px"], len(g["stops"])))
+    def _shnp(sh):
+        """一个元素重写后的 <path> 条数：k 个基色块（或 1 条真渐变 body）+ 用到的明暗层数"""
+        if sh["mode"] == "grad":
+            nb = len({(t, l) for _, _, t, l in sh["assign"] if t in (0, 1) and l > 0.0})
+            return 1 + nb + sh.get("nleft", 0) + sh.get("nrem", 0)
+        nb = len({(t, l) for _, t, l in sh["assign"].values() if t in (0, 1) and l > 0.0})
+        nrem = len({tuple(sh["bases"][sh["assign"][c][0]]) for c in sh["assign"]
+                    if sh["assign"][c][1] == 2})
+        return sh["k"] + nb + nrem
+
+    def _npath(cid, eid, e):
+        sh = SH.get((cid, eid))
+        return _shnp(sh) if sh else len(e)
+
+    # ---------- 元素级「基色 + 明度层」重写（可选）----------
+    # 交付版逐像素临摹的产物是「一种颜色一条 <path>」（实测 stage4-fireball
+    # 6696 条 path = 6696 种颜色），改色只能一条一条改。这里把一个元素重写成
+    #   k 个基色块（每块一个 fill）+ 若干条 fill-opacity 明暗层（黑/白，颜色无关）
+    # 于是「改基色块的 fill」= 整体改这个物理色块。算法与实测见 raster_vector/shade.py。
+    SH = {}
+    shcfg = dict(getattr(P, "SHADING", None) or {})
+    if shade:
+        parts = shade.split(":")
+        kk = parts[0] if parts[0] else "auto"
+        lv = int(parts[1]) if len(parts) > 1 and parts[1] else 16
+        shcfg["*"] = {"k": (None if kk == "auto" else int(kk)), "levels": lv}
+        if len(parts) > 2 and parts[2] != "":      # 第三段：1/0 = 要不要真渐变 body
+            shcfg["*"]["gradient"] = bool(int(parts[2]))
+    if shcfg:
+        dflt = shcfg.get("*")
+        for cid in order:
+            for eid in elem_order(cid, per):
+                spec = shcfg.get(eid, dflt)
+                if not spec or eid == "background" or (cid, eid) in grads:
+                    continue
+                items = sorted(per[cid][eid].items(),
+                               key=lambda t: -sum(w * h for _, _, w, h in t[1]))
+                lv = int(spec.get("levels", 16))
+                got = SHD.fit(items, levels=lv, kmax=int(spec.get("kmax", 3)),
+                              tol=float(spec.get("tol", 1.35)),
+                              resid_cap=float(spec.get("resid_cap", 8.0)),
+                              kforce=spec.get("k"),
+                              rem_err=float(spec.get("rem_err", 60.0)))
+                # ★ 径向渐变（火球）用「平涂基色 + N 档明度层」近似时，每一档会沿
+                #   等半径连成一个**环**（实测 N=24 球面上肉眼可见同心色环）。真渐变
+                #   body 把那条平滑 ramp 交给 <radialGradient>，明度层只补残差。
+                #   两条路都算一遍，取残差低的那个（都记进图层清单，能对照）。
+                gr = None
+                if spec.get("gradient", True):
+                    m = np.zeros((H, Wd), bool)
+                    for rs in per[cid][eid].values():
+                        for (x, y, w, h) in rs:
+                            m[y:y + h, x:x + w] = True
+                    gr = SHD.fit_grad(a, m, items, levels=lv,
+                                      nstops=int(spec.get("nstops", 16)),
+                                      tol=float(spec.get("grad_tol", 26)),
+                                      minpx=int(spec.get("grad_minpx", 800)),
+                                      rem_err=float(spec.get("rem_err", 60.0)))
+                if gr is not None and (got is None or gr["resid"] < got["resid"]):
+                    SH[(cid, eid)] = gr
+                    print("    · 明度重写 %-22s 真%7s 渐变 x %d 档 | 残差 %.2f | %d 色块 -> %d path"
+                          % (eid, gr["g"]["kind"], lv, gr["resid"], len(items),
+                             _shnp(gr)))
+                elif got is not None:
+                    SH[(cid, eid)] = got
+                    print("    · 明度重写 %-22s k=%d x %d 档 | 残差 %.2f | %d 色块 -> %d path"
+                          % (eid, got["k"], lv, got["resid"], len(items), _shnp(got)))
+                else:
+                    print("    · 明度重写 %-22s 跳过（残差过大，保留原色阶）" % eid)
     nrun = sum(len(rs) for cid in order for e in per[cid].values() for rs in e.values())
-    npath = sum(len(e) for cid in order for e in per[cid].values())
+    npath = sum(_npath(cid, eid, e) for cid in order for eid, e in per[cid].items())
     nelem = sum(len(per[cid]) for cid in order)
     print("  叶块 %d -> 色块 %d 条 -> <path> %d 条 | 面板 %d | 物理元素 %d"
           % (nleaf, nrun, npath, len(order), nelem))
@@ -526,9 +598,20 @@ def emit(src, out, man, stats, a, H, Wd, kept, R, K, legend=None, rot=None):
                         per[cid][eid][col] = keep_r
                     else:
                         del per[cid][eid][col]
+            shd = SH.get((cid, eid))
             epx = sum(w * h for rs in per[cid][eid].values() for (_, _, w, h) in rs)
-            en = sum(len(rs) for rs in per[cid][eid].values())
+            en = _npath(cid, eid, per[cid][eid])
             gtag = ''
+            if shd is not None and shd["mode"] == "grad":
+                gtag = (' data-shading="grad-%s" data-shading-resid="%.2f" data-shading-levels="%d"'
+                        % (shd["g"]["kind"], shd["resid"], shd["levels"]))
+                elab += " + 真%s渐变 body + 明度层（残差 %.2f）" % (shd["g"]["kind"], shd["resid"])
+            elif shd is not None:
+                gtag = (' data-shading="k%dx%d" data-shading-resid="%.2f"'
+                        ' data-base-colors="%s"'
+                        % (shd["k"], shd["levels"], shd["resid"],
+                           ",".join(SHD.hexs(c) for c in shd["bases"])))
+                elab += " + 基色x%d + 明度层（残差 %.2f）" % (shd["k"], shd["resid"])
             if g is not None:
                 gtag = (' data-gradient="%s" data-gradient-resid="%.2f"'
                         ' data-gradient-px="%d"' % (g["kind"], g["resid"], int(g["mask"].sum())))
@@ -548,6 +631,22 @@ def emit(src, out, man, stats, a, H, Wd, kept, R, K, legend=None, rot=None):
                     print("    %s: 真渐变形状 %d 点" % (eid, npts))
             einfo = {"id": eid, "label": elab, "bbox": list(bbox), "px": epx,
                      "paths": en, "colors": []}
+            if shd is not None and shd["mode"] == "grad":
+                einfo["shading"] = {"model": "gradient+opacity", "kind": shd["g"]["kind"],
+                                    "levels": shd["levels"], "resid": round(shd["resid"], 3),
+                                    "stops": ["#%02x%02x%02x" % (int(round(c[0])), int(round(c[1])),
+                                                                 int(round(c[2])))
+                                              for c in shd["g"]["stops"]],
+                                    "bands": len({(t, l) for _, _, t, l in shd["assign"]
+                                                  if t in (0, 1) and l > 0}),
+                                    "remnants": shd.get("nrem", 0) + shd.get("nleft", 0)}
+            elif shd is not None:
+                einfo["shading"] = {"model": "base+opacity", "k": shd["k"],
+                                    "levels": shd["levels"], "resid": round(shd["resid"], 3),
+                                    "bases": [SHD.hexs(c) for c in shd["bases"]],
+                                    "bands": len({(t, l) for _, t, l in shd["assign"].values()
+                                                  if t in (0, 1) and l > 0}),
+                                                  "remnants": len({shd["bases"][v[0]] for v in shd["assign"].values() if v[1] == 2})}
             if g is not None:
                 einfo["gradient"] = {"kind": g["kind"], "resid": round(g["resid"], 3),
                                      "px": int(g["mask"].sum()),
@@ -561,15 +660,93 @@ def emit(src, out, man, stats, a, H, Wd, kept, R, K, legend=None, rot=None):
             #   「同色矩形并成一条 path」仍然保留（那是体积优化，不是图层结构）：
             #   实测 UPC 图 48071 条色块 → 22655 条 <path>，并了 53%。
             #   要按物理再拆子结构，用 panels.py 的 SPLIT 显式写。
-            items = sorted(per[cid][eid].items(),
-                           key=lambda t: -sum(w * h for _, _, w, h in t[1]))
-            for i, (col, rects) in enumerate(items, 1):
-                d = "".join("M%d %dh%dv%dh-%dz" % (x, y, w, h, w) for x, y, w, h in rects)
-                px = sum(w * h for _, _, w, h in rects)
-                L.append('<path id="%s-%s-%02d" data-color="%s" data-px="%d" fill="%s" d="%s"/>'
-                         % (cid, eid, i, hexs(col), px, hexs(col), d))
-                einfo["colors"].append({"color": hexs(col), "family": cname(*col),
-                                        "px": px, "rects": len(rects)})
+            if shd is not None and shd["mode"] == "grad":
+                # ★ 结构：**一条真渐变 body**（改 <defs> 里的 stop 就是整体改这个
+                #   物理色块）+ 少量 color-neutral 明暗层补残差。
+                gid = "%s-%s-grad" % (cid, eid)
+                gdefs.append(GFT.svg_defs(gid, shd["g"]))
+                d, npts = shd["shape"]
+                L.append('<path id="%s-%s-body" data-role="element-body" data-gradient="%s" '
+                         'data-gradient-resid="%.2f" data-px="%d" fill="url(#%s)" d="%s"/>'
+                         % (cid, eid, shd["g"]["kind"], shd["g"]["resid"],
+                            int(shd["g"]["mask"].sum()), gid, d))
+                einfo["colors"].append({"color": "url(#%s)" % gid, "family": "gradient",
+                                        "role": "element-body",
+                                        "stops": ["#%02x%02x%02x" % (int(round(c[0])),
+                                                                     int(round(c[1])),
+                                                                     int(round(c[2])))
+                                                  for c in shd["g"]["stops"]],
+                                        "px": int(shd["g"]["mask"].sum())})
+                bands, lo = {}, {}
+                for col, (rx, ry, rw, rh), tone, lev in shd["assign"]:
+                    if tone == 2:
+                        lo.setdefault(col, []).append((rx, ry, rw, rh))
+                    elif lev > 0.0:
+                        bands.setdefault((tone, lev), []).append((rx, ry, rw, rh))
+                # body 轮廓盖不到的碎块 / 高 alpha 的色块：按原色平涂（同色并成一条 path）
+                for col, r in shd.get("leftover") or ():
+                    lo.setdefault(col, []).append(r)
+                print("    %s: 真%s渐变 body %d 点 + 明暗层 %d 条 + 碎块 %d 条"
+                      % (eid, shd["g"]["kind"], npts, len(bands), len(lo)))
+            elif shd is not None:
+                # ★ 结构：k 个基色块（fill 就是基色 -> 整体改色的把手）+ 明暗层。
+                #   明暗层是黑/白 + fill-opacity，**不带颜色**，所以换基色时
+                #   整个元素的明暗关系自动跟着走（这正是「整体改一个物理色块」）。
+                bodies, bands, lo = {}, {}, {}
+                for col, rects in per[cid][eid].items():
+                    ki, tone, lev = shd["assign"][col]
+                    if tone == 2:
+                        lo.setdefault(col, []).extend(rects)
+                        continue
+                    bodies.setdefault(ki, []).extend(rects)
+                    if lev > 0.0:
+                        bands.setdefault((tone, lev), []).extend(rects)
+                for j, ki in enumerate(sorted(bodies)):
+                    rects = sorted(bodies[ki], key=lambda r: (r[1], r[0]))
+                    px = sum(w * h for _, _, w, h in rects)
+                    L.append('<path id="%s-%s-body%d" data-role="element-body" '
+                             'data-base="%s" data-px="%d" fill="%s" d="%s"/>'
+                             % (cid, eid, j + 1, SHD.hexs(shd["bases"][ki]), px,
+                                SHD.hexs(shd["bases"][ki]), SHD.d_of(rects)))
+                    einfo["colors"].append({"color": SHD.hexs(shd["bases"][ki]),
+                                            "family": "base", "role": "element-body",
+                                            "px": px, "rects": len(rects)})
+            else:
+                items = sorted(per[cid][eid].items(),
+                               key=lambda t: -sum(w * h for _, _, w, h in t[1]))
+                for i, (col, rects) in enumerate(items, 1):
+                    d = "".join("M%d %dh%dv%dh-%dz" % (x, y, w, h, w) for x, y, w, h in rects)
+                    px = sum(w * h for _, _, w, h in rects)
+                    L.append('<path id="%s-%s-%02d" data-color="%s" data-px="%d" fill="%s" d="%s"/>'
+                             % (cid, eid, i, hexs(col), px, hexs(col), d))
+                    einfo["colors"].append({"color": hexs(col), "family": cname(*col),
+                                            "px": px, "rects": len(rects)})
+            if shd is not None:
+                for col, rects in sorted(lo.items(),
+                                         key=lambda z: -sum(w * h for _, _, w, h in z[1])):
+                    rects = sorted(rects, key=lambda r: (r[1], r[0]))
+                    px = sum(w * h for _, _, w, h in rects)
+                    L.append('<path id="%s-%s-lo-%s" data-role="element-remnant" '
+                             'data-color="%s" data-px="%d" fill="%s" d="%s"/>'
+                             % (cid, eid, hexs(col)[1:], hexs(col), px, hexs(col),
+                                SHD.d_of(rects)))
+                    einfo["colors"].append({"color": hexs(col), "family": "remnant",
+                                            "role": "element-remnant", "px": px,
+                                            "rects": len(rects)})
+            if shd is not None:
+                    for (tone, lev) in sorted(bands):
+                        rects = sorted(bands[(tone, lev)], key=lambda r: (r[1], r[0]))
+                        px = sum(w * h for _, _, w, h in rects)
+                        fillc = "#000000" if tone == 0 else "#ffffff"
+                        L.append('<path id="%s-%s-%s%03d" data-role="shade" data-tone="%s" '
+                                 'data-level="%.4f" data-px="%d" fill="%s" fill-opacity="%.4f" '
+                                 'd="%s"/>'
+                                 % (cid, eid, "d" if tone == 0 else "l", int(round(lev * 1000)),
+                                    "dark" if tone == 0 else "light", lev, px, fillc, lev,
+                                    SHD.d_of(rects)))
+                        einfo["colors"].append({"color": fillc, "family": "shade",
+                                                "role": "shade",
+                                                "opacity": lev, "px": px, "rects": len(rects)})
             L.append('</g>')
             pinfo["elements"].append(einfo)
             md.append("| `%s` | `%s-%s` | %s | %d,%d,%d,%d | %d | %d |"
@@ -619,6 +796,10 @@ def emit(src, out, man, stats, a, H, Wd, kept, R, K, legend=None, rot=None):
                "- 改某个物理内容（火球 / 核子 / 流箭头 / 曲面 / 坐标轴 / 介质管…）：选中对应 `panel-element` 图层改颜色或形状。",
                "- 改文字：选中 `panel-text` 里的真 `<text>`，字体、字号、内容都可直接编辑。",
                "- 要重命名/调整元素范围：编辑 `panels.py` 的 `ELEMENTS`（框 + 颜色条件）与 `SPLIT`，再重跑 groupvec.py。",
+                "- 元素名字带「+ 真X渐变 body + 明度层」的：该元素的整体颜色就是一条真渐变，",
+                "  改 <defs> 里那条 gradient 的 stop 即整体改色；明暗层是黑/白 + fill-opacity，",
+               "- 元素名字带「+ 基色xN + 明度层」的：N 个基色块各有一个 fill（整体改色的把手），",
+               "  明暗层是黑/白 + fill-opacity（不含颜色），换基色时明暗关系自动跟着走。",
                "- 元素名字带「+ 真 radialGradient/linearGradient」的：该元素的大片平滑渐变已",
                "  合并成一条 `data-role=\"gradient-shape\"` 的 path（渐变定义在文件末尾的 `<defs>`），",
                "  底色台阶已丢掉；改渐变色/中心就在 `<defs>` 里改那个 gradient。"]
