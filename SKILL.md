@@ -276,6 +276,39 @@ geometry_constraints:
 
 > 跳过 IR 直接画 = "AI 随机画一张好看的图"，复现不了，物理也没保证。
 
+### ★ 编译器不许丢字段：IR → 简报的「无损体检」（v2.6.10）
+
+模型**永远看不到 IR** —— 它只收到 `ir_to_genbrief.py` 编译出来的简报。
+所以**编译器丢掉的字段，等于你从来没写过**。这件事已经踩过三次：
+
+| 版本 | 被丢 / 被写死的字段 | 后果 |
+|---|---|---|
+| v2.6.4 | `style.conventions` | IR 写「纵向压扁」，4/4 把两核画成横扁 |
+| v2.6.7 | `style.palette` + 风格档写死成扁平 | IR 要 3D，简报反过来禁 3D → 火球=纯色圆盘 |
+| v2.6.9 | `elements[].material` | IR 写「哑光 / 三层壳 / 组元颗粒」一个字没进 → 火球=光滑糖球 |
+| **v2.6.10** | `composition.view`、`geometry_constraints.约束[].为什么`、`composition.元素布局 / 分区 / 叠放关系`、sketch 档的 `style.palette` | 视角、判据理由、锚点 / 相对尺寸 / 备注全丢 |
+
+**改 IR 格式 / 改简报模板之后，先跑一遍体检**：
+
+```bash
+python3 scripts/ir_brief_audit.py            # sketch + render 两档
+python3 scripts/ir_brief_audit.py --verbose  # 每行都打理由
+```
+
+它用**哨兵法**（给 IR 的每个叶子字段塞一个唯一串，编译成简报后查在不在），
+**不靠读代码猜**。字段分四类：
+
+- `carry` —— 两档都必须到。
+- `carry-render` —— 只要求 render 档（sketch 刻意不带：那一步要扁平，带 3D 风格定位会打架）。
+- `context` —— 到了，但简报里明说「仅供理解，不要画进图」。
+- `skip` —— 刻意不带：`figure.title` / `execution.*` / `assertions.*` 这类给工具和人用的，
+  画上去就是错。
+
+有「必须到达」的字段没到 → 退出码 1（已挂进回归：`genbrief_lossless_render`）。
+
+> 哨兵要**包一层分隔符**（`@@S_z@@`）—— 否则 `S_z` 是 `S_zone` 的前缀，
+> 会被纯子串匹配误判成「z 到了」。
+
 ### 3. 选后端（按图选工具，不预设）
 
 **先跑工具探测**——缺工具不是放弃的理由，是**告诉用户装什么**：
@@ -976,3 +1009,4 @@ python3 scripts/auto_converge.py --ref 参考图.png \
 | `sketch_to_vector.py` | **★ 草图矢量化**（人可改的 SVG 草图）：不用写 `panels.py`，自动切分每个形体一个子层 |
 | `raster_to_vector.py` | **位图 → 矢量（临摹备用路径）**：逐像素描摹 + 混合文字（`--text-spec`）+ 语义归组（`--groups`） |
 | `raster_to_vector_semantic.py` | **位图 → 语义分层的全矢量**（先理解再临摹）：真 `<text>`、物理元素图层树、误差可量化。库在 `scripts/raster_vector/`，用法见其 `README.md` |
+| `ir_brief_audit.py` | **★ IR → 简报的无损体检**（哨兵法：字段没进简报 = IR 白写）。改 IR 格式 / 简报模板后必跑，可挂 CI |

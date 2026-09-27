@@ -278,6 +278,18 @@ def build(ir: dict, style: dict | None, stage: str = "sketch",
              "导致出图被裁、构图检测也跟着失效。）")
     L.append("")
     L.append(f"画布比例：{W}×{H}（宽高比 {W/H:.2f}）。白底。")
+    # ★ v2.6.10 无损体检：figure.archetype / canvas.用途 / canvas.ratio 以前整段丢。
+    #   这几条是"这张图是什么性质"的上下文（示意图 ≠ 定量面板），
+    #   但它们**不是画面内容** —— 明说不要画进图里，否则模型会当标题画上去。
+    _meta = []
+    if fig.get("archetype"):
+        _meta.append("图型 %s" % fig["archetype"])
+    if cv.get("用途"):
+        _meta.append("用途 %s" % " ".join(str(cv["用途"]).split()))
+    if cv.get("ratio"):
+        _meta.append("IR 声明的画布比例 %s" % " ".join(str(cv["ratio"]).split()))
+    if _meta:
+        L.append("（本图定位：" + "；".join(_meta) + " —— **仅供理解，不要画进图里**）")
     L.append("")
 
     # ── 物理内容（不许改）──
@@ -356,19 +368,50 @@ def build(ir: dict, style: dict | None, stage: str = "sketch",
     L.append("")
 
     # ── 构图 ──
-    layout = (ir.get("composition") or {}).get("layout")
-    note = (ir.get("composition") or {}).get("note")
-    if layout:
+    # ★ v2.6.10 无损体检：这一节原来只读 composition.layout / note，
+    #   而 view（视角）/ 分区 / 元素布局 / 叠放关系 **整段丢**。
+    #   实测（形变核→火球 算例）：IR 里 `view: "斜视 3D，四个阶段沿水平方向排成一行"`
+    #   一个字都没进简报 —— 用户只能把视角**再抄一遍进 figure.physics_claim** 才生效。
+    #   而视角是几何约束的前提：视角一换，第三节所有约束全部失效。
+    comp = ir.get("composition") or {}
+    layout = comp.get("layout")
+    note = comp.get("note")
+    view = comp.get("view") or comp.get("视角")     # view(实测 IR 写法) 与 视角(规范写法) 都认
+    zone = comp.get("分区")
+    stack = comp.get("叠放关系")
+    places = comp.get("元素布局") or []
+    if layout or view or zone or stack or places:
         L.append("═══ 二、构图 ═══")
-        if isinstance(layout, (list, tuple)):
-            L.append("布局：")
-            for it in layout:
-                L.append("  · %s" % it)
-        else:
-            L.append(f"布局：{layout}")
+        if view:
+            L.append("视角：%s" % " ".join(str(view).split()))
+        if zone:
+            L.append("分区：%s" % " ".join(str(zone).split()))
+        if layout:
+            if isinstance(layout, (list, tuple)):
+                L.append("布局：")
+                for it in layout:
+                    L.append("  · %s" % it)
+            else:
+                L.append(f"布局：{layout}")
         if note:
             L.append(" ".join(str(note).split()))
         L.append("")
+        # ★ v2.6.10：composition.元素布局（结构化锚点）以前整段丢，而同一件事
+        #   写进 elements[].params.cx/cy 却能进简报 —— 两种写法一种活一种死，是陷阱。
+        if places:
+            L.append("各元素位置（IR 的 composition.元素布局；与下面的 params 坐标"
+                     "冲突时**以本表为准**）：")
+            for it in places:
+                a = it.get("锚点") or []
+                _s = "  · %s" % it.get("id", "")
+                if isinstance(a, (list, tuple)) and len(a) >= 2:
+                    _s += "  锚点 (x=%s, y=%s)" % (_fmt_num(a[0]), _fmt_num(a[1]))
+                if it.get("相对尺寸"):
+                    _s += "，相对尺寸 %s" % it["相对尺寸"]
+                if it.get("备注"):
+                    _s += "（%s）" % it["备注"]
+                L.append(_s)
+            L.append("")
         L.append("各元素位置（相对画布，x 从左 0→1，y 从上 0→1）：")
         for e in elems:
             p = e.get("params") or {}
@@ -382,6 +425,8 @@ def build(ir: dict, style: dict | None, stage: str = "sketch",
                 s += "，半径/半宽约 %s×画布宽" % _fmt_num(size)
             L.append(f"  · {e.get('name','')}{s}")
         L.append("")
+        if stack:
+            L.append("叠放关系：%s" % " ".join(str(stack).split()))
         L.append(f"叠放顺序（从后往前，后画的盖住先画的）："
                  f"{' → '.join(e.get('name','') for e in elems)}")
         L.append("")
@@ -397,7 +442,12 @@ def build(ir: dict, style: dict | None, stage: str = "sketch",
         L.append("  · 对不上 = 位图错了 → 回去改简报重出，而不是在矢量那步偷偷「修正」。")
         L.append("")
         for c in cons:
-            L.append(f"  · {c.get('名','')}：{c.get('量','')}  要求 {c.get('要求','')}")
+            _line = f"  · {c.get('名','')}：{c.get('量','')}  要求 {c.get('要求','')}"
+            # ★ v2.6.10：`为什么` 以前整段丢。这一层存在的理由就是防「画得漂亮但物理错」；
+            #   只说"要满足什么"、不说"为什么不能让"，模型就分不清哪条可以妥协。
+            if c.get("为什么"):
+                _line += "   ← **为什么**：" + " ".join(str(c["为什么"]).split())
+            L.append(_line)
         L.append("")
 
     # ── 形态约定（IR 的 style.conventions）──
@@ -469,24 +519,36 @@ def build(ir: dict, style: dict | None, stage: str = "sketch",
                  "那是通用 CG 球、不是物理对象。")
         L.append("  · **仍然不要**：照片级材质纹理、胶片颗粒/噪点纹理、景深虚化、"
                  "镜头光晕、渐变背景（示意性的细小符号 ≠ 颗粒噪点，该画就画）。")
+    # ★ v2.6.10 无损体检：这一段原来整个 `if stage == "render"`，
+    #   于是 **sketch 阶段连 palette 都拿不到** —— 草图会自己乱配色。
+    #   草图虽然是平涂，但"哪块冷哪块热"本身就是信息（IR 的 conventions 里
+    #   经常明写"颜色是信息"），配色必须两个阶段都送。
+    _ist = ir.get("style") or {}
     if stage == "render":
-        _ist = ir.get("style") or {}
         if _ist.get("classification"):
             L.append(f"  · IR 给的风格定位：{_ist['classification']}")
-        _pal = _ist.get("palette")
-        if _pal:
-            L.append("  · IR 指定的配色（**照这个用**）：")
-            if isinstance(_pal, dict):
-                for _k, _v in _pal.items():
-                    L.append(f"     {_k}: {_v}")
-            elif isinstance(_pal, (list, tuple)):
-                L.append("     " + " / ".join(str(x) for x in _pal))
-            else:
-                L.append(f"     {_pal}")
+    _pal = _ist.get("palette")
+    if _pal:
+        L.append("  · IR 指定的配色（**照这个用**%s）："
+                 % ("；草图仍是平涂，但色相不许改" if stage == "sketch" else ""))
+        if isinstance(_pal, dict):
+            for _k, _v in _pal.items():
+                L.append(f"     {_k}: {_v}")
+        elif isinstance(_pal, (list, tuple)):
+            L.append("     " + " / ".join(str(x) for x in _pal))
+        else:
+            L.append(f"     {_pal}")
+    if stage == "render":
         _lw = _ist.get("line_widths")
         if isinstance(_lw, dict) and _lw:
             L.append("  · IR 指定的线宽：" + "，".join(
                 f"{k}={v}" for k, v in _lw.items()))
+        # ★ v2.6.10：style.characteristics 以前整段丢（它是 classification 的逐条展开）
+        _ch = _ist.get("characteristics")
+        if _ch:
+            L.append("  · IR 列的风格特征（逐条对照着画）：")
+            for _c in (_ch if isinstance(_ch, (list, tuple)) else [_ch]):
+                L.append(f"     - {_c}")
     if style and stage == "render":
         L.append(f"  · 风格类的量测参考（{style['class']}，"
                  f"n={style['n_sources']}）：")

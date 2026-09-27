@@ -1,5 +1,49 @@
 # 变更记录
 
+## v2.6.10 — 2026-09-27
+
+**回答用户的追问：「什么意思，是说模型没有按照 IR 生图，按照简报生图了？」**
+
+—— 是的，而且是**信息论意义上的**：模型从头到尾**看不到 IR**，只收到
+`ir_to_genbrief.py` 编译出来的简报。**编译器丢掉的字段 = IR 白写**。
+这件事在 v2.6.4 / v2.6.7 / v2.6.9 已经踩过三次（`conventions` / `palette`+风格档 /
+`material`），所以这次不再靠读代码逐个找，而是写了一个**无损体检**。
+
+### 体检结果（哨兵法：给每个叶子字段塞唯一串，编译后查在不在）
+
+改前实测 **8 个字段进不了简报**：
+
+| 字段 | 严重度 | 后果 |
+|---|---|---|
+| `composition.view` | 高 | 视角是几何约束的**前提**；丢了，用户只能把它再抄进 `figure.physics_claim` 才生效 |
+| `geometry_constraints.约束[].为什么` | 高 | 这一层存在的理由就是防「画得漂亮但物理错」；不说为什么，模型分不清哪条能让 |
+| `composition.元素布局[]`（锚点 / 相对尺寸 / 备注） | 中 | 同义的 `params.cx/cy` 能进、它不能 —— **两种写法一种活一种死** |
+| `composition.分区` / `composition.叠放关系` | 中 | 整段丢（`叠放关系` 是比 `z` 排序更细的 prose 版） |
+| `style.palette`（仅 sketch 档） | 中 | 整段在 `if stage=="render"` 里 → 草图自己乱配色。「颜色是信息」本身是内容 |
+| `style.characteristics` / `classification`（sketch 档） | 低 | sketch 档刻意不带，合理 |
+| `figure.archetype` / `canvas.ratio` / `canvas.用途` | 低 | 上下文（示意图 ≠ 定量面板） |
+
+改后：**render 档全部到达（无损）**；sketch 档只差 `classification` / `characteristics`
+（**刻意不带** —— 那一步要扁平，带 3D 风格定位会打架）。
+
+### 修法
+
+1. **构图层重写**：`ir_to_genbrief.py` 新增 `view` / `视角(别名)` / `分区` / `叠放关系` /
+   `元素布局[]`（明说「与 params 坐标冲突时以本表为准」）。
+2. **几何约束每行追加** `← **为什么**：…`。
+3. **`style.palette` 移出 `if stage=="render"`** → 两档都送（sketch 加注「草图仍是平涂，
+   但色相不许改」）；`style.characteristics` 进 render 档。
+4. **图型 / 画布元信息**新增一行「（本图定位：… —— **仅供理解，不要画进图里**）」。
+
+### 新工具 + 回归
+
+- `scripts/ir_brief_audit.py`：**哨兵法无损体检**。字段分 `carry` / `carry-render` /
+  `context` / `skip` 四类，「该到没到」→ 退出码 1（可挂 CI）。
+  ★ 哨兵必须**包分隔符**（`@@S_z@@`）—— 否则 `S_z` 是 `S_zone` 的前缀，
+  会被纯子串匹配误判成「到了」（本次实测就撞了这个假阳性）。
+- 回归测试 **28/28**：新增 `genbrief_lossless_render`（钉住曾经的「整段丢」字段必须逐字进简报、
+  sketch 档也要带 palette、`figure.title` / `execution.*` **不许**进简报）。
+
 ## v2.6.9 — 2026-09-27
 
 **回答用户的追问：「我感觉这个 fireball 还不错，但是质感不对，很像 AI 画风，

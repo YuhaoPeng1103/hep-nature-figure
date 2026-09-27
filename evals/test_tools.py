@@ -923,5 +923,58 @@ def test_genbrief_carries_material():
     assert "【材质：" not in out2, "没写 material 就不该有【材质：】段"
 
 
+@case("genbrief_lossless_render",
+      "IR 里写了、简报里没有 = 从来没写过（编译器丢字段 = IR 白写）。真实 IR 实测丢过的"
+      "字段必须**逐字**进简报：geometry_constraints 的「为什么」（不说为什么，模型分不清哪条"
+      "能让）、composition.view（视角是几何约束的前提）、元素布局的 锚点/相对尺寸/备注"
+      "（同义的 params.cx/cy 能进、它却不能 —— 两种写法一种活一种死）、分区、叠放关系、"
+      "以及 sketch 档的 style.palette（颜色是信息，草图色相不许被模型改）。"
+      "反之，figure.title / execution.* 这类给工具用的字段**不许**进简报 —— 画上去就是错。")
+def test_genbrief_is_lossless_for_render():
+    import ir_to_genbrief as IG
+
+    def base():
+        return {
+            "figure": {"title": "SENTINEL_TITLE", "physics_claim": "两核碰撞",
+                       "canvas": {"w": 900, "h": 600}},
+            "elements": [{"name": "火球", "z": 1, "primitive": "团块"},
+                         {"name": "箭头", "z": 2, "primitive": "粗箭头"}],
+            "composition": {
+                "view": "斜视 3D，四个阶段沿水平方向排成一行",
+                "分区": "左:入射 右:末态",
+                "叠放关系": "火球盖住网格线",
+                "元素布局": [{"id": "火球", "锚点": ["画面中心", 0.5],
+                              "相对尺寸": "占宽 40%", "备注": "不许贴边"}],
+            },
+            "geometry_constraints": {"约束": [
+                {"名": "初态背对背", "量": "dot<0", "要求": "两核反向",
+                 "为什么": "动量守恒，画同向就是物理错"}]},
+            "style": {"palette": {"nucleus": "#8a8f98", "fireball": "#ff7a1a"},
+                      "conventions": ["纵向压扁"]},
+            "execution": {"primary": "SENTINEL_EXEC"},
+        }
+
+    render = IG.build(base(), None, "render")
+    # ① 曾经「整段丢」的字段：必须在
+    assert "斜视 3D，四个阶段沿水平方向排成一行" in render, (
+        "composition.view 必须进简报 —— 视角是几何约束的前提")
+    assert "动量守恒，画同向就是物理错" in render, (
+        "几何约束的「为什么」必须进简报 —— 不说为什么，模型分不清哪条能让")
+    assert "占宽 40%" in render and "不许贴边" in render, (
+        "元素布局的 相对尺寸/备注 必须进简报（同义的 params 坐标能进、它却曾整段丢）")
+    assert "左:入射 右:末态" in render, "composition.分区 必须进简报"
+    assert "火球盖住网格线" in render, "composition.叠放关系 必须进简报"
+
+    # ② 曾经的 sketch 档黑洞：palette 整段在 if stage=='render' 里
+    sketch = IG.build(base(), None, "sketch")
+    assert "#ff7a1a" in sketch, (
+        "sketch 档也要带 palette —— 颜色是信息，草图色相不许被模型改")
+
+    # ③ 给工具用、不该画进画面的字段：必须不在
+    for bad, why in (("SENTINEL_TITLE", "图题画上去就是错"),
+                     ("SENTINEL_EXEC", "execution 是后端选型，不是画面内容")):
+        assert bad not in render, "%r 不该进简报（%s）" % (bad, why)
+
+
 if __name__ == "__main__":
     sys.exit(main())

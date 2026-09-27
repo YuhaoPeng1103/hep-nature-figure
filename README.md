@@ -356,6 +356,7 @@ python3 scripts/demo_combined.py
 │   ├── scene_render.py          路线 1：IR 直渲（确定性，可批量扫参数）
 │   ├── verify_scene.py          路线 1 的几何自检（量 IR 里写了数量的元素）
 │   ├── ir_to_genbrief.py        IR → 生图简报（--stage sketch / render）
+│   ├── ir_brief_audit.py       ★ IR → 简报的无损体检（哨兵法：字段没进简报 = IR 白写）
 │   ├── gen_figure.py            ★ 第③步：生图（简报 → 草图 / 成品位图）。key 自备，支持 --ref
 │   ├── trim_border.py           ★ 裁掉生图模型稳定画的 1~2px 外框（幂等）
 │   ├── sketch_to_vector.py      ★ 第④步：草图矢量化成可改的 SVG（不用写 panels.py）
@@ -379,7 +380,7 @@ python3 scripts/demo_combined.py
 │   ├── repair_brief.py          返修单（归一化坐标 + 具体改多少）
 │   └── demo_*.py                多工具联合 / 喷注淬火 / 时间线 示范
 ├── evals/
-│   ├── test_tools.py            27 个回归 case（每个对应一个真实踩过的坑）
+│   ├── test_tools.py            28 个回归 case（每个对应一个真实踩过的坑）
 │   └── evals.json / README.md   评测清单
 └── assets/
     ├── style-profiles.json      风格档案（门禁用；存**区间**不存点值）
