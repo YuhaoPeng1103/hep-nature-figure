@@ -214,6 +214,7 @@ python3 scripts/raster_to_vector_semantic.py fig.png -o fig.svg \
 | 自旋关联示意图（路线③ 全过程） | <a href="assets/demos/spin_semantic/cmp_preview.png"><img src="assets/demos/spin_semantic/cmp_preview.png" width="260" alt="自旋关联：位图 vs 临摹矢量"></a> | 上 = 生图模型的成品位图，下 = 临摹矢量回渲染；非文字区 MAE **0.518**、`<image>` **0** |
 | 形变核 → 火球四阶段链（路线③ 全过程） | <a href="assets/demos/evo_semantic/cmp_preview.png"><img src="assets/demos/evo_semantic/cmp_preview.png" width="260" alt="形变核→火球：位图 vs 临摹矢量"></a> | 上 = 成品位图，下 = 全矢量临摹；MAE **0.626**、31005 `<path>` / `<image>` **0**、PDF 183x102 mm 纯矢量 | 
 | **形变核 → 火球 3D 版**（v2.6.7 风格档） | <a href="assets/demos/evo3d_semantic/cmp_bitmap_vs_svg.png"><img src="assets/demos/evo3d_semantic/cmp_bitmap_vs_svg.png" width="260" alt="形变核→火球 3D：位图 vs 矢量"></a> | 同一份 IR + 同一张参考图，只把 `--style-mode` 判成 `render3d`：火球从**纯色圆盘**变成内亮外暗的多层半透明 3D 渐变；686 `<path>` / **5 `<text>`** / `<image>` **0**，MAE 0.994 |
+| **构图参考会把「扁平」当风格一起送进去**（v2.6.8） | <a href="assets/demos/evo3d_layoutref/cmp_refmodes.png"><img src="assets/demos/evo3d_layoutref/cmp_refmodes.png" width="260" alt="content-ref 三种送法的 A/B/C 对照"></a> | 同一份简报 / 同一 seed，只改 `--content-ref` 怎么送：原样送 → **纯色橙盘**；不送 → 3D 但构图跑掉；**降级成 layout-only → 3D 辉光 + 亮核，且构图相关 r 反而最高（0.904）** |
 | UPC 示意图（三条落点并排） | <a href="assets/demos/upc_semantic/cmp_preview.png"><img src="assets/demos/upc_semantic/cmp_preview.png" width="260" alt="UPC：生图位图 / 语义临摹 / 代码直写"></a> | 1 生图位图 / 2 语义临摹 / 3 代码直写 —— 同一条主线的三种落点 |
 | 生图模型的成品位图（原图） | <a href="assets/demos/upc_semantic/src_upc.png"><img src="assets/demos/upc_semantic/src_upc.png" width="260" alt="UPC 生图位图"></a> | 路线③ 的中间产物：只当作"更好的草图"，它过了闸口才允许照它画 |
 | 手绘草图（路线②③ 的输入） | <a href="assets/demos/sketch_upc.png"><img src="assets/demos/sketch_upc.png" width="260" alt="手绘草图输入"></a> | 草图只要求"构图清晰、元素齐全"，质感由后面的生图负责 |
@@ -222,7 +223,9 @@ python3 scripts/raster_to_vector_semantic.py fig.png -o fig.svg \
 
 - **物理内容** —— 这张图要表达什么（几句话也行）。它是 IR 里 `physics` 的来源，也是闸口的判据。
 - **参考图 / 草图**（可选但强烈建议）—— 上一步的**草图**走 `--content-ref`（构图依据，
-  出图本来就该像它）；**风格参考**走 `--ref`（只给配色/线条/材质，**不许抄内容**）。
+  出图本来就该像它；★ 出成品位图时它会被自动**降级成 layout-only** —— 只留布局、
+  去掉草图的扁平渲染风格，否则模型会把"扁平"当风格一起继承、把风格参考稀释掉，
+  见 `--content-ref-mode`）；**风格参考**走 `--ref`（只给配色/线条/材质，**不许抄内容**）。
   复现任务要另给原图。★ 参考图别选「内容同类」的：`qwen-image` 是图生图，内容越像
   越容易被整幅照抄（出的图会变成参考图的样子）—— 出图后跑
   `scripts/ref_leak_check.py` 量一次，`r >= 0.85` 就是照抄。
@@ -375,7 +378,7 @@ python3 scripts/demo_combined.py
 │   ├── repair_brief.py          返修单（归一化坐标 + 具体改多少）
 │   └── demo_*.py                多工具联合 / 喷注淬火 / 时间线 示范
 ├── evals/
-│   ├── test_tools.py            25 个回归 case（每个对应一个真实踩过的坑）
+│   ├── test_tools.py            26 个回归 case（每个对应一个真实踩过的坑）
 │   └── evals.json / README.md   评测清单
 └── assets/
     ├── style-profiles.json      风格档案（门禁用；存**区间**不存点值）
@@ -385,7 +388,8 @@ python3 scripts/demo_combined.py
         ├── upc_semantic/        UPC 完整算例（词表 / 元素表 / 源图 / 并排预览）
         ├── spin_semantic/       自旋关联完整算例（同上，v2.6.3）
         ├── evo_semantic/        形变核→火球四阶段链（v2.6.5，含 A/B 实验台 sweep.py）
-        └── evo3d_semantic/     形变核→火球 **3D 风格档**（同一份 IR，--style-mode render3d，v2.6.7）
+        ├── evo3d_semantic/     形变核→火球 **3D 风格档**（同一份 IR，--style-mode render3d，v2.6.7）
+        └── evo3d_layoutref/    构图参考的 A/B/C（--content-ref-mode layout，v2.6.8）
 ```
 
 ---
@@ -405,6 +409,7 @@ python3 scripts/demo_combined.py
 | `assets/demos/upc_semantic/`、`assets/demos/spin_semantic/`、`assets/demos/evo_semantic/` | 想照抄一个完整算例（词表 + 元素表 + 命令 + 实测数字） |
 | `assets/demos/evo_semantic/README.md` | 想知道「真 `<gradient>` 到底帮不帮忙」—— 那里有 5 档参数的 A/B 表 |
 | `assets/demos/evo3d_semantic/` | 想知道「参考图 = 风格书，不是内容模板」怎么落地：同一份 IR 换个风格档，火球从纯色圆盘变成 3D 渐变 |
+| `assets/demos/evo3d_layoutref/` | 想知道「出了图又干又平、火球是纯色圆盘」怎么救：`--content-ref` 三种送法的 A/B/C 实测表（降级成 layout-only 后风格和构图**同时**变好） |
 
 ---
 

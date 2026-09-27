@@ -34,6 +34,28 @@ gen_figure —— 第 ② 步：把 IR 简报变成【草图】或【成品位�
 **要给参考图就必须用 `mm` 那条**（qwen-image 系列）。实测：`wanx2.0-t2i-turbo`
 对结构化示意图太弱（画不出顶点、箭头、e⁺e⁻），且不支持参考图。
 
+## ★ 构图参考（--content-ref）默认「降级」再送（v2.6.8）
+
+`--content-ref-mode auto|layout|full`（默认 `auto`）。
+
+实测（2026-09-27，形变核→火球 算例，**同一份简报**、qwen-image-3.0、seed 53）：
+
+| content-ref 怎么送的 | 与草图布局的列剖面相关 r | 出的火球 |
+|---|---|---|
+| 原样送（`full`） | 0.873 | **纯色橙盘**（草图的"扁平"风格被一起继承） |
+| 不送 | 0.696 | 3D 辉光，但构图跑掉（三取向涨落画成了三个球） |
+| 降级成 layout-only | **0.904** | 3D 辉光 + 亮核（构图与风格**同时**拿到） |
+
+原因：qwen-image 是**图生图**，`--content-ref` 给的草图是**扁平**的，
+模型会把"扁平"这个**渲染风格**连同构图**一起**继承，把风格参考图稀释掉 ——
+于是"用了 diffusion model 却没用它的好处"，火球退化成纯色圆盘。
+
+所以默认（`auto`）：`--stage render` 时把构图参考先降级成
+「灰度 + 降采样再放大 + 轻微模糊」的**只含布局**的图（落盘为 `layout_*.png`），
+只留"哪儿有什么、多大、什么位置"，去掉颜色与扁平渲染风格；
+`--stage sketch` 保持原样（草图阶段本来就该跟手绘稿的形体走）。
+想让模型连草图的风格一起继承，显式 `--content-ref-mode full`。
+
 ## 用法
 
     # ① IR → 简报（skill 自带的编译步骤）
@@ -125,6 +147,31 @@ def download(url, dest):
     dest.parent.mkdir(parents=True, exist_ok=True)
     urllib.request.urlretrieve(url, str(dest))
     return dest
+
+
+def _degrade_to_layout(src, dst, width=160):
+    """把构图参考降级成「只含布局」的灰度模糊图（v2.6.8）。
+
+    只留形体（哪儿有什么 / 多大 / 什么位置），丢掉颜色和**扁平的渲染风格** ——
+    这样模型就不会把草图的"扁平"当成要继承的风格。
+
+    ★ 实测（2026-09-27，形变核→火球 算例，同一份简报 / 同一 seed 53，qwen-image-3.0）：
+      原样送扁平草图 -> 与草图布局的列剖面相关 r=0.873，但火球被压成纯色橙盘；
+      降级成 layout-only -> r=0.904 **且**火球是 3D 辉光 + 亮核。
+      即降级不是"拿构图换风格"，是两边**都**变好。
+    """
+    from PIL import Image, ImageFilter
+    im = Image.open(str(src)).convert("RGB")
+    W, H = im.size
+    g = im.convert("L")
+    h = max(1, int(round(H * width / float(W))))
+    small = g.resize((width, h), Image.BILINEAR)      # 杀细描边 / 文字 / 颗粒
+    back = small.resize((W, H), Image.BICUBIC)        # 放回原画布，只剩大形体
+    back = back.filter(ImageFilter.GaussianBlur(radius=max(2.0, W / 220.0)))
+    dst = pathlib.Path(dst)
+    dst.parent.mkdir(parents=True, exist_ok=True)
+    Image.merge("RGB", (back, back, back)).save(str(dst))
+    return dst
 
 
 def _ref_leak_check(out_png, style_refs, content_refs, skip=False):
@@ -269,6 +316,12 @@ def main():
     ap.add_argument("--content-ref", action="append", default=[],
                     help="构图参考图（上一步选中的草图）：出图本来就该像它，"
                          "所以不参与「照抄」判定，并会排在风格参考前面送给模型")
+    ap.add_argument("--content-ref-mode", choices=("auto", "full", "layout"),
+                    default="auto",
+                    help="构图参考的预处理：auto=render 档降级成 layout-only、"
+                         "sketch 档原样（默认）；layout=总是降级；full=总是原样。"
+                         "★ 实测：原样送扁平草图会把'扁平'渲染风格一起带进去，"
+                         "风格参考被稀释（详见文件头部说明）")
     ap.add_argument("--no-ref-check", action="store_true",
                     help="出图后不做「参考图照抄」自检（默认做）")
     ap.add_argument("--model", default="qwen-image-3.0")
@@ -302,7 +355,13 @@ def main():
     print("模型 / 接口 : %s / %s" % (a.model, mode))
     print("画布        : %s" % a.size)
     all_ref = list(a.content_ref) + list(a.ref)
+    # ★ 构图参考降级（v2.6.8）：扁平草图会把"扁平"渲染风格一起带进去，
+    #   把风格参考稀释掉。render 档默认先降级成 layout-only（理由见文件头部）。
+    cr_mode = a.content_ref_mode
+    if cr_mode == "auto":
+        cr_mode = "full" if a.stage == "sketch" else "layout"
     print("构图参考    : %s" % (", ".join(a.content_ref) if a.content_ref else "（无）"))
+    print("构图参考模式: %s%s" % (cr_mode, "（auto -> 按 stage 定）" if a.content_ref_mode == "auto" else ""))
     print("风格参考    : %s" % (", ".join(a.ref) if a.ref else "（无 —— 出来会偏通用）"))
     print("提示词      : 已写出 %s（%d 字符，sha1 %s）"
           % (outdir / ("%s_prompt.txt" % a.stage), len(prompt),
@@ -323,9 +382,29 @@ def main():
     cfg = dict(key=key, base=base.rstrip("/"), model=a.model, size=a.size,
                timeout=a.timeout)
 
+    # ★ 构图参考降级（v2.6.8）：只把 --content-ref 降级；--ref 风格参考原样送
+    sent = {}
+    for r in a.content_ref:
+        src = pathlib.Path(r)
+        if not src.exists():
+            sys.exit("参考图不存在: %s" % r)
+        if cr_mode == "layout":
+            dst = outdir / ("layout_%s.png" % src.stem)
+            try:
+                _degrade_to_layout(src, dst)
+                sent[r] = str(dst)
+                print("构图参考降级: %s -> %s（只留布局，去掉扁平风格）"
+                      % (src.name, dst.name))
+            except Exception as e:            # 降级失败不许影响出图
+                print("  ⚠️ 构图参考降级失败（%s: %s）—— 退回原图"
+                      % (type(e).__name__, e))
+                sent[r] = r
+        else:
+            sent[r] = r
+
     refs = []
     for r in all_ref:
-        p = pathlib.Path(r)
+        p = pathlib.Path(sent.get(r, r))
         if not p.exists():
             sys.exit("参考图不存在: %s" % r)
         if mode == "mm":
@@ -357,6 +436,8 @@ def main():
         rec = dict(stage=a.stage, model=a.model, mode=mode, size=a.size, seed=sd,
                    refs=[str(r) for r in all_ref],
                    content_refs=[str(r) for r in a.content_ref], n_ref=len(refs),
+                   content_ref_mode=cr_mode,
+                   content_ref_sent=[sent.get(str(r), str(r)) for r in a.content_ref],
                    prompt_sha1=hashlib.sha1(prompt.encode("utf-8")).hexdigest(),
                    prompt_chars=len(prompt), seconds=round(time.time() - t0, 1),
                    ok=bool(url), note=note)

@@ -799,5 +799,84 @@ def test_dump_elements_table_path():
     assert not (run / "_elem_table.txt").exists(), "不许把 _elem_table.txt 写进 cwd"
 
 
+@case("gen_figure_content_ref_downgraded_to_layout",
+      "构图参考（--content-ref）默认必须**降级成 layout-only** 再送模型。"
+      "实测（2026-09-27 形变核→火球，qwen-image-3.0 / seed 53，同一简报）："
+      "原样送扁平草图 -> 与草图布局相关 r=0.873 但火球退化成纯色橙盘（模型把草图的"
+      "「扁平」渲染风格一起继承了，风格参考被稀释）；降级成 layout-only -> r=0.904 "
+      "**且**火球恢复 3D 辉光+亮核。防有人把这步「优化」掉、退回原样送。")
+def test_gen_figure_content_ref_layout_mode():
+    """
+    ★ 实测数字见上面 why。这个 case 用**必然失败**的 api-base 跑（只看预处理和记录，
+      不花钱、不联网）：① render 档 auto -> layout：落盘 layout_*.png、记录
+      mode=layout、送的确实是它、且它是灰度；② sketch 档 auto -> full：不降级；
+      ③ 显式 --content-ref-mode full：render 档也不降级。
+    """
+    import json
+    import os
+    import numpy as np
+    from PIL import Image
+
+    tmp = Path(tempfile.mkdtemp(prefix="gfcr_"))
+    # 造一张"扁平草图"：白底 + 饱和橙色块（正是会把扁平风格带进去的那种素材）
+    a = np.full((120, 200, 3), 255, np.uint8)
+    a[40:90, 60:140] = (255, 90, 0)
+    a[30:60, 20:40] = (120, 120, 200)
+    sketch = tmp / "sketch_s7_clean.png"
+    Image.fromarray(a).save(str(sketch))
+    # 另造一张"风格参考"（内容不同、只是给 --ref 用，不该被降级）
+    st = np.full((120, 200, 3), 250, np.uint8)
+    st[20:100, 30:170] = (60, 60, 60)
+    style = tmp / "T3-33.png"
+    Image.fromarray(st).save(str(style))
+    (tmp / "b.md").write_text("# 简报\n画四个阶段的演化链。\n", encoding="utf-8")
+    env = dict(os.environ)
+    env["DASHSCOPE_API_KEY"] = "sk-dummy-for-test"      # 只为过检查
+
+    def run(*extra):
+        out = tmp / ("gen%d" % len(list(tmp.glob("gen*"))))
+        r = subprocess.run([sys.executable, str(SCRIPTS / "gen_figure.py"),
+                            "--brief", str(tmp / "b.md"), "--ref", str(style),
+                            "--content-ref", str(sketch),
+                            "--seeds", "1", "--outdir", str(out),
+                            "--api-base", "http://127.0.0.1:9/v1", "--timeout", "3"]
+                           + list(extra),
+                           capture_output=True, text=True, timeout=300,
+                           encoding="utf-8", errors="replace", env=env)
+        assert r.returncode == 0, (r.stdout or "")[-800:] + (r.stderr or "")[-400:]
+        rec = json.loads((out / "calls.jsonl").read_text(encoding="utf-8")
+                         .strip().splitlines()[0])
+        return out, rec, r.stdout
+
+    # ① render 档：auto -> layout，且真的落盘 + 记录 + 送的是它 + 是灰度
+    out, rec, so = run("--stage", "render")
+    lay = out / ("layout_%s.png" % sketch.stem)
+    assert lay.exists(), ("render 档默认要把构图参考降级落盘成 layout_*.png，实得 %s\n%s"
+                          % (sorted(p.name for p in out.iterdir()), so[-600:]))
+    assert rec["content_ref_mode"] == "layout", rec["content_ref_mode"]
+    assert rec["content_ref_sent"][0].endswith("layout_%s.png" % sketch.stem), (
+        "记录里要写清**送模型的是布局图**，实得 %s" % rec["content_ref_sent"])
+    assert "构图参考降级" in so, "要打印出来让人知道降级发生了"
+    b = np.asarray(Image.open(str(lay)).convert("RGB")).astype(np.int16)
+    assert (b[:, :, 0] == b[:, :, 1]).all() and (b[:, :, 1] == b[:, :, 2]).all(), (
+        "布局图必须是灰度的 —— 颜色正是要被去掉的「扁平风格」信号")
+    sat0 = float((a.max(2) - a.min(2)).mean())
+    assert float((b.max(2) - b.min(2)).mean()) < sat0 / 4.0, (
+        "布局图要几乎无彩度，实得 %s vs 原图 %s" % (float((b.max(2)-b.min(2)).mean()), sat0))
+    # 风格参考不许被降级
+    assert not (out / ("layout_%s.png" % style.stem)).exists(), (
+        "--ref 风格参考是原样送的，不该被降级")
+
+    # ② sketch 档：auto -> full（草图阶段本来就该跟手绘稿的形体走）
+    out2, rec2, _ = run("--stage", "sketch")
+    assert rec2["content_ref_mode"] == "full", rec2["content_ref_mode"]
+    assert not (out2 / ("layout_%s.png" % sketch.stem)).exists(), "sketch 档不该降级"
+
+    # ③ 显式 full：render 档也不降级
+    out3, rec3, _ = run("--stage", "render", "--content-ref-mode", "full")
+    assert rec3["content_ref_mode"] == "full", rec3["content_ref_mode"]
+    assert not (out3 / ("layout_%s.png" % sketch.stem)).exists(), "显式 full 不该降级"
+
+
 if __name__ == "__main__":
     sys.exit(main())
