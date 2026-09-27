@@ -127,6 +127,44 @@ def download(url, dest):
     return dest
 
 
+def _ref_leak_check(out_png, style_refs, content_refs, skip=False):
+    """出图 vs 风格参考：量「有没有把参考图抄了」（v2.6.4）。
+
+    ★ 实测（2026-09-27，用 Claude Code 跑本 skill）：qwen-image 是**图生图**，
+      参考图内容越像目标就越容易被**整幅照抄** —— 出的图物体/布局/箭头/文字
+      全变成参考图的，而流程里没有任何一步会发现。现在出图后自动量一次，
+      把 r 写进 calls.jsonl；r>=0.85 就打印警告（判据见 scripts/ref_leak_check.py）。
+      上一步的草图是**构图依据**（本来就该像），所以要走 content_refs，不参与判定。
+    """
+    if skip or not style_refs:
+        return None
+    try:
+        sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
+        import ref_leak_check as RLC
+    except ImportError:
+        return None
+    try:
+        worst, rows = RLC.check(out_png, style_refs, content_refs)
+    except Exception as e:                      # 自检失败不许影响出图
+        print("  （参考图自检跳过：%s）" % e)
+        return None
+    sims = {}
+    for role, name, r, dh, v in rows:
+        if role != "style":
+            continue
+        sims[name] = round(r, 3)
+        if v != "ok":
+            print("  ⚠️ 与风格参考 %s 的相似度 r=%.3f（照抄线 %.2f）"
+                  % (name, r, RLC.THR_COPY))
+    if worst == "copy":
+        print("     → 出图疑似把参考图抄了：参考图要换「**内容不同、风格相同**」的；"
+              "上一步的草图用 `--content-ref` 传（见 SKILL.md"
+              "「输出变成参考图的内容」一节）。")
+    elif worst == "high":
+        print("     → 与风格参考的相似度偏高，建议人眼比一眼。")
+    return worst, sims
+
+
 # ────────────────────────────────────────────────────────── 两种后端
 def gen_mm(cfg, prompt, negative, seed, refs):
     content = [{"image": u} for u in refs] + [{"text": prompt}]
@@ -228,6 +266,11 @@ def main():
                     help="sketch=只求构图；render=要质感（路径 2/3 的第二段）")
     ap.add_argument("--ref", action="append", default=[],
                     help="风格参考图，可多次给（★ 不给就会很'通用'）")
+    ap.add_argument("--content-ref", action="append", default=[],
+                    help="构图参考图（上一步选中的草图）：出图本来就该像它，"
+                         "所以不参与「照抄」判定，并会排在风格参考前面送给模型")
+    ap.add_argument("--no-ref-check", action="store_true",
+                    help="出图后不做「参考图照抄」自检（默认做）")
     ap.add_argument("--model", default="qwen-image-3.0")
     ap.add_argument("--mode", choices=("auto", "mm", "t2i"), default="auto")
     ap.add_argument("--size", default="1664*928", help="WxH，乘号写 *")
@@ -258,6 +301,8 @@ def main():
     print("阶段        : %s" % a.stage)
     print("模型 / 接口 : %s / %s" % (a.model, mode))
     print("画布        : %s" % a.size)
+    all_ref = list(a.content_ref) + list(a.ref)
+    print("构图参考    : %s" % (", ".join(a.content_ref) if a.content_ref else "（无）"))
     print("风格参考    : %s" % (", ".join(a.ref) if a.ref else "（无 —— 出来会偏通用）"))
     print("提示词      : 已写出 %s（%d 字符，sha1 %s）"
           % (outdir / ("%s_prompt.txt" % a.stage), len(prompt),
@@ -279,7 +324,7 @@ def main():
                timeout=a.timeout)
 
     refs = []
-    for r in a.ref:
+    for r in all_ref:
         p = pathlib.Path(r)
         if not p.exists():
             sys.exit("参考图不存在: %s" % r)
@@ -296,7 +341,8 @@ def main():
         print("[seed %d] %s ..." % (sd, a.model), flush=True)
         url, note = mode_fn(cfg, prompt, negative, sd, refs)
         rec = dict(stage=a.stage, model=a.model, mode=mode, size=a.size, seed=sd,
-                   refs=[str(r) for r in a.ref], n_ref=len(refs),
+                   refs=[str(r) for r in all_ref],
+                   content_refs=[str(r) for r in a.content_ref], n_ref=len(refs),
                    prompt_sha1=hashlib.sha1(prompt.encode("utf-8")).hexdigest(),
                    prompt_chars=len(prompt), seconds=round(time.time() - t0, 1),
                    ok=bool(url), note=note)
@@ -309,6 +355,9 @@ def main():
             rec["file"] = out.name
             rec["bytes"] = out.stat().st_size
             print("  ✓ %s  %.0f KB  (%s)" % (out.name, out.stat().st_size / 1024.0, note))
+            chk = _ref_leak_check(out, a.ref, a.content_ref, skip=a.no_ref_check)
+            if chk:
+                rec["ref_leak"], rec["ref_sim"] = chk
             ok += 1
         with open(log, "a", encoding="utf-8") as fh:
             fh.write(json.dumps(rec, ensure_ascii=False) + "\n")

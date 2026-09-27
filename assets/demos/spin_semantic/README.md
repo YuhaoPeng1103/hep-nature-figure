@@ -43,7 +43,7 @@ python3 scripts/sketch_to_vector.py gen/sketch_s9.png -o gen/sketch_s9.svg --ocr
 python3 scripts/trim_border.py gen/sketch_s9.png -o gen/sketch_s9_clean.png        # 裁外框（必须）
 python3 scripts/check_sketch.py gen/sketch_s9_clean.png --ir assets/ir/sketch6_spin_correlation.ir.yaml   # 闸口①
 python3 scripts/gen_figure.py --brief prompt_render.txt --stage render \
-    --ref gen/sketch_s9_clean.png --ref _T3精选/T3-33_Snellings2011_3D双椭圆核+碰撞参数.png \
+    --content-ref gen/sketch_s9_clean.png --ref _T3精选/T3-33_Snellings2011_3D双椭圆核+碰撞参数.png \
     --seeds 22,31 --outdir gen/
 python3 scripts/trim_border.py gen/render_s22.png -o gen/render_s22_clean.png
 python3 scripts/check_sketch.py gen/render_s22_clean.png --ir assets/ir/sketch6_spin_correlation.ir.yaml  # 闸口②

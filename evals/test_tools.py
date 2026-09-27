@@ -549,5 +549,58 @@ def test_element_of():
         P.ELEMENTS = saved
 
 
+@case("ref_leak_check_flags_copied_reference",
+      "要能量出『出图把参考图整幅抄了』：同一张图 r>=0.85/照抄、结构不同的图通过；"
+      "还要能认出『上一步草图』不参与判定、且实测的健康值不与【照抄】混淆")
+def test_ref_leak():
+    """
+    ★ 实测（2026-09-27）：用户用 Claude Code 跑本 skill 时，出图**整幅**变成参考图的
+      样子（qwen-image 是图生图）。原流程没有任何机器判据能发现，只能人眼。实测量到的
+      分布（见 CHANGELOG v2.6.4）：
+        同一张图互比 r=1.000/dHash=0（照抄上限）
+        出图 vs 自己的草图 r=0.634（本来就该像 -> 用 --content-ref 标出来）
+        两张不同参考图互比（基线） r=0.125
+        出图 vs 风格参考（健康） r=0.017 / 0.117
+      所以阈值定 0.85：高于 0.634，正常的构图继承不会被误判。
+    """
+    import numpy as np
+    from PIL import Image
+    from ref_leak_check import similarity, verdict, looks_like_content_ref
+    tmp = Path(tempfile.mkdtemp(prefix="leaktest_"))
+
+    def mk(name, blocks):
+        a = np.full((200, 300, 3), 255, np.uint8)
+        for sl, val in blocks:
+            a[sl] = val
+        q = tmp / name
+        Image.fromarray(a).save(q)
+        return q
+
+    base = mk("a.png", [((slice(60, 140), slice(40, 120)), 0),
+                        ((slice(80, 120), slice(180, 280)), (200, 40, 40))])
+    same = tmp / "a_copy.png"
+    Image.open(base).save(same)
+    other = mk("b.png", [((slice(0, 200), slice(0, 150)), 0),
+                         ((slice(20, 90), slice(200, 280)), (30, 60, 200))])
+
+    d = similarity(base, same)
+    assert d["r"] > 0.99 and d["dhash"] == 0, f"同一张图应几乎完全一致：{d}"
+    assert verdict(d["r"], d["dhash"]) == "copy", "同一张图必须判成照抄"
+    d2 = similarity(base, other)
+    assert d2["r"] < 0.6, f"结构不同的图不该判成照抄：{d2}"
+    assert verdict(d2["r"], d2["dhash"]) == "ok", "结构不同的图应通过"
+    # 实测的两个健康值必须在通过区，且 0.634（出图 vs 草图）不能被误判成照抄
+    assert verdict(0.017, 338) == "ok" and verdict(0.117, 384) == "ok"
+    assert verdict(0.634, 175) == "high", "0.634 落在偏高带（0.60~0.85），不是照抄"
+    assert verdict(0.318, 333) == "ok", "半张裁切（0.318）测不到 —— 这是已知边界"
+    # 构图参考（上一步草图）**不参与判定**：即使像也不升级成照抄
+    from ref_leak_check import check
+    worst, _ = check(base, [other], [same])
+    assert worst == "ok", "构图参考不该把判定升成照抄"
+    # 角色识别：草图的文件名要被自动当成构图参考
+    assert looks_like_content_ref("gen/sketch_s9_clean.png")
+    assert not looks_like_content_ref("refs/T3-33.png")
+
+
 if __name__ == "__main__":
     sys.exit(main())

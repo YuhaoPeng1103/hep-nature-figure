@@ -492,7 +492,7 @@ python3 scripts/check_sketch.py gen/sketch_s1_clean.png --ir ir/xxx.ir.yaml
 # ── 5. 出成品位图（★ 草图 + 风格参考图都要带）──────────────
 python3 scripts/ir_to_genbrief.py ir/xxx.ir.yaml --stage render -o brief2.md
 python3 scripts/gen_figure.py --brief brief2.md --stage render \
-    --ref gen/sketch_s1_clean.png --ref refs/T3-33.png --seeds 21,22 --outdir gen/
+    --content-ref gen/sketch_s1_clean.png --ref refs/T3-33.png --seeds 21,22 --outdir gen/
 #   ★ 第一个 --ref 是**上一步选中的草图**：它是构图依据（已过闸口①）。
 #     只传风格参考图 = 让模型重新猜一遍构图，构图会被改坏
 #     （实测 2026-09-26：UPC 算例漏传草图，成品位图把核 B 画成了横扁，
@@ -548,6 +548,48 @@ python3 scripts/repair_brief.py fig.svg --profile assets/style-profiles.json
 > 实测（UPC 图，2026-09-26）：`wanx2.0-t2i-turbo` 对结构化示意图太弱
 > （画不出顶点/箭头/e⁺e⁻），且不支持参考图；`qwen-image-3.0` 8 个 seed 出图，
 > 只有 3 张同时满足"两条平行虚线 + 不重叠 + 相向运动 + 双光子汇聚 + e⁺e⁻ 背对背"。
+
+### ★ 输出「变成参考图的内容」了怎么办（v2.6.4）
+
+**现象**：出的图跟参考图几乎一模一样 —— 物体、布局、箭头方向、文字全是参考图的。
+
+**根因**：`qwen-image-*` 是**图生图**。参考图的内容越接近目标，模型越倾向**直接抄**
+（`prompt_extend` 还会重写提示词，进一步稀释简报）。参考图给 2 张会加重。
+**这不是"提示词没写清"，是参考图选错了。**
+
+按顺序排查（每一步都能用机器量）：
+
+```bash
+# 1. 先量：r >= 0.85 就是照抄；0.60~0.85 偏高
+python3 scripts/ref_leak_check.py gen/render_s22.png \
+    --ref refs/T3-33.png --content-ref gen/sketch_s9_clean.png
+```
+
+2. **换参考图** —— 优先「**内容不同、风格相同**」。实测（自旋算例）：
+
+| 出图 vs 参考图 | 内容关系 | r |
+|---|---|---|
+| 成品位图 vs T3-33 | 都要"双核+碰撞参数"→ 同类 | **0.117**（健康；本图没被抄） |
+| 草图 vs T3-33 | 同类 | 0.108 |
+| 成品位图 vs T3-09（QGP 涡旋） | 不同内容、同风格 | 0.017 |
+| 成品位图 vs **自己的草图** | 本来就该像 | 0.634 |
+| 两张不同参考图互比 | 基线 | 0.125 |
+| 同一张图互比（照抄上限） | 照抄 | **1.000** |
+
+> 阈值 0.85 定得**高于** 0.634 —— 正常"继承草图构图"不会被误判成照抄。
+
+3. **说清角色**：`--content-ref <上一步草图>`（构图依据，本来就该像，自动排在最前）
+   + `--ref <风格参考>`（只给风格，不许抄）。不标角色时，文件名含 `sketch`/`草图`
+   的会被自动认成构图参考。
+4. **减张数**：2 张同类参考比 1 张更容易被抄；先降到 1 张风格参考试。
+5. **简报里的反照抄硬约定**（`ir_to_genbrief.py` 从 v2.6.4 起自动写）：
+   「参考图只给风格，物体/数量/布局/箭头方向/文字一律不得照搬，以本文为准」。
+
+`gen_figure.py` 出图后**自动跑**这个自检，把 `ref_leak` / `ref_sim` 写进
+`calls.jsonl`；不想要就 `--no-ref-check`。
+
+> ⚠️ **测不到的**：只抄一部分（r 会掉到 0.3 左右）、以及"照搬构图但换配色"。
+> 这两种要靠闸口①的构图逐条核对 + 人眼。别把 `ref_leak_check` 通过当成"没抄"的证明。
 
 ### `check_sketch.py` 为什么要分两类输出（`references/ir-spec.md` 有详述）
 
