@@ -108,6 +108,23 @@ def shape_hint(e: dict) -> str:
     return "；".join(bits)
 
 
+def _fmt_num(v):
+    """params 里的数值 → 可读字符串。★ 支持**列表**。
+
+    ★ 实测（2026-09-27，形变核→火球 四阶段图）：IR 里「三个演化箭头」自然写成
+      `params: {cx: [0.175, 0.385, 0.655], cy: 0.50}`，而这里原来直接
+      `f"{x:.2f}"` → TypeError: unsupported format string passed to list.__format__，
+      **整个简报生成崩掉**（而且报的是 Python 内部错，看不出是 IR 写法问题）。
+      一个「写得更清楚反而炸」的坑。现在列表会原样打印成 [0.18, 0.39, 0.66]。
+    """
+    if isinstance(v, (list, tuple)):
+        return "[" + ", ".join(_fmt_num(i) for i in v) + "]"
+    try:
+        return "%.2f" % float(v)
+    except (TypeError, ValueError):
+        return str(v)
+
+
 def build(ir: dict, style: dict | None, stage: str = "sketch") -> str:
     fig = ir.get("figure", {})
     elems = sorted(ir.get("elements", []), key=lambda e: e.get("z", 0))
@@ -243,7 +260,12 @@ def build(ir: dict, style: dict | None, stage: str = "sketch") -> str:
     note = (ir.get("composition") or {}).get("note")
     if layout:
         L.append("═══ 二、构图 ═══")
-        L.append(f"布局：{layout}")
+        if isinstance(layout, (list, tuple)):
+            L.append("布局：")
+            for it in layout:
+                L.append("  · %s" % it)
+        else:
+            L.append(f"布局：{layout}")
         if note:
             L.append(" ".join(str(note).split()))
         L.append("")
@@ -255,9 +277,9 @@ def build(ir: dict, style: dict | None, stage: str = "sketch") -> str:
             if x is None or y is None:
                 continue
             size = p.get("R", p.get("r", p.get("rx")))
-            s = f"  位置 ({x:.2f}, {y:.2f})"
+            s = "  位置 (%s, %s)" % (_fmt_num(x), _fmt_num(y))
             if size is not None:
-                s += f"，半径/半宽约 {size:.3f}×画布宽"
+                s += "，半径/半宽约 %s×画布宽" % _fmt_num(size)
             L.append(f"  · {e.get('name','')}{s}")
         L.append("")
         L.append(f"叠放顺序（从后往前，后画的盖住先画的）："

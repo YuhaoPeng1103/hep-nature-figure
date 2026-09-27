@@ -339,7 +339,21 @@ def main():
     for sd in seeds:
         t0 = time.time()
         print("[seed %d] %s ..." % (sd, a.model), flush=True)
-        url, note = mode_fn(cfg, prompt, negative, sd, refs)
+        # ★ 单个 seed 的**网络抖动**不许打断整批（实测 2026-09-27：形变核→火球 算例，
+        #   seed 7 撞上 TimeoutError，整批直接 traceback 退出 —— seed 9 根本没跑，
+        #   已经出的 seed 5 也没被记进调用记录。失败也要照常落 calls.jsonl）。
+        #   失败重试一次；两次都失败就记 ok=False，继续下一个 seed。
+        url, note = None, ""
+        for attempt in (1, 2):
+            try:
+                url, note = mode_fn(cfg, prompt, negative, sd, refs)
+            except Exception as e:
+                url, note = None, "%s: %s" % (type(e).__name__, e)
+            if url:
+                break
+            if attempt == 1:
+                print("  … 第 1 次失败（%s）—— 3 秒后重试" % note, flush=True)
+                time.sleep(3.0)
         rec = dict(stage=a.stage, model=a.model, mode=mode, size=a.size, seed=sd,
                    refs=[str(r) for r in all_ref],
                    content_refs=[str(r) for r in a.content_ref], n_ref=len(refs),

@@ -195,9 +195,13 @@ python3 scripts/raster_to_vector_semantic.py fig.png -o fig.svg \
 | `<path>` / `<text>` / `<image>` | 37930 / 54 / **0** |
 | 图层 | 12 面板 / **50 物理元素** |
 
-> ⚠️ **两条备用路都做不出真渐变网格**。原图的连续渐变在矢量里只能是色阶台阶
-> （调小 `--R` 变细，代价是路径数/体积）或真 `<gradient>`（要求图能拆成图元）。
-> 只适合「色块 + 硬边」类图（示意 / 三维渲染示意图）；照片、有机纹理要靠**重画**。
+> ⚠️ **渐变网格（gradient mesh）做不出来**，但"看不到色阶台阶"做得到。2026-09-27 实测：
+> 台阶的根源是 `--q` **调色板量化**（q=16 时每通道跳 17 级），不是四叉树不够细。
+> `--q 0`（不量化）+ `--R 5` 时四叉树自己就把渐变追平了（形变核→火球：MAE 0.626、
+> 贴边比 0.62×源图）；这时再加真 `<gradient>` 反而**更差**（MAE 1.016、贴边比 1.39 ——
+> 渐变画"模型色"、台阶块画"原图色"，交界处多一圈硬边、球面成片斑块）。
+> 只有必须用粗调色板（`--q <= 16`）压体积时才按元素打开 `GRADIENTS`（`gradfit.py`）。
+> 照片、有机纹理仍然要靠**重画**。
 
 ---
 
@@ -206,6 +210,7 @@ python3 scripts/raster_to_vector_semantic.py fig.png -o fig.svg \
 | 方向 | 预览 | 看点 |
 |---|---|---|
 | 自旋关联示意图（路线③ 全过程） | <a href="assets/demos/spin_semantic/cmp_preview.png"><img src="assets/demos/spin_semantic/cmp_preview.png" width="260" alt="自旋关联：位图 vs 临摹矢量"></a> | 上 = 生图模型的成品位图，下 = 临摹矢量回渲染；非文字区 MAE **0.518**、`<image>` **0** |
+| 形变核 → 火球四阶段链（路线③ 全过程） | <a href="assets/demos/evo_semantic/cmp_preview.png"><img src="assets/demos/evo_semantic/cmp_preview.png" width="260" alt="形变核→火球：位图 vs 临摹矢量"></a> | 上 = 成品位图，下 = 全矢量临摹；MAE **0.626**、31005 `<path>` / `<image>` **0**、PDF 183x102 mm 纯矢量 | 
 | UPC 示意图（三条落点并排） | <a href="assets/demos/upc_semantic/cmp_preview.png"><img src="assets/demos/upc_semantic/cmp_preview.png" width="260" alt="UPC：生图位图 / 语义临摹 / 代码直写"></a> | 1 生图位图 / 2 语义临摹 / 3 代码直写 —— 同一条主线的三种落点 |
 | 生图模型的成品位图（原图） | <a href="assets/demos/upc_semantic/src_upc.png"><img src="assets/demos/upc_semantic/src_upc.png" width="260" alt="UPC 生图位图"></a> | 路线③ 的中间产物：只当作"更好的草图"，它过了闸口才允许照它画 |
 | 手绘草图（路线②③ 的输入） | <a href="assets/demos/sketch_upc.png"><img src="assets/demos/sketch_upc.png" width="260" alt="手绘草图输入"></a> | 草图只要求"构图清晰、元素齐全"，质感由后面的生图负责 |
@@ -350,7 +355,7 @@ python3 scripts/demo_combined.py
 │   ├── check_sketch.py          ★ 闸口①/②：草图与成品位图的物理检查
 │   ├── raster_to_vector.py      位图 → 矢量（临摹备用）：逐像素 + 混合文字 + --groups
 │   ├── raster_to_vector_semantic.py  位图 → 语义分层的全矢量 SVG（先理解再临摹）
-│   ├── raster_vector/           上面那条的库（quadtree / labels / elements / panels / groupvec / raster_ops）
+│   ├── raster_vector/           上面那条的库（quadtree / labels / elements / panels / groupvec / grad_fit / raster_ops）
 │   ├── check_tools.py           工具能力探测 + 装机指引
 │   ├── check_render.py          渲染静默失败检测（渐变失效 / 字体丢失都不报错）
 │   ├── check_delivery.py        投稿检查（矢量？文字可编辑？字号达标？）
@@ -359,6 +364,7 @@ python3 scripts/demo_combined.py
 │   ├── audit_panels.py          多面板对齐审计
 │   ├── assemble_panels.py       复合图拼版（保矢量）
 │   ├── compare_ref.py           参考图与成图并排对比
+│   ├── pdf_roundtrip.py         ★ 排版后的 PDF 回渲染 vs 原成品位图（超采样 + 亚像素对齐）
 │   ├── ref_leak_check.py        ★ 量「出图把参考图抄了」：r>=0.85 判照抄（可当门禁）
 │   ├── style_bench.py / style_profile.py   风格量化与建档
 │   ├── auto_converge.py         自动收敛循环（量 → 定位 → 修正 → 复测）
@@ -366,15 +372,16 @@ python3 scripts/demo_combined.py
 │   ├── repair_brief.py          返修单（归一化坐标 + 具体改多少）
 │   └── demo_*.py                多工具联合 / 喷注淬火 / 时间线 示范
 ├── evals/
-│   ├── test_tools.py            17 个回归 case（每个对应一个真实踩过的坑）
+│   ├── test_tools.py            24 个回归 case（每个对应一个真实踩过的坑）
 │   └── evals.json / README.md   评测清单
 └── assets/
     ├── style-profiles.json      风格档案（门禁用；存**区间**不存点值）
     ├── t3-exemplars/            参考图库（2 张 CC-BY 图 + `NOTICE.md` 版权说明）
-    ├── ir/                      7 套 IR 标准答案（含 UPC / 自旋关联两个完整算例）
+    ├── ir/                      8 套 IR 标准答案（含 UPC / 自旋关联 / 形变核→火球 三个完整算例）
     └── demos/
         ├── upc_semantic/        UPC 完整算例（词表 / 元素表 / 源图 / 并排预览）
-        └── spin_semantic/       自旋关联完整算例（同上，v2.6.3）
+        ├── spin_semantic/       自旋关联完整算例（同上，v2.6.3）
+        └── evo_semantic/        形变核→火球四阶段链（v2.6.5，含 A/B 实验台 sweep.py）
 ```
 
 ---
@@ -391,7 +398,8 @@ python3 scripts/demo_combined.py
 | `references/gotchas.md` | 渲染"看着成功其实失败"时（静默失败详解） |
 | `evals/test_tools.py` | 改完任何工具之后 —— 跑一遍防"修一个坏一个" |
 | `CHANGELOG.md` | 想知道某个坑是什么时候、怎么修的（每条都带实测数字） |
-| `assets/demos/upc_semantic/`、`assets/demos/spin_semantic/` | 想照抄一个完整算例（词表 + 元素表 + 命令 + 实测数字） |
+| `assets/demos/upc_semantic/`、`assets/demos/spin_semantic/`、`assets/demos/evo_semantic/` | 想照抄一个完整算例（词表 + 元素表 + 命令 + 实测数字） |
+| `assets/demos/evo_semantic/README.md` | 想知道「真 `<gradient>` 到底帮不帮忙」—— 那里有 5 档参数的 A/B 表 |
 
 ---
 

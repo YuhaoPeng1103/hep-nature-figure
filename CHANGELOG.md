@@ -1,5 +1,103 @@
 # 变更记录
 
+## v2.6.5 — 2026-09-27
+
+**第三个端到端算例：手绘草图「形变核 → 量子涨落 → 碰撞 → QGP 火球」→ 期刊图**
+（`assets/demos/evo_semantic/`，IR 在 `assets/ir/sketch7_deformed_to_fireball.ir.yaml`）。
+这次暴露 6 个坑，并且**第一次把「真 `<gradient>` 到底帮不帮忙」量出来了 —— 结论是：不帮**
+（下面前置第 0 条）。回归从 18/18 涨到 **24/24**。
+
+### 前置第 0 条（★ 最重要）：真 `<gradient>` 在细调色板下**反而更差**
+
+上一版（v2.6.2/v2.6.3）把「原图的连续渐变在矢量里只能是色阶台阶」当成结论，
+于是 v2.6.5 之前这一轮先做了 `gradfit.py`：把球面明暗 / 火球辉光拟合成真
+`<radialGradient>`/`<linearGradient>`、丢掉台阶块。**交付前做 A/B 才发现它是负收益。**
+
+同一张源图、同一套元素表，只换参数（`assets/demos/evo_semantic/sweep.py` 可一键复跑）：
+
+| 用例 | R | `--q` | 真渐变 | MAE | MAEmax | >8% | 贴边比 | path | 体积 |
+|---|---|---|---|---|---|---|---|---|---|
+| **C（交付）** | 5 | **0**（不量化） | 全关 | **0.626** | 0.698 | **0.74%** | **0.62** | 31005 | 3.99 MB |
+| B | 5 | 32 | 全关 | 0.880 | 1.048 | 0.75% | 1.02 | 2552 | 1.80 MB |
+| E | 5 | 32 | 只有火球 | 0.886 | 1.084 | 1.07% | 1.12 | 2552 | 1.79 MB |
+| A | 5 | 32 | 全开 | 1.016 | 1.213 | 2.00% | 1.39 | 2552 | 1.78 MB |
+| D（第一版） | 10 | 16 | 全开 | 1.195 | 1.508 | 2.11% | 1.48 | 934 | 1.22 MB |
+
+- `MAE` = 通道平均差（与 `raster_to_vector_semantic.py --check` 同定义）；
+  `MAEmax` = 最大通道差（更严）。
+- `贴边比` = 在「源图本来就平滑」的像素上，复现图相邻像素 |梯度| ÷ 源图同一处。
+  **>1 = 比源图更花**（块感 / 斑块 / 色阶台阶都在这里露出来）。
+- **机理**（不是玄学）：渐变形状画的是**模型色**（本图残差 5.9~8.6 级），
+  保留下来的台阶块画的是**原图色**，两者交界处多出一圈硬边；模型误差又是**低频**的，
+  于是整个球面出现成片"斑块"。人眼对平色区里的低频偏差比细碎噪声敏感得多 ——
+  所以"更平滑的模型"反而更难看。放大的并排图（`cmp_preview.png` / `_sw_*_sbs.png`）里
+  A 的斑块与 C 的干净是一眼可辨的。
+- **真正的根因是 `--q` 量化**：q=16 时每通道跳 17 级，色阶台阶由此而来。
+  `--q 0`（不量化）+ `--R 5` 时四叉树自己就把渐变追平（贴边比 0.62×源图），
+  `<gradient>` 变成多余。代价是 path 31005 / 3.99 MB。
+
+**结论落地**：交付参数改为 `--q 0 --R 5`；`panels.py` 的 `GRADIENTS` **置空**
+（机制保留，只在必须用粗调色板 `--q <= 16` 压体积时按元素打开）；
+`SKILL.md` 的「渐变」一行与「三种实现」表同步改写。
+
+### 新增
+
+- `scripts/raster_vector/gradfit.py` —— 真渐变拟合（radial / aradial / linear 三模型
+  取残差最小者；迭代 4 遍抗离群；掩膜闭运算+填洞 → 外轮廓 → Douglas-Peucker 一条 path）。
+  ★ 已知边界：**cairosvg 忽略径向渐变的 `gradientTransform`** —— 200x200 对照图里
+  `matrix(.005 0 0 .01 100 100)` 与不带 transform 渲染**逐像素完全相同**（渐变中心没动、
+  整块填成最外档颜色）。所以 aradial 改成 `<g transform="matrix(...)">` 包形状 +
+  局部坐标系的圆 `radialGradient`（cairosvg / Edge / Inkscape / Illustrator 都对）。
+- `scripts/pdf_roundtrip.py` —— **排版后的 PDF 回渲染 vs 原成品位图**。
+  工具链原来只查"是不是纯矢量 / 文字可提取 / 排版撞不撞"，**没有一步查"印出来还像不像"**。
+  实测踩过的错法：直接按 `W/pageWidth` 回渲染 → 0.5px 相位差 + 0.05% 比例差，
+  MAE 从 0.626 假性涨到 **2.998**（差 5 倍）。改成**超采样 4x → LANCZOS → ±1px
+  亚像素对齐搜索**后：MAE 1.297 (MAEmax 1.535) / >8 3.71% / PSNR 28.27 dB。
+- `assets/ir/sketch7_deformed_to_fireball.ir.yaml`、`assets/demos/evo_semantic/`
+  （词表 / 元素表 / 源图 / A/B 实验台 / 量测脚本 / 并排预览 / README）。
+
+### 修 1：IR 里参数写成列表 → 整个简报生成崩掉
+
+`params: {cx: [0.175, 0.385, 0.655], cy: 0.50}`（三个箭头共用一个元素，最自然的写法）
+撞上 `f"{x:.2f}"` → `TypeError: unsupported format string passed to list.__format__`。
+报的是 Python 内部错，**看不出是 IR 写法问题**。修：`ir_to_genbrief.py` 新增
+`_fmt_num()`（列表原样排成 `[0.17, 0.39, 0.66]`），`composition.layout` 是列表时逐条排版。
+
+### 修 2：单个 seed 的网络抖动打断整批
+
+实测：seed 7 撞 `TimeoutError` → 整批 traceback 退出，seed 9 根本没跑，
+已经出的 seed 5 也**没进 `calls.jsonl`**（等于白花钱、还没记录）。
+修：`gen_figure.py` 逐 seed 失败重试 1 次（间隔 3s），两次都败记 `ok=False` **继续**。
+
+### 修 3：外框可能是两层，默认阈值只认深线
+
+实测该算例的成品位图：`row0` 是 1px 深线（BG=0.94 认得出），`row-1` 是 1px **浅灰线
+lum 244~249**（0.94 认不出）→ 浅灰线留在图上、进矢量就是一条多余细边。
+修：`trim_border.py` 新增 `--bg`（浅灰框用 `0.975`）；**不是**改默认值 —— 调高会把
+很浅的内容（火球外晕之类）也算成内容，所以只在默认裁不干净时手动调。
+
+### 修 4：浅色球面上的网格线被当成"渐变内"丢掉（两轮才修对）
+
+丢台阶块的判据原来是「块心颜色 + 容差 30」，而浅色球面上的网格线只比底色暗 30~50 级，
+在偏暗区域两者挤进容差内 → **网格线整片消失 / 断成虚线**。修：① 拟合容差 `fitmask`
+与丢块容差 `dropmask` 分开（`dropmask = min(tol, 20)`）；② 丢块改成**逐像素**判定
+「整块 ≥97% 在 dropmask 内」；③ **细条（`min(w,h) < 3`）一律不丢** —— 四叉树在
+1~2px 细线上必然切出细条，这一条是最后补上的关键闸。
+
+### 修 5：`--elmap` 把 `_elem_table.txt` 落在 cwd
+
+`dump_elements()` 里硬编码 `open("_elem_table.txt", "w")` → 会把别的图 / 别的算例的
+同名文件覆盖掉。修：跟着 `out_png` 走。
+
+### 回归
+
+`evals/test_tools.py` 新增 6 个 case（对应上面 6 条）：
+`ir_brief_accepts_list_params` / `gen_figure_survives_dead_seeds` /
+`trim_border_bg_option_for_light_frame` / `gradfit_never_drops_thin_strips` /
+`gradfit_aradial_uses_group_transform` / `dump_elements_table_follows_out_png`。
+**24/24 通过**（原 18/18）。另外 `gen_figure_survives_dead_seeds` 是**真子进程**跑的
+（打不通的 api-base + 2 个 seed，断言退出码 0 + 两条 `ok=false` 记录 + 日志里有"重试"）。
+
 ## v2.6.4 — 2026-09-27
 
 ### 修 1（★ 用户实测踩到）：出图变成参考图的样子 —— 「整幅照抄」以前没人量

@@ -1,0 +1,12 @@
+{
+  "_doc": "配置扫描的用例表。tag=输出名；R/Q=四叉树色差上限/调色板级数(0=不量化)；kill=关掉真渐变的元素(* = 全关)；spec=按元素覆盖渐变参数。",
+  "cases": [
+    {"tag": "A_gradON_r5q32",  "R": 5, "Q": 32, "kill": []},
+    {"tag": "B_gradOFF_r5q32", "R": 5, "Q": 32, "kill": ["*"]},
+    {"tag": "C_gradOFF_r5q0",  "R": 5, "Q": 0,  "kill": ["*"]},
+    {"tag": "D_Q16_gradON",    "R": 10, "Q": 16, "kill": []},
+    {"tag": "E_s4only_r5q32",  "R": 5, "Q": 32,
+     "kill": ["stage1-nucleus", "stage2-fluctuations", "stage3-nucleus-A",
+              "stage3-nucleus-B", "stage3-overlap", "stage4-nucleons"]}
+  ]
+}

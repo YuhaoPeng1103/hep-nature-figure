@@ -602,5 +602,160 @@ def test_ref_leak():
     assert not looks_like_content_ref("refs/T3-33.png")
 
 
+# ══════════════════════════════════════════════════════════════
+#  坑 10：形变核→火球 算例（2026-09-27，CHANGELOG v2.6.5）
+#  这一批的共性：**"写得更清楚/更省事"的输入被工具拒绝**，
+#  或者**一次网络抖动把整批活儿废掉**。
+# ══════════════════════════════════════════════════════════════
+
+@case("ir_brief_accepts_list_params",
+      "IR 里参数写成【列表】（三个箭头共用一个元素 -> cx: [0.175, 0.385, 0.655]）"
+      "不许把简报生成弄崩：防 f'{x:.2f}' 抛 TypeError: unsupported format "
+      "string passed to list.__format__ —— 报的还是 Python 内部错，看不出是 IR 写法问题")
+def test_ir_brief_list_params():
+    import ir_to_genbrief as IG
+
+    assert IG._fmt_num([0.175, 0.385, 0.655]) == "[0.17, 0.39, 0.66]"
+    assert IG._fmt_num(0.5) == "0.50"
+    ir = {"figure": {"title": "t", "canvas": {"w": 1664, "h": 928}},
+          "elements": [
+              {"name": "箭头1", "z": 1, "primitive": "arrow",
+               "params": {"x": [0.175, 0.385, 0.655], "y": 0.5, "r": 0.02}},
+              {"name": "形变核", "z": 2, "primitive": "ellipse",
+               "params": {"cx": 0.10, "cy": 0.50, "r": 0.08}}],
+          "composition": {"layout": ["阶段1 在左", "阶段2 在中间"], "note": "从左到右"}}
+    out = IG.build(ir, None, "sketch")          # 改前：这里 TypeError，整个简报生成崩掉
+    assert "[0.17, 0.39, 0.66]" in out, "列表参数要原样打印出来"
+    assert "阶段1 在左" in out and "阶段2 在中间" in out, "composition.layout 是列表时要逐条排版"
+
+
+@case("gen_figure_survives_dead_seeds",
+      "生图时**单个 seed 的网络抖动不许打断整批**：防 seed 7 撞 TimeoutError -> "
+      "整批 traceback 退出、后面的 seed 根本没跑、已经出的 seed 也没进 calls.jsonl")
+def test_gen_figure_seed_tolerance():
+    """
+    ★ 实测（2026-09-27，形变核→火球 算例）：3 个 seed 只出了 1 张就崩。
+      这个 case 用**必然失败**的 api-base（本机 9 端口，连接立即被拒）跑两个 seed：
+      要求 ① 进程退出码 0（整批不崩）② 两个 seed 都留了记录 ③ 都标记 ok=false
+      ④ 日志里能看到"重试"。（约 15 秒：两次尝试 + 3 秒退避）
+    """
+    import json
+    import os
+
+    tmp = Path(tempfile.mkdtemp(prefix="gfseed_"))
+    (tmp / "b.md").write_text("# 简报\n画一条四阶段演化链。\n", encoding="utf-8")
+    env = dict(os.environ)
+    env["DASHSCOPE_API_KEY"] = "sk-dummy-for-test"      # 只为过检查，不真的能用
+    r = subprocess.run([sys.executable, str(SCRIPTS / "gen_figure.py"),
+                        "--brief", str(tmp / "b.md"), "--seeds", "1,2",
+                        "--outdir", str(tmp / "gen"),
+                        "--api-base", "http://127.0.0.1:9/v1", "--timeout", "3"],
+                       capture_output=True, text=True, timeout=300,
+                       encoding="utf-8", errors="replace", env=env)
+    assert r.returncode == 0, (
+        "两个 seed 都失败也不许让整批崩（失败要吞掉、继续下一个 seed）：\n"
+        + (r.stdout or "")[-800:] + (r.stderr or "")[-400:])
+    log = tmp / "gen" / "calls.jsonl"
+    assert log.exists(), "调用记录要照常落盘"
+    recs = [json.loads(l) for l in log.read_text(encoding="utf-8").strip().splitlines()]
+    assert [x["seed"] for x in recs] == [1, 2], (
+        "失败的 seed 也要逐条记，不能中断（这是原来丢记录的那个坑），实得 %s"
+        % [x.get("seed") for x in recs])
+    assert all(x["ok"] is False for x in recs), "失败记录必须 ok=false"
+    assert "重试" in r.stdout, "第一次失败要重试一次"
+
+
+@case("trim_border_bg_option_for_light_frame",
+      "外框可能是**两层**（1px 深线 + 1px 浅灰线 lum 244~249）：默认 BG=0.94 只认得深线，"
+      "浅灰线留在图上 -> 进矢量就是一条多余细边；--bg 0.975 才剪得掉，且要幂等")
+def test_trim_border_bg():
+    import numpy as np
+    from PIL import Image
+    from trim_border import detect
+
+    a = np.full((120, 160, 3), 255, np.uint8)
+    a[0:2, :] = 0                      # 上：2px 深线
+    a[:, 0:2] = 0                      # 左：2px 深线
+    a[-1, :] = 246                     # 下：1px 浅灰线
+    a[:, -1] = 246                     # 右：1px 浅灰线
+    img = Image.fromarray(a)
+    d0 = detect(img)
+    assert d0["top"][0] == 2 and d0["left"][0] == 2
+    assert d0["bottom"][0] == 0 and d0["right"][0] == 0, (
+        "浅灰线在默认阈值下本来就认不出来 —— 这正是坑，本 case 只是把现状钉住")
+    d1 = detect(img, bg=0.975)
+    assert d1["bottom"][0] == 1 and d1["right"][0] == 1, (
+        "--bg 0.975 要能剪掉浅灰外框，实得 %s" % {k: v[0] for k, v in d1.items()})
+    d2 = detect(img.crop((2, 2, 159, 119)), bg=0.975)
+    assert all(d2[k][0] == 0 for k in ("top", "bottom", "left", "right")), (
+        "幂等：按 --bg 剪完再跑不该再剪，实得 %s" % {k: v[0] for k, v in d2.items()})
+
+
+@case("gradfit_never_drops_thin_strips",
+      "真渐变丢台阶块时，**细条（min(w,h)<3）一律不丢**：防浅色球面上的网格线（1~2px）"
+      "被当成'渐变内'一起丢掉 -> 网格线断成虚线（实测踩过两轮）")
+def test_gradfit_thin_strip():
+    import numpy as np
+    from raster_vector import gradfit as G
+
+    g = {"dropmask": np.ones((80, 80), bool)}          # 整块都在渐变内
+    assert G.rect_covered(10, 10, 40, 40, g) is True, "够大的平整色块才允许丢"
+    assert G.rect_covered(10, 10, 1, 40, g) is False, "1px 宽的细条（网格线）不许丢"
+    assert G.rect_covered(10, 10, 40, 2, g) is False, "2px 厚的细条不许丢"
+    assert G.rect_covered(10, 10, 3, 40, g) is True, "3px 以上就不算细条了"
+    g2 = {"dropmask": np.ones((80, 80), bool)}
+    g2["dropmask"][10:12, 10:50] = False               # 40x2=80px，占 40x40 的 5%
+    assert G.rect_covered(10, 10, 40, 40, g2) is False, "块里有 >3% 像素在渐变外 -> 必须留着"
+
+
+@case("gradfit_aradial_uses_group_transform",
+      "aradial 渐变**不能用 gradientTransform**：cairosvg 会忽略它（实测 200x200 对照图里"
+      "带/不带 transform 逐像素完全相同 -> 渐变中心没动、整块填成最外档颜色）"
+      "-> 改成 <g transform> 包形状 + 局部坐标系的圆 radialGradient")
+def test_gradfit_aradial_transform():
+    import numpy as np
+    from raster_vector import gradfit as G
+
+    g = {"kind": "aradial",
+         "stops": np.array([[10.0, 20.0, 30.0], [200.0, 100.0, 0.0]]),
+         "geom": {"cx": 30.0, "cy": 40.0, "Q": [[0.02, 0.0], [0.0, 0.05]]},
+         "tmin": 0.0, "tmax": 1.0, "resid": 3.0,
+         "mask": np.zeros((60, 60), bool)}
+    g["mask"][10:40, 10:40] = True
+    d = G.svg_defs("gid", g)
+    assert "gradientTransform" not in d, (
+        "radialGradient 里不许出现 gradientTransform（cairosvg 忽略它，会画出错色块）")
+    assert 'gradientUnits="userSpaceOnUse"' in d
+    sh, npts = G.svg_shape("gid", g)
+    assert sh is not None and npts >= 3, "aradial 形状要能描出轮廓"
+    assert sh.startswith('<g transform="matrix('), "aradial 的形状必须包在 <g transform> 里"
+    assert 'fill="url(#gid)"' in sh, "形状要引用那个渐变"
+
+
+@case("dump_elements_table_follows_out_png",
+      "--elmap 的元素明细表要落在 out_png **旁边**，不许写进 cwd："
+      "防把别的图/别的算例的同名 _elem_table.txt 覆盖掉")
+def test_dump_elements_table_path():
+    import os
+    import numpy as np
+    from raster_vector import groupvec as G
+
+    tmp = Path(tempfile.mkdtemp(prefix="duptab_"))
+    run = tmp / "run"
+    run.mkdir()
+    saved = G.assign_elements
+    G.assign_elements = lambda a, R, K, *ar, **kw: ({}, {}, 0)   # 空划分：只测落盘位置
+    cwd0 = os.getcwd()
+    try:
+        os.chdir(str(run))
+        G.dump_elements(np.full((60, 80, 3), 255, np.uint8), 8, 4, str(tmp / "ov.png"))
+    finally:
+        os.chdir(cwd0)
+        G.assign_elements = saved
+    assert (tmp / "ov.png").exists(), "自检图要落盘"
+    assert (tmp / "_elem_table.txt").exists(), "明细表要跟在 out_png 旁边"
+    assert not (run / "_elem_table.txt").exists(), "不许把 _elem_table.txt 写进 cwd"
+
+
 if __name__ == "__main__":
     sys.exit(main())

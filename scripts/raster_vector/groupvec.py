@@ -19,6 +19,11 @@
 import sys, os, json, colorsys
 import numpy as np
 from PIL import Image, ImageDraw, ImageFont
+from . import gradfit as GFT
+
+# 颜色量化前的原图。渐变合并按它拟合 —— 量化误差（±255/(2(Q-1))）不该被算进
+# 渐变模型里，否则「台阶」反而比「真渐变」更贴量化图，MAE 会假性地变好。
+RAW = [None]
 from . import quadtree as Q
 from . import raster_ops as V
 from . import labels as LB
@@ -156,6 +161,7 @@ def main():
     #   过渡带塔缩成 1~2 个硬边，叶子数大幅下降。
     #   Q 越小越粗；平涂草图建议 6~10，渲染稿建议 12~20。
     if Q and Q >= 2:
+        RAW[0] = a.copy()          # 真渐变按**未量化**的颜色拟合（见 emit 里的注释）
         a = np.round(a / 255.0 * (Q - 1)) / (Q - 1) * 255.0
         print("  颜色量化到 %d 级/通道" % Q)
     print("图像 %dx%d | 四叉树 R=%s 最粗 %dpx | 源 %dx%d" % (Wd, H, R, 1 << K, OW, OH))
@@ -313,9 +319,12 @@ def main():
 
 
 # ------------------------------------------------------------------ 元素归组
-def assign_elements(a, R, K):
-    """两段式：自动切分定形状 + panels.ELEMENTS 定名字（按 bbox 的 IoU 匹配）
-    返回 (per, labels, nleaf)：per[cid][eid][col] = [rect...]，labels[(cid,eid)] = 人读说明"""
+def _name_pass(a, R, K):
+    """第一段：自动切分 + panels.ELEMENTS 定名字（按 bbox 的 IoU 匹配）+ SPLIT 按像素细化。
+
+    返回 (eid_full, flat)：eid_full[y,x] = flat 的下标；flat[i] = (cid, eid, label)。
+    单独抽出来，是为了让 emit() 能在**画之前**按元素拿到像素掩膜（真渐变合并要用）。
+    """
     from . import elements as ELC
     ELC.P = P  # elements.py 自己 import 的是包内默认表；--panels 换表后必须同步，否则元素划分用错表 KeyError
     H, W = a.shape[:2]
@@ -348,6 +357,14 @@ def assign_elements(a, R, K):
             flat.append((cid, eid2, label2))
             eid_full[m2] = len(flat) - 1
             mask = mask & ~m2
+    return eid_full, flat
+
+
+def assign_elements(a, R, K, named=None):
+    """第二段：把四叉树叶块按「叶心像素属于哪个元素」归组。
+    named = _name_pass 的结果，可复用（emit 里已经算过一次，别算两遍）。"""
+    eid_full, flat = named if named is not None else _name_pass(a, R, K)
+    H, W = a.shape[:2]
     bg = {}
     for v, (cid, eid, label) in enumerate(flat):
         if eid == "background" or eid == "graphics":
@@ -416,8 +433,11 @@ def dump_elements(a, R, K, out_png="_elem_overlay.png"):
             d.text((cx + 1, cy + 1), eid, fill=(0, 0, 0), font=f)
             d.text((cx, cy), eid, fill=(255, 255, 0), font=f)
     im.save(out_png)
-    open("_elem_table.txt", "w", encoding="utf-8").write("\n".join(rows))
-    print("写出 %s / _elem_table.txt" % out_png)
+    # ★ 表跟着 out_png 走，不要写到 cwd：--elmap 是诊断子命令，
+    #   实测（2026-09-27）把 _elem_table.txt 落在 cwd 会把别的图的同名文件覆掉。
+    txt = os.path.join(os.path.dirname(out_png) or ".", "_elem_table.txt")
+    open(txt, "w", encoding="utf-8").write("\n".join(rows))
+    print("写出 %s / %s" % (out_png, txt))
     return rows
 
 
@@ -426,9 +446,34 @@ def emit(src, out, man, stats, a, H, Wd, kept, R, K, legend=None, rot=None):
     rot = rot or []
     idx = P.cell_index(H, Wd)
     meta, order = P.meta(), P.order()
-    per, labels, nleaf = assign_elements(a, R, K)
+    named = _name_pass(a, R, K)
+    per, labels, nleaf = assign_elements(a, R, K, named)
     for cid in order:
         per.setdefault(cid, {})
+
+    # ---------- 真渐变合并（可选）：panels 里写 GRADIENTS = {eid: {...}} 才生效 ----------
+    # 不写 = 一行行为都不变（向后兼容）。算法与实测见 raster_vector/gradfit.py。
+    grads, gdefs = {}, []
+    for eid, spec in (getattr(P, "GRADIENTS", None) or {}).items():
+        eid_full, flat = named
+        ids = [v for v, (c, e, l) in enumerate(flat) if e == eid and c in order]
+        if not ids:
+            print("  · 渐变 %s: 该元素不存在，跳过" % eid)
+            continue
+        spec = dict(spec or {})
+        M = np.isin(eid_full, ids)
+        g = GFT.fit(a, M, src=RAW[0], **spec)
+        if g is None:
+            print("  · 渐变 %s: 残差过大，放弃（保留原色阶台阶）" % eid)
+            continue
+        cid = flat[ids[0]][0]
+        gid = "%s-grad-%s" % (cid, eid)
+        g["eid"], g["cid"], g["gid"] = eid, cid, gid
+        g["tol"] = float(spec.get("tol", 26))
+        grads[(cid, eid)] = g
+        gdefs.append(GFT.svg_defs(gid, g))
+        print("  · 渐变 %s: %s 残差 %.2f | 渐变内 %dpx | %d 档"
+              % (eid, g["kind"], g["resid"], g["px"], len(g["stops"])))
     nrun = sum(len(rs) for cid in order for e in per[cid].values() for rs in e.values())
     npath = sum(len(e) for cid in order for e in per[cid].values())
     nelem = sum(len(per[cid]) for cid in order)
@@ -442,7 +487,8 @@ def emit(src, out, man, stats, a, H, Wd, kept, R, K, legend=None, rot=None):
          'xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape" '
          'width="%d" height="%d" viewBox="0 0 %d %d">' % (Wd, H, Wd, H),
          '<title>%s</title>' % LB.xml_esc(title),
-         '<desc>全矢量图：文字为可编辑的真 text 元素，其余为逐像素临摹的色块矢量。'
+         '<desc>全矢量图：文字为可编辑的真 text 元素，平滑渐变为真 gradient（不是色阶台阶），'
+         '其余为逐像素临摹的色块矢量。'
          '图层 = 面板(panel) -> 物理元素(element) -> path；'
          '每个面板另有 text 子层。元素命名见 panels.py 的 ELEMENTS 表。</desc>',
          '<g id="figure" data-role="figure" inkscape:groupmode="layer" inkscape:label="Figure">',
@@ -470,17 +516,44 @@ def emit(src, out, man, stats, a, H, Wd, kept, R, K, legend=None, rot=None):
                  "rects": m["rects"], "elements": []}
         for eid in elem_order(cid, per):
             elab = labels.get((cid, eid), eid)
+            bbox = elem_bbox(per[cid][eid])          # ★ 在丢台阶块**之前**算：
+            g = grads.get((cid, eid))                #   画出渐变的元素可能只剩描边/网格线
+            if g is not None:
+                for col in list(per[cid][eid]):
+                    keep_r = [r for r in per[cid][eid][col]
+                              if not GFT.rect_covered(r[0], r[1], r[2], r[3], g)]
+                    if keep_r:
+                        per[cid][eid][col] = keep_r
+                    else:
+                        del per[cid][eid][col]
             epx = sum(w * h for rs in per[cid][eid].values() for (_, _, w, h) in rs)
             en = sum(len(rs) for rs in per[cid][eid].values())
-            bbox = elem_bbox(per[cid][eid])
+            gtag = ''
+            if g is not None:
+                gtag = (' data-gradient="%s" data-gradient-resid="%.2f"'
+                        ' data-gradient-px="%d"' % (g["kind"], g["resid"], int(g["mask"].sum())))
+                elab += " + 真 %sGradient（残差 %.2f）" % (g["kind"], g["resid"])
             L.append('<g id="%s-%s" data-element="%s" data-label="%s" data-px="%d" '
-                     'data-paths="%d" data-bbox="%d,%d,%d,%d" '
+                     'data-paths="%d" data-bbox="%d,%d,%d,%d"%s '
                      'inkscape:groupmode="layer" inkscape:label="%s">'
                      % (cid, eid, eid, LB.xml_esc(elab), epx, en, bbox[0], bbox[1], bbox[2], bbox[3],
-                        LB.xml_esc(elab)))
+                        gtag, LB.xml_esc(elab)))
             L.append('<title>%s</title>' % LB.xml_esc(elab))
+            if g is not None:
+                # 渐变形状画在该元素**最底下**：上面的网格线/描边照旧画在它上面，
+                # 被丢掉的只是"落在渐变内、颜色也贴合模型"的台阶色块。
+                sh, npts = GFT.svg_shape(g["gid"], g)
+                if sh:
+                    L.append(sh)
+                    print("    %s: 真渐变形状 %d 点" % (eid, npts))
             einfo = {"id": eid, "label": elab, "bbox": list(bbox), "px": epx,
                      "paths": en, "colors": []}
+            if g is not None:
+                einfo["gradient"] = {"kind": g["kind"], "resid": round(g["resid"], 3),
+                                     "px": int(g["mask"].sum()),
+                                     "stops": ["#%02x%02x%02x" % (int(round(c[0])),
+                                               int(round(c[1])), int(round(c[2])))
+                                               for c in g["stops"]]}
             # ★ 不再插一层「颜色族」<g>：图层树必须是 panel -> element -> <path>。
             #   实测问题（2026-09-26）：人打开图层面板看到的是
             #     p-photon-A / p-photon-A-orange / p-photon-A-gray / p-photon-A-white
@@ -532,6 +605,10 @@ def emit(src, out, man, stats, a, H, Wd, kept, R, K, legend=None, rot=None):
             L.append('</g>')
         L.append('</g>')
     L.append('</g>')
+    if gdefs:
+        # 渐变定义放最后：SVG 的 id 是全文档解析的，引用在前、定义在后没问题
+        # （cairosvg / Edge / Inkscape / Illustrator 都实测过）。
+        L.append('<defs>%s</defs>' % "".join(gdefs))
     L.append('</svg>')
     open(out, "w", encoding="utf-8").write("\n".join(L))
     manifest["stats"] = {"paths": npath, "rects": nrun, "texts": ntxt,
@@ -541,7 +618,10 @@ def emit(src, out, man, stats, a, H, Wd, kept, R, K, legend=None, rot=None):
         md += ["", "## 怎么改", "",
                "- 改某个物理内容（火球 / 核子 / 流箭头 / 曲面 / 坐标轴 / 介质管…）：选中对应 `panel-element` 图层改颜色或形状。",
                "- 改文字：选中 `panel-text` 里的真 `<text>`，字体、字号、内容都可直接编辑。",
-               "- 要重命名/调整元素范围：编辑 `panels.py` 的 `ELEMENTS`（框 + 颜色条件）与 `SPLIT`，再重跑 groupvec.py。"]
+               "- 要重命名/调整元素范围：编辑 `panels.py` 的 `ELEMENTS`（框 + 颜色条件）与 `SPLIT`，再重跑 groupvec.py。",
+               "- 元素名字带「+ 真 radialGradient/linearGradient」的：该元素的大片平滑渐变已",
+               "  合并成一条 `data-role=\"gradient-shape\"` 的 path（渐变定义在文件末尾的 `<defs>`），",
+               "  底色台阶已丢掉；改渐变色/中心就在 `<defs>` 里改那个 gradient。"]
         open(legend, "w", encoding="utf-8", newline="\n").write("\n".join(md) + "\n")
         print("  %s 图层清单(可读版)" % legend)
     print("  %s %.2f MB | <path> %d | <text> %d | <image> 0"

@@ -477,6 +477,9 @@ python3 scripts/gen_figure.py --brief brief1.md --stage sketch \
 #   ★ 模型**稳定**在四周画 1~2px 外框：简报里写「不要外框」没用、
 #     --negative 加 border/frame/picture frame 也没用（实测 5/5 全有框）
 #     → 别求它，确定性裁掉；后面所有步骤都用 *_clean.png：
+#   ★ 外框可能是**两层**（1px 深线 + 1px 浅灰线 lum 244~249）：默认阈值只认深线，
+#     浅灰线会留下来变成多余细边 → 这种图加 --bg 0.975 再裁一次
+#     （实测 2026-09-27：形变核→火球 算例，下 2px + 右 1px 就是这么裁掉的）。
 python3 scripts/trim_border.py gen/sketch_s1.png -o gen/sketch_s1_clean.png
 
 # ── 3. 草图矢量化输出（人可改）────────────────────────────
@@ -497,8 +500,8 @@ python3 scripts/gen_figure.py --brief brief2.md --stage render \
 #     只传风格参考图 = 让模型重新猜一遍构图，构图会被改坏
 #     （实测 2026-09-26：UPC 算例漏传草图，成品位图把核 B 画成了横扁，
 #      与 IR 的 Lorentz 收缩方向相反）。
-#   成品位图同样带外框 → 同样裁掉再进闸口/临摹：
-python3 scripts/trim_border.py gen/render_s22.png -o gen/render_s22_clean.png
+#   成品位图同样带外框 → 同样裁掉再进闸口/临摹（外框两层时加 --bg 0.975）：
+python3 scripts/trim_border.py gen/render_s22.png -o gen/render_s22_clean.png --bg 0.975
 
 # ── 6. ★ 闸口②：成品位图再过一次同一个闸口 ─────────────────
 python3 scripts/check_sketch.py gen/render_s22_clean.png --ir ir/xxx.ir.yaml
@@ -509,8 +512,13 @@ python3 scripts/check_sketch.py gen/render_s22_clean.png --ir ir/xxx.ir.yaml
 #    **按物理元素的命名图层树**（不是像素描摹）：OCR 词表逐词对齐后擦掉原字、
 #    重写成可编辑 <text>；图形按 panels.py 的元素表归到 nucleus-A / photon-B …
 #    实测（自旋图）非文字区 MAE 0.518、>8 色阶 0.01%，1946 条 <path>、0 个 <image>
+#   ★ 参数怎么选（2026-09-27 实测）：--q 0（不量化）+ --R 5 是本 skill 目前最好的组合。
+#     "色阶台阶"的根源是 --q 量化（q=16 时每通道跳 17 级），不是四叉树不够细：
+#       形变核→火球 算例实测  --q 0 --R 5 -> MAE 0.626 / 贴边比 0.62
+#                            --q 16 --R 10 -> MAE 1.195 / 贴边比 1.48（台阶肉眼可见）
+#     代价：path 数 31005 vs 934、体积 3.99 MB vs 1.22 MB。要小体积再退回 --q 32。
 python3 scripts/raster_to_vector_semantic.py gen/render_s22_clean.png -o fig.svg \
-        --words words.txt --panels my_panels.py \
+        --words words.txt --panels my_panels.py --W 1662 --R 5 --K 7 --q 0 \
         --legend fig_layers.md --el_txt fig_el_table.txt --check
 #    --legend 人读图层清单 / --el_txt 元素明细 / --check 回渲染自检（MAE/PSNR）
 
@@ -543,6 +551,7 @@ python3 scripts/repair_brief.py fig.svg --profile assets/style-profiles.json
 | **两个产物** | 草图 PNG + **草图 SVG** + 成品位图，全部落盘 | 用户要能拿到中间产物 |
 | **裁外框** | 出图后跑 `scripts/trim_border.py in.png -o out_clean.png` | 模型**稳定**在四周画 1~2px 外框，简报与 `--negative` 都拦不住（实测 5/5）→ 确定性裁掉，别求模型 |
 | **可复现** | `gen/calls.jsonl` 记 model/seed/size/refs/prompt 指纹 | 复现和核对计费都靠它 |
+| **单个 seed 抖动** | 失败**重试 1 次**，两次都失败记 `ok=False` 继续下一个 seed | 实测 2026-09-27：seed 7 撞 TimeoutError 让整批 traceback 退出 —— seed 9 根本没跑、已出的 seed 5 也没进 `calls.jsonl` |
 | 没 key 时 | `--dry-run` 只写提示词和调用计划 | 自检不用花钱 |
 
 > 实测（UPC 图，2026-09-26）：`wanx2.0-t2i-turbo` 对结构化示意图太弱
@@ -611,7 +620,7 @@ python3 scripts/ref_leak_check.py gen/render_s22.png \
 |---|---|---|---|
 | 原理 | 看懂"这是核/这是光子线/这是顶点"再重画 | 自动切分定形状 + 人写元素表命名 | 等高线 → 填色路径，**没有"理解"** |
 | 文字 | 真 `<text>` | **OCR + 逐词对齐**，真 `<text>` | 模型写 `--text-spec` 后擦掉重写 |
-| 渐变 | **真 `<gradient>`**（能保住色彩和阴影） | 色阶台阶，但**误差可量化可调**（`--R`） | 退化成色阶台阶 |
+| 渐变 | **真 `<gradient>`**（能保住色彩和阴影） | 细调色板/不量化时**肉眼看不到台阶**（实测贴边比 0.62×源图）；也能合成真 `<gradient>`（`panels.py` 的 `GRADIENTS`，见下） | 退化成色阶台阶 |
 | 图层 | 按**结构/物理**（人手定） | 按**物理元素**（命名图层树，**不再夹颜色层**） | 按**颜色**分，`--groups` 可归组 |
 | 复现 | 两次不一样 | **逐字节相同**（已实测三次） | 逐字节相同 |
 | 依赖 | 无（模型干活） | `numpy scipy Pillow cairosvg cairocffi fontTools` | 还要 `cv2`/`skimage` |
@@ -621,6 +630,12 @@ python3 scripts/ref_leak_check.py gen/render_s22.png \
 - **默认 → 重画**。看懂了再画，曲线干净、渐变是真渐变、图层是物理的。
 - **要"和位图一模一样" → semantic 临摹**。同分辨率 MAE 实测 0.2–0.5，代价是
   每条曲线碎成台阶，且每张图要手写 `words.txt` + `panels.py`。
+- ★ **渐变不要急着上真 `<gradient>`**：细调色板（`--q 0` 或 `--q >= 32`）+ 细四叉树
+  （`--R 5`）时，四叉树本身就把渐变追平了，加真渐变反而**更差** —— 渐变画的是"模型色"
+  （残差 5~9 级），留下的台阶块画的是"原图色"，交界处多一圈硬边、球面出现成片斑块。
+  实测（形变核→火球）：真渐变全开 MAE 1.016 / 贴边比 1.39 vs 全关 MAE 0.626 / 0.62。
+  只有**必须用粗调色板**（`--q <= 16` 压体积）时才按元素打开 `GRADIENTS`
+  （算法与实测见 `scripts/raster_vector/gradfit.py` + `CHANGELOG.md` v2.6.5）。
 - 图**本来就该拆成图元** → 别临摹，直接写 IR / 写 SVG，渐变是真渐变。
 - ⚠️ **重画的忠实度天生低于临摹。** 这是选择和位图"像不像"的取舍，
   **不是**"矢量后质量就比位图差" —— 重画的上限在人的水平，不在格式。
@@ -807,6 +822,8 @@ python3 scripts/auto_converge.py --ref 参考图.png \
 | `ir_to_scene.py` | **IR → 可运行构图骨架**，含 `--check` 校验（primitives/散文 params/签名不符） |
 | `repro_T3-03_param.py` | 参数化复现脚本（供 auto_converge 驱动），可作模板 |
 | `gen_figure.py` | **★ 第 ② 步：生图**：IR 简报 → 草图 / 成品位图。key 由使用者自备（环境变量），支持 `--ref` 风格参考图（可多张），产物 + `calls.jsonl` 全部落盘 |
+| `pdf_roundtrip.py` | **排版后的 PDF 回渲染 vs 原成品位图**（超采样 + 亚像素对齐 + MAE）。**唯一能发现"PDF 那一步悄悄退化"的工具**：不做超采样+对齐会得到 5 倍假性误差（实测 0.626 -> 2.998） |
+| `raster_vector/gradfit.py` | **真 `<gradient>` 拟合**（radial / aradial / linear 三模型取残差最小者）。★ 只在粗调色板下才需要 —— 细调色板下实测反而更差，见 CHANGELOG v2.6.5 |
 | `sketch_to_vector.py` | **★ 草图矢量化**（人可改的 SVG 草图）：不用写 `panels.py`，自动切分每个形体一个子层 |
 | `raster_to_vector.py` | **位图 → 矢量（临摹备用路径）**：逐像素描摹 + 混合文字（`--text-spec`）+ 语义归组（`--groups`） |
 | `raster_to_vector_semantic.py` | **位图 → 语义分层的全矢量**（先理解再临摹）：真 `<text>`、物理元素图层树、误差可量化。库在 `scripts/raster_vector/`，用法见其 `README.md` |

@@ -19,6 +19,20 @@ trim_border —— 把生图模型在四周画的那条 1~2px 外框【真的裁
 所以别再求模型了，**裁掉**它。这条外框是确定性的像素级瑕疵，
 用一个确定性的像素级步骤解决。
 
+### ★ 外框可能是**两层**：1px 深线 + 1px 浅灰线（2026-09-27 实测）
+
+「形变核 → 火球」算例的成品位图，边框是：
+
+    row0   1664/1664 像素 lum<240   （深线，BG=0.94 能认出）
+    row-2  1620/1664 像素 lum<240   （深线）
+    row-1  1664/1664 像素 lum<250   （浅灰线，244~249 —— BG=0.94 **认不出**）
+    col-1   927/ 928 像素 lum<250   （浅灰线）
+
+默认 `BG=0.94`（lum<240）只裁掉深线，浅灰线留在图上 → 进矢量后就是一条多余细边。
+这种图用 `--bg 0.975`（lum<248.6）再跑一次即可（实测裁掉下 2px + 右 1px）。
+**注意**：`--bg` 调高会把**很浅的内容**（火球的浅色外晕之类）也算作内容，
+所以它是个选项、不是新默认值 —— 只在默认值裁不干净时手动调。
+
 ## 判据（区分「细外框」和「内容真的顶到边」）
 
 从每条边往里走：
@@ -50,10 +64,12 @@ LINE_FRAC = 0.85   # 一行里 ≥ 这么多像素有内容 → 像"框线"
 EMPTY_FRAC = 0.20  # run 之后第一条必须 < 这么多 → 才认可是"孤立细线"
 
 
-def _lines(img, axis, reverse):
+def _lines(img, axis, reverse, bg=None):
     """按 axis（0=行, 1=列）从某条边往里，返回 '框线 run 长度' 或 0。"""
+    if bg is None:
+        bg = BG
     g = np.asarray(img.convert("L")).astype(np.float32) / 255.0
-    nb = g < BG
+    nb = g < bg
     if axis == 1:
         nb = nb.T
     if reverse:
@@ -72,12 +88,12 @@ def _lines(img, axis, reverse):
     return run, nxt if not ok else nxt
 
 
-def detect(img, max_px=6):
+def detect(img, max_px=6, bg=None):
     """返回 {'left':n,'right':n,'top':n,'bottom':n}（要裁掉的像素数）。"""
     out = {}
     for name, axis, rev in (("top", 0, False), ("bottom", 0, True),
                             ("left", 1, False), ("right", 1, True)):
-        run, nxt = _lines(img, axis, rev)
+        run, nxt = _lines(img, axis, rev, bg)
         if run == 0:
             out[name] = (0, "没找到框线")
         elif run > max_px:
@@ -95,13 +111,16 @@ def main():
     ap.add_argument("-o", "--out", default=None)
     ap.add_argument("--max", dest="max_px", type=int, default=6,
                     help="单边最多裁多少 px（超过就当成内容，默认 6）")
+    ap.add_argument("--bg", type=float, default=BG,
+                    help="背景亮度阈值（0~1）：lum < bg 算「有内容」。默认 %.2f。"
+                         "外框是**浅灰**线（lum 244~249）时用 0.975" % BG)
     ap.add_argument("--dry-run", action="store_true")
     a = ap.parse_args()
 
     p = Path(a.image)
     img = Image.open(p)
     W, H = img.size
-    res = detect(img, a.max_px)
+    res = detect(img, a.max_px, a.bg)
     print("trim_border  %s  (%dx%d)" % (p.name, W, H))
     n_any = 0
     for k in ("top", "bottom", "left", "right"):
