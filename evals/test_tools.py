@@ -1336,5 +1336,61 @@ def test_rate_limit_backoff():
         assert not GF._looks_rate_limited(s), "普通故障不该按限流退避（会白等）：%r" % s
 
 
+@case("check_delivery_bitmap_gate_survives_embedded_bitmap",
+      "check_bitmaps() 引用了签名里根本没有的 page（pw, ph = page.rect.width...）"
+      "-> PDF 里只要出现**任何**嵌入位图，最该拦的那个门禁就 NameError 崩掉。"
+      "崩了以后输出里只有 traceback、没有任何判定，比放行更危险。")
+def test_check_delivery_bitmap_gate():
+    """
+    实测（2026-09-27，CME 出图）：这条分支只在"PDF 里真有位图"时才走到，
+    而它恰好写错变量名。于是纯矢量 PDF 全绿、一旦有图就 traceback —— 门禁
+    在唯一需要它的场合失效。这里合成受控位图验三件事：
+      1. 不再崩：退出码 0，输出里没有 Traceback / NameError
+      2. 真的逐张报了：出现"位图逐张"和该图的有效 dpi 行
+      3. 红线还在：把同一张图撑到盖住整页 -> 受控区域原则必须判失败
+    """
+    import numpy as np
+    import fitz
+    from PIL import Image
+    tmp = Path(tempfile.mkdtemp(prefix="cdbmp_"))
+    rgb = np.zeros((300, 300, 3), np.uint8)
+    rgb[:, :, 1] = 180                       # 纯绿：别被当成空白页
+    png = tmp / "chip.png"
+    Image.fromarray(rgb).save(str(png))
+
+    def build(path, side_pt):
+        doc = fitz.open()
+        page = doc.new_page(width=519, height=292)
+        page.insert_image(fitz.Rect(40, 40, 40 + side_pt, 40 + side_pt),
+                          filename=str(png))
+        page.insert_text((300, 250), "vector text", fontsize=7)
+        for k in range(6):          # 本页要有矢量内容，否则会被判"整页被栅格化"
+            page.draw_line(fitz.Point(300, 60 + 8 * k),
+                           fitz.Point(500, 60 + 8 * k), width=0.6)
+        doc.save(str(path))
+        doc.close()
+        return path
+
+    def run(pdf):
+        r = subprocess.run([sys.executable, str(SCRIPTS / "check_delivery.py"),
+                            str(pdf)], capture_output=True, text=True,
+                           timeout=180, encoding="utf-8", errors="replace")
+        return r.returncode, (r.stdout or "") + (r.stderr or "")
+
+    # 1 cm 见方放 300x300 px -> 有效 762 dpi、占页 1%，是"受控小位图"
+    code, so = run(build(tmp / "small.pdf", 28.35))
+    assert "Traceback" not in so and "NameError" not in so, (
+        "有嵌入位图时 check_bitmaps 又崩了（门禁必须在场）：%s" % so[-700:])
+    assert code == 0, so[-700:]
+    assert "位图逐张" in so, "有真位图就该逐张报出来：%s" % so[-700:]
+    assert "dpi" in so, so[-700:]
+
+    # 同一张图撑满整页 -> 占页 > 90%，必须判失败（退出码非 0）
+    code2, so2 = run(build(tmp / "big.pdf", 500))
+    assert "Traceback" not in so2, so2[-700:]
+    assert code2 != 0, (
+        "整页被位图盖住是受控区域原则的红线，必须判失败：%s" % so2[-700:])
+
+
 if __name__ == "__main__":
     sys.exit(main())

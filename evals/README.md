@@ -5,7 +5,7 @@
 ## ① 工具回归测试（机器可跑）
 
 ```bash
-python3 evals/test_tools.py        # 38 个 case
+python3 evals/test_tools.py        # 39 个 case
 python3 evals/test_tools.py -v     # 显示每个 case 防的是什么坑
 python3 evals/test_tools.py geom   # 只跑名字含 geom 的
 ```
@@ -52,6 +52,7 @@ python3 evals/test_tools.py geom   # 只跑名字含 geom 的
 | `gen_figure_requires_ref_and_records_prompt_extend` | 风格参考图是硬规矩（只给文字 -> 通用插画脸），缺了要直接报错 |
 | `gen_figure_warns_when_size_ratio_differs_from_ir` | 同一张图两个比例就废了 IR 的归一化坐标：简报按 IR 声明写、API 按 -… |
 | `gen_figure_backs_off_on_rate_limit` | 429/限流时**立刻重试只会再撞一次** |
+| `check_delivery_bitmap_gate_survives_embedded_bitmap` | 投稿门禁 check_bitmaps() 引用了签名里没有的 page：纯矢量 PDF 全绿，**一旦有嵌入位图就 NameError 崩掉** —— 最该拦的场合门禁不在场 |
 
 > **为什么需要它**：没有回归测试时，改一个工具会悄悄弄坏另一个 ——
 > 这正是"修一个坏一个"的根因。

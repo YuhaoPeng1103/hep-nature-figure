@@ -83,7 +83,10 @@ def check_bitmaps(infos, pw, ph):
     """位图只允许在受控区域 + dpi 达标 + 有矢量轮廓。返回是否通过。"""
     if not infos:
         return True
-    pw, ph = page.rect.width, page.rect.height
+    # ★ 2026-09-27：这里原来又写了一遍 `pw, ph = page.rect.width, ...`，
+    #   而 check_bitmaps 根本没有 page 参数 —— 只要有**任何**嵌入位图，
+    #   这个门禁就 NameError 崩掉（等于「有位图时门禁失效」，最该拦的场合崩）。
+    #   pw/ph 已经在签名里了，直接用。
     area = max(pw * ph, 1e-6)
     print("  ── 位图逐张 ──")
     ok = True

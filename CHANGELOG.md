@@ -1,5 +1,36 @@
 # 变更记录
 
+## v2.8.1 — 2026-09-27
+
+**修一条「有位图时门禁自己崩掉」的静默失效（出图时踩到）**
+
+### 症状
+
+`scripts/check_delivery.py` 的 `check_bitmaps(infos, pw, ph)` 里又写了一遍
+`pw, ph = page.rect.width, page.rect.height` —— 函数签名**根本没有 page**。
+后果不对称、而且正好反了：
+
+- **纯矢量 PDF**（本项目大多数成品）→ 该分支不会进，全绿 ✅
+- **PDF 里只要有哪怕一张嵌入位图** → `NameError: name 'page' is not defined`，
+  整个门禁 traceback 崩掉。
+
+也就是「唯一需要这道闸的场合，闸不在场」。更麻烦的是它的输出里只剩 traceback、
+一条判定都没有 —— 从日志看反倒像"检查过了、没问题"。
+
+### 修法
+
+删掉那行，直接用签名里的 `pw/ph`（早就是调用方传进来的页面尺寸）。
+
+### 验证
+
+- 新增回归 case `check_delivery_bitmap_gate_survives_embedded_bitmap`：
+  合成一张**受控小位图**（300×300 px 放 1 cm 见方 → 762 dpi、占页 1%）验三件事
+  ① 不再崩（退出码 0、无 Traceback/NameError）② 真的逐张报出 dpi
+  ③ 把同一张图撑到盖住整页 → 受控区域红线仍要判失败。
+- **反向验证**：把 bug 还原到一份脚本副本、`HEPNF_SCRIPTS` 指过去 → 该 case 立刻
+  转红并复现 `NameError: name 'page' is not defined`（说明它真能钉住这个坑，不是摆设）。
+- `python evals/test_tools.py` → **39/39 通过**；`python -m compileall -q scripts evals` 干净。
+
 ## v2.8.0 — 2026-09-27
 
 **画布只有一个来源 + 出图纪律变成硬约束 + 多张候选机器排序**
