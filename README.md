@@ -386,7 +386,7 @@ python3 scripts/demo_combined.py
 │   └── evals.json / README.md   评测清单
 └── assets/
     ├── style-profiles.json      风格档案（门禁用；存**区间**不存点值）
-    ├── t3-exemplars/            参考图库（2 张 CC-BY 图 + `NOTICE.md` 版权说明）
+    ├── t3-exemplars/            参考图库（17 张 CC BY 4.0 图 + `NOTICE.md` 逐张署名与出处）
     ├── ir/                      8 套 IR 标准答案（含 UPC / 自旋关联 / 形变核→火球 三个完整算例）
     └── demos/
         ├── upc_semantic/        UPC 完整算例（词表 / 元素表 / 源图 / 并排预览）
@@ -453,10 +453,11 @@ python3 scripts/demo_combined.py
 
 ## 关于参考图的版权
 
-`assets/t3-exemplars/` **只包含 CC-BY 开放获取的图**（STAR, Nature 2024），
-其余参考图因版权原因**未随仓库分发** —— 详见
-[`assets/t3-exemplars/NOTICE.md`](assets/t3-exemplars/NOTICE.md)，
-里面有每张图的出处和获取方式。
+`assets/t3-exemplars/` **只包含 CC BY 4.0 开放获取的图**，现有 **17 张** T3 类风格参考
+（STAR / ALICE / CMS，以及若干开放获取的 arXiv 论文；逐张署名与加工说明见
+[`assets/t3-exemplars/NOTICE.md`](assets/t3-exemplars/NOTICE.md)）。
+另有 **42 张**因版权原因**未随仓库分发**（订阅制 / arXiv 默认许可 / CC BY-NC-ND）——
+同一份 NOTICE 里列了它们的出处与自行获取方式。
 
 自己建库：
 

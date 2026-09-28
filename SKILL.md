@@ -186,7 +186,7 @@ python3 scripts/raster_to_vector_semantic.py fig.png -o fig.svg --words words.tx
    脚本里**不存任何 key**。别人装了 skill 就用他自己的 key（没 key 也能 `--dry-run` 自检）。
 2. **必须给风格参考图**（`--ref`，可多张）—— 参考图 = Nature **风格书**。
    只给文字简报，出来的图一定很"通用"。`_T3精选` 这类本地图直接传就行；
-   要公开发布时用 `assets/t3-exemplars/` 里那 2 张 CC-BY 的（见纪律 0）。
+   要公开发布时用 `assets/t3-exemplars/` 里那 17 张 CC BY 4.0 的（见纪律 0 与 `NOTICE.md`）。
    ★ 给的是**风格**（配色/线条/材质/光影/**渲染方式**），**不是内容模板** ——
    本图内容可以和参考图**完全不同**；参考图里没有的物理对象照 IR 画出来就行，
    不要因为"参考图里没有"就不画。**「期刊矢量插画风」≠「扁平 2D」**：
@@ -886,7 +886,8 @@ material: >
 
 ### ★ 参考图 vs 画法规律：**能直接给图就别提炼**
 
-`assets/t3-exemplars/` 里有 **2 张 CC-BY 的 T3 参考图**（STAR Nature 2024）。
+`assets/t3-exemplars/` 里有 **17 张 CC BY 4.0 的 T3 参考图**
+（STAR / ALICE / CMS / 开放获取的 arXiv 论文，逐张署名与加工说明见 `NOTICE.md`）。
 
 | | 给参考图 | 给提炼的规律 |
 |---|---|---|
@@ -1034,7 +1035,7 @@ python3 scripts/auto_converge.py --ref 参考图.png \
 
 ## 资产
 
-- `assets/t3-exemplars/` —— **2 张 CC-BY 参考图**（STAR Nature 2024）
+- `assets/t3-exemplars/` —— **17 张 CC BY 4.0 参考图**（逐张署名见 `NOTICE.md`）
 - `assets/ir/` —— **三套** IR 标准答案（**不要提前给被测 AI 看**）
 
   - B1_T3-03 / B2_T3-05：手写，已按盲测验证结果修正
