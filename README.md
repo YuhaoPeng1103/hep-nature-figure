@@ -199,6 +199,7 @@ python3 scripts/raster_to_vector_semantic.py fig.png -o fig.svg \
 > 贴边比 0.62×源图）；这时再加真 `<gradient>` 反而**更差**（MAE 1.016、贴边比 1.39 ——
 > 渐变画"模型色"、台阶块画"原图色"，交界处多一圈硬边、球面成片斑块）。
 > 只有必须用粗调色板（`--q <= 16`）压体积时才按元素打开 `GRADIENTS`（`gradfit.py`）。
+> 2026-09-28 又在集体流图上量了一遍（`--q 0`）：打开后右火球 MAE **6.48 → 7.28**、体积 6.67 → 6.64 MB（体积大头是抗锯齿碎屑，渐变省不到），见 `assets/demos/flow_semantic/`。
 > 照片、有机纹理仍然要靠**重画**。
 
 ---
@@ -207,6 +208,7 @@ python3 scripts/raster_to_vector_semantic.py fig.png -o fig.svg \
 
 | 方向 | 预览 | 看点 |
 |---|---|---|
+| **位图 → 矢量三种做法对照**（重画 / 混合临摹 / 真渐变开关） | <a href="assets/demos/flow_semantic/cmp_three_ways.png"><img src="assets/demos/flow_semantic/cmp_three_ways.png" width="260" alt="集体流：源位图 / 混合临摹 / 真渐变 / 重画 四格对照"></a> | 同一个末态火球（v2 > 0）四种做法并排：**重画** 12 KB 且**物理量是参数**（`RX, RY = R0(1 +- V2)` 一行同时定火球扁度和箭头各向异性，实测箭头比 **1.55** 是算出来的）；**混合临摹** 38,079 `<path>` / 15 `<text>` / `<image>` **0**、MAE **2.70**、6.67 MB；**真渐变开关**反而更差（右火球 MAE **6.48 -> 7.28**、体积 6.67 -> 6.64 MB —— 占体积的是抗锯齿碎屑，换渐变省不到） |
 | **喷注淬火 / 双喷注不对称**（路线③，v2.7.2） | <a href="assets/demos/jet_quenching/cmp_bitmap_vs_svg.png"><img src="assets/demos/jet_quenching/cmp_bitmap_vs_svg.png" width="260" alt="喷注淬火：位图 vs 临摹矢量"></a> | 新闸口**机器量出「IR 自己把几何写反了」**：按 IR 给的端点算，被淬火那侧只有 0.09W 就出射、另一侧反而 0.30W，3/3 草图一致照抄。修 IR 后弦长比 **4.00x**；34,076 `<path>` / **6 `<text>`** / `<image>` **0**，PDF 全图 MAE **1.797** |
 | 自旋关联示意图（路线③ 全过程） | <a href="assets/demos/spin_semantic/cmp_preview.png"><img src="assets/demos/spin_semantic/cmp_preview.png" width="260" alt="自旋关联：位图 vs 临摹矢量"></a> | 上 = 生图模型的成品位图，下 = 临摹矢量回渲染；非文字区 MAE **0.518**、`<image>` **0** |
 | 形变核 → 火球四阶段链（路线③ 全过程） | <a href="assets/demos/evo_semantic/cmp_preview.png"><img src="assets/demos/evo_semantic/cmp_preview.png" width="260" alt="形变核→火球：位图 vs 临摹矢量"></a> | 上 = 成品位图，下 = 全矢量临摹；MAE **0.626**、31005 `<path>` / `<image>` **0**、PDF 183x102 mm 纯矢量 | 
@@ -416,6 +418,7 @@ python3 scripts/demo_combined.py
 | `assets/demos/evo3d_layoutref/` | 想知道「出了图又干又平、火球是纯色圆盘」怎么救：`--content-ref` 三种送法的 A/B/C 实测表（降级成 layout-only 后风格和构图**同时**变好） |
 | `assets/demos/evo3d_fireball_spec/` | 想知道「图看着很'AI'、火球像颗光滑糖球」怎么救：IR 的 `material` 进简报前后的 5 方对照 + 内部结构量化 |
 | `assets/demos/jet_quenching/` | 想知道「IR 的几何要自洽」怎么落地：一个**被机器闸口量出写反了**的IR（弦长比 0.09W vs 0.30W），修好后 4.00x；顺带量到「路径数由 `--q` 定不是 `--R`」和「`--shade` 在羽化边缘上会碎」 |
+| `assets/demos/flow_semantic/` | 想知道「位图→矢量到底有几种做法、重画和临摹该怎么选」：同一个末态火球的重画 / 混合临摹 / 真渐变开关三者对照 + 三条判据 |
 
 ---
 

@@ -1,0 +1,15 @@
+575	257	326	51	transverse plane
+64	918	284	52	reaction plane
+1132	515	238	47	QGP fireball
+1049	583	492	52	ε_{2} (spatial anisotropy) > 0
+1624	962	226	53	anisotropic
+1633	1033	204	55	expansion
+2856	616	368	38	v_{2} = ⟨cos 2φ⟩ > 0
+2442	405	253	52	out-of-plane
+3105	937	162	53	in-plane
+3134	800	38	60	φ
+741	1365	114	43	b ≠ 0
+294	1434	24	28	x
+126	1211	26	44	y
+28	1494	22	26	z
+24	1530	106	38	beam
