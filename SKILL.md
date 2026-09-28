@@ -551,13 +551,19 @@ python3 scripts/check_sketch.py gen/sketch_s1_clean.png --ir ir/xxx.ir.yaml
 #     python3 scripts/pick_best.py gen/check1.json
 
 # ── 5. 出成品位图（★ 草图 + 风格参考图都要带）──────────────
-#   ★ 风格档：--style-mode auto|flat|render3d（默认 auto，按 IR 的 style 段判）
+#   ★ 风格档在**简报编译这一步**定（`ir_to_genbrief.py --style-mode auto|flat|render3d`，
+#     默认 auto，按 IR 的 style 段判；**gen_figure.py 没有这个参数**）：
 #     IR 写 3D/半写实/体积/网格线 -> render3d（球面明暗+高光+真渐变）；
 #     判不出 -> ref（跟随参考图）。参考图是风格书，不是内容模板。
 python3 scripts/ir_to_genbrief.py ir/xxx.ir.yaml --stage render -o brief2.md
 python3 scripts/gen_figure.py --brief brief2.md --stage render \
     --content-ref gen/sketch_s1_clean.png --ref refs/T3-33.png --seeds 21,22 --outdir gen/
-#   ★ 第一个 --ref 是**上一步选中的草图**：它是构图依据（已过闸口①）。
+#   ★ 上一步选中的草图走 **--content-ref**（不是 --ref）：它是构图依据（已过闸口①）。
+#     ⚠️ 别把草图写进 --ref —— 降级只作用于 --content-ref，--ref 是**原样送**；
+#       彩色扁平草图会把「扁平」这个渲染风格一起带进去（同源实测：--content-ref
+#       原样送 `full` 时布局 r 0.873 但火球=纯色橙盘；--ref 连降级入口都没有）。
+#       角色写错时两个机制同时失效：草图不再降级、
+#       而 ref_leak_check 又只拿 style_refs 判「有没有抄参考图」→ 静默失败。
 #     只传风格参考图 = 让模型重新猜一遍构图，构图会被改坏
 #     （实测 2026-09-26：UPC 算例漏传草图，成品位图把核 B 画成了横扁，
 #      与 IR 的 Lorentz 收缩方向相反）。
