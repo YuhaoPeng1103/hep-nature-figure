@@ -1,8 +1,11 @@
-> # 📌 本分支 = 主线（v2.8）：三条路线合一
+> # 📌 本分支 = 主线（v3.0）：三条路线合一 + 人机交接
 >
 > 三条路线都在本分支里，**默认走路线 3**：IR → 生图简报 → 草图（+矢量草图）→
-> 闸口① → 成品位图 → 闸口② → 重画/临摹成矢量 → 三道门禁 → 交付。
-> 观感最好，代价是两次生图。
+> 闸口① → **★ 交接点（你挑 / 你改草图）** → 成品位图 → 闸口② → 重画/临摹成矢量 →
+> 三道门禁 → 交付。观感最好，代价是两次生图。
+>
+> v3.0 起第 ④ 与第 ⑤ 步之间**默认停一次**：候选草图连同**可编辑 SVG** 一起交给你，
+> 你说「用第 N 张」就继续，或者下载 SVG 改完传回（改完仍要过闸口①）。
 >
 > `route-a` / `route-b1` / `route-b2` 是早期「一个分支一条路线」的旧版，
 > 保留但不再更新；新装直接用 `main`。
@@ -99,6 +102,9 @@
                              scripts/sketch_to_vector.py
    ↓
 ⑤ ★ 闸口①：草图过物理检查（不能跳）      scripts/check_sketch.py
+   ↓
+⑤.5 ★★ 交接点：候选草图 → 你挑 / 你改   scripts/sketch_handoff.py（交出去）
+       你改完传回 → 重过闸口①再用         scripts/sketch_ingest.py（灌回来）
    ↓
 ⑥ 出成品位图（--content-ref 草图 + --ref 风格） scripts/gen_figure.py --stage render
       ★ 简报侧先定风格档：ir_to_genbrief.py --stage render --style-mode auto
@@ -361,6 +367,8 @@ python3 scripts/demo_combined.py
 │   ├── gen_figure.py            ★ 第③步：生图（简报 → 草图 / 成品位图）。key 自备，支持 --ref
 │   ├── trim_border.py           ★ 裁掉生图模型稳定画的 1~2px 外框（幂等）
 │   ├── sketch_to_vector.py      ★ 第④步：草图矢量化成可改的 SVG（不用写 panels.py）
+│   ├── sketch_handoff.py        ★★ 第⑤步前：多张草图 → 给人挑的一页 + 可编辑 SVG（v3.0 人机交接）
+│   ├── sketch_ingest.py         ★★ 人改完的草图灌回流程：规范化画布 + **强制重过闸口①**（v3.0）
 │   ├── check_sketch.py          ★ 闸口①/②：草图与成品位图的物理检查（可一次查多张 + --json + --sketch 量构图保真）
 │   ├── pick_best.py             ★ 候选排序：吃 check_sketch --json 的报告，只把人眼留给没硬伤的
 │   ├── raster_to_vector.py      位图 → 矢量（临摹备用）：逐像素 + 混合文字 + --groups

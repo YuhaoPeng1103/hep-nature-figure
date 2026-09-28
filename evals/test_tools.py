@@ -1392,5 +1392,83 @@ def test_check_delivery_bitmap_gate():
         "整页被位图盖住是受控区域原则的红线，必须判失败：%s" % so2[-700:])
 
 
+# ══════════════════════════════════════════════════════════════
+#  坑 20：人机交接（v3.0）
+#  草图是**最便宜的返工点**，但以前没有"给人挑"这一步，也没有"人改完怎么灌回去"的路 ——
+#  人只能在成品位图上返工（要花钱、要重过闸口②、还要重新矢量化）。
+#  补上交接点后唯一的新风险是：**手改的草图绕过闸口①直接去生图**。
+#  所以下面这条两头都钉住：交出去的是能改的纯矢量 SVG；灌回来必须重过闸口。
+# ══════════════════════════════════════════════════════════════
+
+@case("handoff_roundtrip_gated",
+      "人机交接：多张草图 → 给人挑的一页 + 可编辑 SVG；人改完回流**必须重过闸口①**"
+      "（改了画布比例要被拒），--no-gate 必须明说跳过了检查")
+def test_handoff_roundtrip():
+    from PIL import Image, ImageDraw
+    tmp = Path(tempfile.mkdtemp(prefix="hep_handoff_"))
+    ir = tmp / "t.ir.yaml"
+    ir.write_text('composition:\n  canvas:\n    ratio: "2（横）"\n',
+                  encoding="utf-8")
+
+    # 两张形状不同的草图（模拟"一次出多张候选"）
+    pngs = []
+    for i, box in enumerate(((120, 80, 360, 320), (440, 80, 680, 320)), 1):
+        im = Image.new("RGB", (800, 400), (255, 255, 255))
+        d = ImageDraw.Draw(im)
+        d.ellipse(box, fill=(205, 205, 205), outline=(50, 50, 50), width=3)
+        d.line((30, 200, 770, 200), fill=(50, 50, 50), width=2)
+        for x in (266, 534):                      # 让 9 格都别空着
+            d.line((x, 20, x, 380), fill=(120, 120, 120), width=2)
+        p = tmp / ("sketch_s%d_clean.png" % i)
+        im.save(p)
+        pngs.append(str(p))
+
+    # ① 交接：清单 + 可编辑 SVG + 预览
+    ho = tmp / "handoff"
+    r = subprocess.run([sys.executable, str(SCRIPTS / "sketch_handoff.py"), *pngs,
+                        "--ir", str(ir), "--outdir", str(ho)],
+                       capture_output=True, text=True, timeout=900,
+                       encoding="utf-8", errors="replace")
+    assert r.returncode == 0, (r.stdout or "")[-900:] + (r.stderr or "")[-400:]
+    md = (ho / "candidates.md").read_text(encoding="utf-8")
+    assert "cand_01.svg" in md and "cand_02.svg" in md, md[:400]
+    assert "交接点" in r.stdout, "要明确告诉调用方：停下来等用户回音"
+    svg = ho / "cand_01.svg"
+    assert svg.exists(), sorted(p.name for p in ho.iterdir())
+    body = svg.read_text(encoding="utf-8")
+    assert "<image" not in body, (
+        "交给人的草图必须**纯矢量**：夹着 <image> 就没法在 Illustrator 里改")
+    assert (ho / "cand_01_preview.png").exists(), "要给预览图（聊天里直接看）"
+
+    # ② 模拟用户在 Illustrator 里改一笔
+    edited = ho / "cand_01_edited.svg"
+    edited.write_text(body.replace('fill="#ffffff"', 'fill="#f2f2f2"', 1),
+                      encoding="utf-8")
+    out = tmp / "gen" / "sketch_edited_clean.png"
+
+    def ingest(*extra):
+        return subprocess.run(
+            [sys.executable, str(SCRIPTS / "sketch_ingest.py"), str(edited),
+             "--ir", str(ir), "-o", str(out)] + list(extra),
+            capture_output=True, text=True, timeout=900,
+            encoding="utf-8", errors="replace")
+
+    # ③ 回流：过闸 + 尺寸被规范化
+    r2 = ingest("--size", "800*400")
+    assert r2.returncode == 0, (r2.stdout or "")[-900:] + (r2.stderr or "")[-400:]
+    assert "闸口①" in r2.stdout, "回流必须重跑闸口①（人改不豁免）"
+    assert Image.open(out).size == (800, 400), Image.open(out).size
+
+    # ④ 人把画布比例改了 → 必须被拒（否则手改的图绕过物理检查）
+    r3 = ingest("--size", "400*400", "--fit", "stretch")
+    assert r3.returncode != 0, (
+        "改了画布比例还放行 = 手改的草图绕过了闸口①：%s" % (r3.stdout or "")[-500:])
+    assert "没过闸口" in r3.stdout, (r3.stdout or "")[-500:]
+
+    # ⑤ 逃生门必须喊出来
+    r4 = ingest("--size", "800*400", "--no-gate")
+    assert r4.returncode == 0 and "跳过闸口①" in r4.stdout, (r4.stdout or "")[-400:]
+
+
 if __name__ == "__main__":
     sys.exit(main())

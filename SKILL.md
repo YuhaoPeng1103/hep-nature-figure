@@ -20,6 +20,7 @@ description: >-
 | **画** | **模型**（直接输出 SVG） | 模型有视觉先验，能做出代码拼不出的质感。实测：纯代码管线产出"干净的教科书插图"，达不到期刊观感；模型直接画明显更好 |
 | **约束** | **IR + geometry_constraints** | 防"好看但物理错"。模型单干时最爱犯这个 |
 | **验收** | **三道门禁** | 模型看不见自己的输出，这里能量（见下「三道门禁是谁」） |
+| **拍板**（只一次） | **作者本人** | 闸口①之后、成品位图之前：机器只能排序，"哪张更像你要讲的物理"只有你知道。草图是全链最便宜的返工点（`sketch_handoff.py` / `sketch_ingest.py`） |
 | **返修** | **`repair_brief.py` → 模型改** | 光说"文字重叠"模型只能猜；返修单给**归一化坐标 + 具体错开量** |
 
 **结论：不要试图用代码把图"画好看"——那条路性价比极低。**
@@ -42,6 +43,9 @@ IR 管物理  ｜  生图管风格  ｜  矢量那一步管矢量化
    先出【草图】，草图也要【矢量化输出】（sketch_to_vector.py）让人能直接改
         ↓
    ★ 闸口①  check_sketch.py 草图 —— 几何约束逐条对账，答完才往下走
+        ↓
+   ★★ 交接点（v3.0）sketch_handoff.py —— 候选 + 可编辑 SVG 交给作者挑/改
+      作者改完 → sketch_ingest.py 灌回（重过闸口①）
         ↓
 ③ 出【成品位图】（gen_figure.py --stage render，同样带 --ref）
         ↓
@@ -549,6 +553,21 @@ python3 scripts/check_sketch.py gen/sketch_s1_clean.png --ir ir/xxx.ir.yaml
 #     python3 scripts/check_sketch.py gen/sketch_s*_clean.png --ir ir/xxx.ir.yaml \
 #         --json gen/check1.json
 #     python3 scripts/pick_best.py gen/check1.json
+
+# ── 4.5 ★★ 交接点（v3.0）：多张草图 → 让用户挑 / 让用户改 ──────
+#   ★ 默认**停下来**。草图是全链最便宜的返工点，而 "哪张更像你要讲的物理" 只有作者知道；
+#     pick_best 负责把没硬伤的排前面（机器能做的都做了），拍板是人做的事。
+python3 scripts/sketch_handoff.py gen/sketch_s*_clean.png --ir ir/xxx.ir.yaml \
+    --json gen/check1.json --outdir handoff
+#   产物：handoff/candidates.md（表格 + 预览图 + 三种回音怎么回）、
+#         handoff/cand_01.svg（可编辑，每形体一个 part-NN 子层）、cand_01_preview.png
+#   → 把 candidates.md 给用户看，问清楚：① 用第几张？ ② 还是下载 SVG 自己改？
+#   ★ 用户改完传回 → 灌回流程（**强制重过闸口①**，人改不豁免）：
+#     python3 scripts/sketch_ingest.py handoff/cand_02_edited.svg --ir ir/xxx.ir.yaml \
+#         --size 1664*928 -o gen/sketch_edited_clean.png
+#     过了闸口才继续第 5 步，且第 5 步的 --content-ref 换成 gen/sketch_edited_clean.png
+#   ★ 用户说"你定" → 跳过本步，按 pick_best 的顺序取第一张直接往下走
+#   ★ 拿不到回音就不要往下走：成品位图一次出图要花钱，草图返工几乎免费
 
 # ── 5. 出成品位图（★ 草图 + 风格参考图都要带）──────────────
 #   ★ 风格档在**简报编译这一步**定（`ir_to_genbrief.py --style-mode auto|flat|render3d`，
@@ -1081,6 +1100,8 @@ python3 scripts/auto_converge.py --ref 参考图.png \
 | `pdf_roundtrip.py` | **排版后的 PDF 回渲染 vs 原成品位图**（超采样 + 亚像素对齐 + MAE）。**唯一能发现"PDF 那一步悄悄退化"的工具**：不做超采样+对齐会得到 5 倍假性误差（实测 0.626 -> 2.998） |
 | `raster_vector/gradfit.py` | **真 `<gradient>` 拟合**（radial / aradial / linear 三模型取残差最小者）。★ 只在粗调色板下才需要 —— 细调色板下实测反而更差，见 CHANGELOG v2.6.5 |
 | `sketch_to_vector.py` | **★ 草图矢量化**（人可改的 SVG 草图）：不用写 `panels.py`，自动切分每个形体一个子层 |
+| `sketch_handoff.py` | **★★ 人机交接（交出去）**：多张草图 → `candidates.md`（表格 + 预览 + 三种回音）+ 可编辑 SVG + 预览图。排序复用 `pick_best` 的判据 |
+| `sketch_ingest.py` | **★★ 人机交接（灌回来）**：人改完的 SVG/PNG → 规范化到目标画布 → **强制重跑闸口①**（不过就拒，给返修单）；`--no-gate` 逃生门会留大字 |
 | `raster_to_vector.py` | **位图 → 矢量（临摹备用路径）**：逐像素描摹 + 混合文字（`--text-spec`）+ 语义归组（`--groups`） |
 | `raster_to_vector_semantic.py` | **位图 → 语义分层的全矢量**（先理解再临摹）：真 `<text>`、物理元素图层树、误差可量化。库在 `scripts/raster_vector/`，用法见其 `README.md` |
 | `ir_brief_audit.py` | **★ IR → 简报的无损体检**（哨兵法：字段没进简报 = IR 白写）。改 IR 格式 / 简报模板后必跑，可挂 CI |
