@@ -20,7 +20,7 @@ description: >-
 | **画** | **模型**（直接输出 SVG） | 模型有视觉先验，能做出代码拼不出的质感。实测：纯代码管线产出"干净的教科书插图"，达不到期刊观感；模型直接画明显更好 |
 | **约束** | **IR + geometry_constraints** | 防"好看但物理错"。模型单干时最爱犯这个 |
 | **验收** | **三道门禁** | 模型看不见自己的输出，这里能量（见下「三道门禁是谁」） |
-| **拍板**（只一次） | **作者本人** | 闸口①之后、成品位图之前：机器只能排序，"哪张更像你要讲的物理"只有你知道。草图是全链最便宜的返工点（`sketch_handoff.py` / `sketch_ingest.py`） |
+| **拍板**（只一次） | **作者本人** | 闸口①之后、成品位图之前：机器只能排序，"哪张更像你要讲的物理"只有你知道。草图是全链最便宜的返工点（`sketch_handoff.py` / `sketch_ingest.py`）。**v3.1 起这条有闸门了**：`make_picker.py` 交出去、`choice_gate.py` 收回执 —— 没有**你本人**的回执就不许出成品位图 |
 | **返修** | **`repair_brief.py` → 模型改** | 光说"文字重叠"模型只能猜；返修单给**归一化坐标 + 具体错开量** |
 
 **结论：不要试图用代码把图"画好看"——那条路性价比极低。**
@@ -45,6 +45,7 @@ IR 管物理  ｜  生图管风格  ｜  矢量那一步管矢量化
    ★ 闸口①  check_sketch.py 草图 —— 几何约束逐条对账，答完才往下走
         ↓
    ★★ 交接点（v3.0）sketch_handoff.py —— 候选 + 可编辑 SVG 交给作者挑/改
+      作者点一下 → make_picker.py 出 pick.html → choice_gate.py 收回执（★ v3.1）
       作者改完 → sketch_ingest.py 灌回（重过闸口①）
         ↓
 ③ 出【成品位图】（gen_figure.py --stage render，同样带 --ref）
@@ -486,7 +487,11 @@ T3 类的 22 张图，用一个档案卡不住 —— 聚类后发现里面是�
 # 渲染静默失败检测（渐变失效/字体丢失都不报错，靠它抓）
 python3 scripts/check_render.py fig.png --probe 0.5,0.10 --probe 0.3,0.7
 
-# 与参考图并排对比（A 类任务必做）
+# 与参考图并排对比（★ 所有任务必做，作者 2026-09-28 定）
+#   为什么升成必做：交付门禁的可信指标里**没有**能区分「扁平」与「3D 明暗」的量
+#   （能反映渲染方式的 color_richness / gradient_ratio 被标为不可信），
+#   实测一张扁平示意图可以五道门禁全绿。机器判不了"像不像参考图的渲染方式"，
+#   就只能让**人 5 秒内能判**。这条不许省。
 python3 scripts/compare_ref.py 参考.png fig.png -o cmp.png
 
 # 风格偏离量化（A 类任务必做）
@@ -562,11 +567,28 @@ python3 scripts/sketch_handoff.py gen/sketch_s*_clean.png --ir ir/xxx.ir.yaml \
 #   产物：handoff/candidates.md（表格 + 预览图 + 三种回音怎么回）、
 #         handoff/cand_01.svg（可编辑，每形体一个 part-NN 子层）、cand_01_preview.png
 #   → 把 candidates.md 给用户看，问清楚：① 用第几张？ ② 还是下载 SVG 自己改？
+#   ★ v3.1：别再把「我贴了 candidates.md」当成「已经问过了」—— 要留下**回执**：
+#     ① 生成客户能点的选择页（底栏给选择码，不用让客户在仓库里翻 markdown）：
+#        python3 scripts/make_picker.py --handoff handoff --tag V5 \
+#            --notes handoff/notes.json --title "集体流产生"
+#        -> handoff/pick.html（双击可点）+ handoff/pick_sheet.png（贴聊天窗口用）
+#     ② 客户回话后落回执（--by 只认客户侧的值；写 agent 一律判失败）：
+#        python3 scripts/choice_gate.py --handoff handoff --record \
+#            --code V5-cand_06 --reply "用第 6 张" --by client
+#        -> handoff/choice.json（候选 / 位图 / 原话 / 时间戳）
+#     ③ 第 5 步之前机械校验（ref_guard.py --run 会自动带上它）：
+#        python3 scripts/choice_gate.py --handoff handoff    # 非零退出 = 不许出成品位图
+#   [为什么不是「说一句就行」：一次真实任务里 handoff/ 材料齐全、candidates.md 也贴了，
+#    但工作区**找不到任何回执**，最后是 agent 自己挑了一张往下走 —— 约定拦不住，
+#    只有闸门拦得住。]
 #   ★ 用户改完传回 → 灌回流程（**强制重过闸口①**，人改不豁免）：
 #     python3 scripts/sketch_ingest.py handoff/cand_02_edited.svg --ir ir/xxx.ir.yaml \
 #         --size 1664*928 -o gen/sketch_edited_clean.png
 #     过了闸口才继续第 5 步，且第 5 步的 --content-ref 换成 gen/sketch_edited_clean.png
-#   ★ 用户说"你定" → 跳过本步，按 pick_best 的顺序取第一张直接往下走
+#   ★ 用户说"你定" → **也要留回执**（--by manual），否则闸门过不去：
+#     python3 scripts/choice_gate.py --handoff handoff --record \
+#         --code V5-cand_01 --reply "你定吧" --by manual
+#     然后按 pick_best 的顺序取第一张往下走
 #   ★ 拿不到回音就不要往下走：成品位图一次出图要花钱，草图返工几乎免费
 
 # ── 5. 出成品位图（★ 草图 + 风格参考图都要带）──────────────
@@ -772,6 +794,15 @@ python3 scripts/ref_leak_check.py gen/render_s22.png \
 关键词：含 `3D` / 体积 / 网格线 / 半写实 → `render3d`；含 扁平 / 平涂 → `flat`；
 都没有 → `ref`。**只有 `sketch` 档永远保持扁平**（那是为了能自动切矢量图层，
 **不是最终风格**）；成品位图档按上表走。
+
+> ★ **默认档 = `render3d`（作者 2026-09-28 定）**：所有配图**一律** 3D 明暗风，
+> IR 的 `style.mode` 一律写 `render3d`；扁平（`flat`）**只允许**出现在
+> ①承载定量数据的面板（谱 / 曲线 / 误差带 / 场图 / 极坐标数据）
+> ②纯抽象内容（演化序列色条、晶格示意、流程条），且必须在交付说明里写明理由。
+> 即使是这两类，同一张图里的**物理示意图面板仍必须是 3D 的**。
+> 依据：`_T3精选` 21 张里 18 张带 3D 明暗体积语言，剩下 3 张（T3-50/T3-59/T3-60）
+> 主体是平面 —— 而那 3 张画的正是「演化序列 / 晶格 / 流程条」。
+> 反例代价：一张扁平示意图把五道门禁全过了（见上「验证」一节）。
 
 ### ★ 反过来：该学的风格没学到怎么办（v2.6.7 / v2.6.8）
 
@@ -1102,6 +1133,10 @@ python3 scripts/auto_converge.py --ref 参考图.png \
 | `sketch_to_vector.py` | **★ 草图矢量化**（人可改的 SVG 草图）：不用写 `panels.py`，自动切分每个形体一个子层 |
 | `sketch_handoff.py` | **★★ 人机交接（交出去）**：多张草图 → `candidates.md`（表格 + 预览 + 三种回音）+ 可编辑 SVG + 预览图。排序复用 `pick_best` 的判据 |
 | `sketch_ingest.py` | **★★ 人机交接（灌回来）**：人改完的 SVG/PNG → 规范化到目标画布 → **强制重跑闸口①**（不过就拒，给返修单）；`--no-gate` 逃生门会留大字 |
+| `ref_guard.py` | **★ 参考图角色闸门（v3.1）**：`--ref` 只许风格书（`assets/t3-exemplars/`）；sketch 的 `--content-ref` 只许作者手绘输入；render 的只许**上一步已过闸口①的草图**；`assets/demos/**` 任何阶段不许；同一张图不许同时占两个角色。`--run --` 包一层 = **先查后调**，查不过就不执行（不烧 API 的钱） |
+| `ir_layout_guard.py` | **★ IR 版式锁闸门（v3.1）**：IR 把整张版式写死（`composition.分区` / `元素布局`、`elements[].params` 的绝对毫米、`conventions` 里的逐面板脚本 / "exactly N panels in ONE ROW"）→ 同一份物理每次草图都一样。它把**简报真的编译出来再扫**（简报才是模型看到的东西），只查 IR 字面会漏掉被模板合成的那些 |
+| `choice_gate.py` | **★★ 客户拍板闸门（v3.1）**：没有客户回执 `handoff/choice.json` 就**不许出成品位图**；`--by` 只认 `client/customer/author/user/客户/作者/用户/甲方`，写 `agent`/`auto`/`codex` 一律判失败（客户明确说"你定"才用 `manual`）。`ref_guard.py --run --stage render` 会自动带上它 |
+| `make_picker.py` | **★★ 客户选择入口（v3.1）**：handoff 候选 → `pick.html`（客户双击、点一张、底栏给选择码）+ `pick_sheet.png`（贴聊天窗口的总览图）。每张配 `notes.json` 的一句话说明与闸口①读数，有硬伤的卡片点不动 |
 | `raster_to_vector.py` | **位图 → 矢量（临摹备用路径）**：逐像素描摹 + 混合文字（`--text-spec`）+ 语义归组（`--groups`） |
 | `raster_to_vector_semantic.py` | **位图 → 语义分层的全矢量**（先理解再临摹）：真 `<text>`、物理元素图层树、误差可量化。库在 `scripts/raster_vector/`，用法见其 `README.md` |
 | `ir_brief_audit.py` | **★ IR → 简报的无损体检**（哨兵法：字段没进简报 = IR 白写）。改 IR 格式 / 简报模板后必跑，可挂 CI |

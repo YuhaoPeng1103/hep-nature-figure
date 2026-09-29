@@ -1470,5 +1470,164 @@ def test_handoff_roundtrip():
     assert r4.returncode == 0 and "跳过闸口①" in r4.stdout, (r4.stdout or "")[-400:]
 
 
+@case("choice_gate_requires_client_receipt",
+      "客户挑草图：没有客户回执不许出成品位图；decided_by=agent 必须判失败"
+      "—— 实测一次真实任务里 handoff/ 材料齐全却零回执，最后 agent 自己挑了一张往下走")
+def test_choice_gate():
+    import json
+    from PIL import Image
+    tmp = Path(tempfile.mkdtemp(prefix="hep_choice_"))
+    (tmp / "gen").mkdir()
+    pngs = []
+    for i in (1, 2):
+        p = tmp / "gen" / ("sketch_s%d_clean.png" % i)
+        Image.new("RGB", (80, 40), (255, 255, 255)).save(p)
+        pngs.append(p)
+    ho = tmp / "handoff"
+    ho.mkdir()
+    (ho / "handoff.json").write_text(json.dumps({
+        "ir": "t.ir.yaml",
+        "candidates": [
+            {"cid": "cand_01", "src": str(pngs[0]), "svg": "cand_01.svg",
+             "selectable": True, "hard": [], "soft": []},
+            {"cid": "cand_02", "src": str(pngs[1]), "svg": "cand_02.svg",
+             "selectable": False, "hard": ["贴边细边框"], "soft": []},
+        ]}, ensure_ascii=False), encoding="utf-8")
+
+    def gate(*extra):
+        return subprocess.run([sys.executable, str(SCRIPTS / "choice_gate.py"), *extra],
+                              capture_output=True, text=True, timeout=300,
+                              encoding="utf-8", errors="replace")
+
+    # ① 还没让客户挑 → 拦住（不烧 API 的钱）
+    r = gate("--handoff", str(ho))
+    assert r.returncode != 0 and "不许出成品位图" in r.stdout, (r.stdout or "")[-500:]
+
+    # ② agent 自己拍板 → 不算过闸口（那次真实事故的形状）
+    gate("--handoff", str(ho), "--record", "--code", "V5-cand_01",
+         "--reply", "我自己挑的", "--by", "agent")
+    r = gate("--handoff", str(ho))
+    assert r.returncode != 0 and "拍板人是 agent" in r.stdout, (r.stdout or "")[-500:]
+
+    # ③ 客户拍板 + 留原话 → 放行，并列回执落盘
+    gate("--handoff", str(ho), "--record", "--code", "V5-cand_01",
+         "--reply", "用第 1 张", "--by", "client")
+    r = gate("--handoff", str(ho))
+    assert r.returncode == 0, (r.stdout or "")[-500:]
+    rec = json.loads((ho / "choice.json").read_text(encoding="utf-8"))
+    assert rec["candidate"] == "cand_01" and rec["decided_by"] == "client", rec
+    assert rec["reply"] == "用第 1 张" and rec["decided_at"], "回执要留原话和时间戳（事后对账）"
+
+    # ④ 挑了一张有硬伤的 → 拦住（硬伤图不能当成品依据）
+    gate("--handoff", str(ho), "--record", "--code", "V5-cand_02",
+         "--reply", "用第 2 张", "--by", "client")
+    r = gate("--handoff", str(ho))
+    assert r.returncode != 0 and "硬伤" in r.stdout, (r.stdout or "")[-500:]
+
+
+@case("ir_layout_guard_catches_locked_layout",
+      "IR 把整张版式写死 = 同一份物理每次草图都一样的主因，要被抓；解绑版式要放行；"
+      "有意固定版式（复现论文图）可以放行但必须在报告里留痕")
+def test_ir_layout_guard():
+    tmp = Path(tempfile.mkdtemp(prefix="hep_irlock_"))
+    locked = tmp / "locked.ir.yaml"
+    locked.write_text("""composition:
+  canvas:
+    ratio: "2（横）"
+  分区:
+    a: "x 6.0-58.3 mm"
+  元素布局:
+    fireball: "(0.5, 0.5)"
+elements:
+  - id: fireball
+    params:
+      tx_mm: 6.0
+      ty_mm: 30.0
+style:
+  mode: render3d
+  conventions:
+    - "This figure has exactly THREE panels in ONE ROW"
+""", encoding="utf-8")
+    free = tmp / "free.ir.yaml"
+    free.write_text("""composition:
+  canvas:
+    ratio: "2（横）"
+elements:
+  - id: fireball
+    params:
+      color: orange
+style:
+  mode: render3d
+""", encoding="utf-8")
+
+    def g(p, *extra):
+        return subprocess.run([sys.executable, str(SCRIPTS / "ir_layout_guard.py"), str(p), *extra],
+                              capture_output=True, text=True, timeout=600,
+                              encoding="utf-8", errors="replace")
+
+    r = g(locked)
+    assert r.returncode != 0, "版式写死的 IR 必须被拒：" + (r.stdout or "")[-400:]
+    assert ("分区" in r.stdout) or ("元素布局" in r.stdout), (r.stdout or "")[-400:]
+    r = g(free)
+    assert r.returncode == 0, (r.stdout or "")[-400:]
+    r = g(locked, "--allow-layout-lock", "复现论文图 T3-03")
+    assert r.returncode == 0 and "有意固定版式" in r.stdout, (r.stdout or "")[-400:]
+
+
+@case("ref_guard_enforces_reference_roles",
+      "参考图角色：自家成品 / skill 的 assets/demos 不许当参考；sketch 阶段不许拿自家成品"
+      "当构图依据；render 阶段没客户回执不许出成品位图（ref_guard --run 会自动带上）")
+def test_ref_guard_roles():
+    import json
+    tmp = Path(tempfile.mkdtemp(prefix="hep_refguard_"))
+    (tmp / "out").mkdir()
+    own = tmp / "out" / "collective_flow_v2.png"
+    own.write_bytes(b"PNG")
+    (tmp / "gen").mkdir()
+    sketch = tmp / "gen" / "sketch_s91_clean.png"
+    sketch.write_bytes(b"PNG")
+    style = SCRIPTS.parent / "assets" / "t3-exemplars" / "T3-02_x.png"
+    demo = SCRIPTS.parent / "assets" / "demos" / "flow_semantic" / "flow_render.png"
+
+    def g(*extra):
+        return subprocess.run([sys.executable, str(SCRIPTS / "ref_guard.py"), *extra],
+                              capture_output=True, text=True, timeout=300,
+                              encoding="utf-8", errors="replace")
+
+    # ① 自家成品当风格参考 → 拒（实测 sketch seed 就是这么写的）
+    r = g("--stage", "sketch", "--ref", str(own), "--no-ir-check")
+    assert r.returncode != 0 and "自家成品" in r.stdout, (r.stdout or "")[-500:]
+    # ② skill 自己的 demo 成品图当参考 → 拒（「和库里的一样」就是这个）
+    r = g("--stage", "sketch", "--ref", str(demo), "--no-ir-check")
+    assert r.returncode != 0 and "demos" in r.stdout, (r.stdout or "")[-500:]
+    # ③ 库内风格书 → 过
+    r = g("--stage", "sketch", "--ref", str(style), "--no-ir-check")
+    assert r.returncode == 0, (r.stdout or "")[-500:]
+    # ④ sketch 阶段拿自家成品当构图依据 → 拒
+    r = g("--stage", "sketch", "--ref", str(style), "--content-ref", str(own), "--no-ir-check")
+    assert r.returncode != 0, (r.stdout or "")[-500:]
+    # ⑤ render 阶段：自家成品当构图依据 → 拒
+    r = g("--stage", "render", "--ref", str(style), "--content-ref", str(own),
+          "--no-ir-check", "--no-choice-check")
+    assert r.returncode != 0, (r.stdout or "")[-500:]
+    # ⑥ ★ render 前必须有**客户**的回执 —— ref_guard 会自动带上 choice_gate
+    ho = tmp / "handoff"
+    ho.mkdir()
+    (ho / "handoff.json").write_text(json.dumps({
+        "ir": "t.ir.yaml",
+        "candidates": [{"cid": "cand_01", "src": str(sketch), "svg": "cand_01.svg",
+                        "selectable": True, "hard": [], "soft": []}]},
+        ensure_ascii=False), encoding="utf-8")
+    args = ["--stage", "render", "--ref", str(style), "--content-ref", str(sketch),
+            "--no-ir-check", "--handoff", str(ho)]
+    r = g(*args)
+    assert r.returncode != 0 and "不许出成品位图" in r.stdout, (r.stdout or "")[-600:]
+    subprocess.run([sys.executable, str(SCRIPTS / "choice_gate.py"), "--handoff", str(ho),
+                    "--record", "--code", "V5-cand_01", "--reply", "用第 1 张", "--by", "client"],
+                   capture_output=True, timeout=300, encoding="utf-8", errors="replace")
+    r = g(*args)
+    assert r.returncode == 0, "有了客户回执就该放行：" + (r.stdout or "")[-600:]
+
+
 if __name__ == "__main__":
     sys.exit(main())

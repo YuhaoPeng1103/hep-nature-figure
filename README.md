@@ -1,4 +1,4 @@
-> # 📌 本分支 = 主线（v3.0）：三条路线合一 + 人机交接
+> # 📌 本分支 = 主线（v3.1）：三条路线合一 + 人机交接（**拍板有闸门**）
 >
 > 三条路线都在本分支里，**默认走路线 3**：IR → 生图简报 → 草图（+矢量草图）→
 > 闸口① → **★ 交接点（你挑 / 你改草图）** → 成品位图 → 闸口② → 重画/临摹成矢量 →
@@ -105,6 +105,7 @@
    ↓
 ⑤.5 ★★ 交接点：候选草图 → 你挑 / 你改   scripts/sketch_handoff.py（交出去）
        你改完传回 → 重过闸口①再用         scripts/sketch_ingest.py（灌回来）
+       ★ 你点一下 → 留下**回执**才算问过      scripts/make_picker.py / scripts/choice_gate.py（v3.1）
    ↓
 ⑥ 出成品位图（--content-ref 草图 + --ref 风格） scripts/gen_figure.py --stage render
       ★ 简报侧先定风格档：ir_to_genbrief.py --stage render --style-mode auto
@@ -369,6 +370,10 @@ python3 scripts/demo_combined.py
 │   ├── sketch_to_vector.py      ★ 第④步：草图矢量化成可改的 SVG（不用写 panels.py）
 │   ├── sketch_handoff.py        ★★ 第⑤步前：多张草图 → 给人挑的一页 + 可编辑 SVG（v3.0 人机交接）
 │   ├── sketch_ingest.py         ★★ 人改完的草图灌回流程：规范化画布 + **强制重过闸口①**（v3.0）
+│   ├── make_picker.py           ★★ 客户选择入口（v3.1）：handoff 候选 → pick.html（双击可点、底栏给选择码）+ pick_sheet.png
+│   ├── choice_gate.py           ★★ 客户拍板闸门（v3.1）：没有 handoff/choice.json 就不许出成品位图；--by 写 agent 判失败
+│   ├── ref_guard.py             ★ 参考图角色闸门（v3.1）：--ref 只许风格书、sketch 的 --content-ref 只许手绘、render 的只许已过闸口①的草图；--run 先查后调
+│   ├── ir_layout_guard.py       ★ IR 版式锁闸门（v3.1）：把简报真的编译出来再扫「版式有没有被写死」
 │   ├── check_sketch.py          ★ 闸口①/②：草图与成品位图的物理检查（可一次查多张 + --json + --sketch 量构图保真）
 │   ├── pick_best.py             ★ 候选排序：吃 check_sketch --json 的报告，只把人眼留给没硬伤的
 │   ├── raster_to_vector.py      位图 → 矢量（临摹备用）：逐像素 + 混合文字 + --groups
