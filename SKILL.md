@@ -711,6 +711,29 @@ python3 scripts/repair_brief.py fig.svg --profile assets/style-profiles.json
 > **不要照抄位图的几何**" —— 那是**闸口还没补上**时候的写法（怕把位图的物理错误抄进去）。
 > 现在闸口②已经拦在位图前面，这句就反了，2026-09-26 改掉。
 
+### ★★ 这条规则有闸门了（v3.2）：`scripts/bitmap_conformance.py`
+
+「照它画」以前只是**约定** —— 2026-09-30 实测它就失守过一次：集体流图第 5 版把
+**位图之前就存在**的 `build_figure_v3.py` 整份搬过来（文本相似度 **96.0%**），
+只换内容层，底盘常量原样继承，板子倾角差了 **11.3 度**，而**五道门禁全绿**
+—— 没有一道在量「成品和位图像不像」。
+
+所以别靠"记得照它"，把两边各量一遍：
+
+    python3 scripts/bitmap_conformance.py <所选位图> <成品.png|.svg>
+
+比的是架构几何：面板数、每个面板的**上边界倾角 / 板左缘 x / 板左上角 y /
+侧边界角**、宽高比。超阈值 → **非零退出，不许出成品**。实测标定：
+
+    位图 vs v5（沿用旧底盘）→ 拒绝：上边界倾角 17.79 -> 6.45（差 -11.33 度）
+    位图 vs v6（重做底盘）  → 仍拒绝：b/c 两块板的左缘 x 与左上角 y 差 3.3~8.3 mm
+    位图 vs 它自己           → 通过（自检）
+
+★ **量不出来 ≠ 通过**：拟合不可信或两边至少一侧量不出来的量列成「不可比」，
+  不计失败；但可比总数 < 3 时判「无法比对」而不放行。
+★ 有意与位图不同（位图物理错了、客户要求改）才加 `--allow-diff "理由"`，
+  并在交付说明里写明。
+
 ### ★ 生图那一步（gen_figure.py）
 
 | 事 | 怎么做 | 为什么 |
@@ -1137,6 +1160,7 @@ python3 scripts/auto_converge.py --ref 参考图.png \
 | `ir_layout_guard.py` | **★ IR 版式锁闸门（v3.1）**：IR 把整张版式写死（`composition.分区` / `元素布局`、`elements[].params` 的绝对毫米、`conventions` 里的逐面板脚本 / "exactly N panels in ONE ROW"）→ 同一份物理每次草图都一样。它把**简报真的编译出来再扫**（简报才是模型看到的东西），只查 IR 字面会漏掉被模板合成的那些 |
 | `choice_gate.py` | **★★ 客户拍板闸门（v3.1）**：没有客户回执 `handoff/choice.json` 就**不许出成品位图**；`--by` 只认 `client/customer/author/user/客户/作者/用户/甲方`，写 `agent`/`auto`/`codex` 一律判失败（客户明确说"你定"才用 `manual`）。`ref_guard.py --run --stage render` 会自动带上它 |
 | `make_picker.py` | **★★ 客户选择入口（v3.1）**：handoff 候选 → `pick.html`（客户双击、点一张、底栏给选择码）+ `pick_sheet.png`（贴聊天窗口的总览图）。每张配 `notes.json` 的一句话说明与闸口①读数，有硬伤的卡片点不动 |
+| `bitmap_conformance.py` | **★★ 位图一致性闸门（v3.2）**：把**所选位图**和**成品**各量一遍架构几何（面板数、每个面板的上边界倾角 / 板左缘 x / 板左上角 y / 侧边界角、宽高比），超阈值 = **非零退出**。查的是**结果**（成品有没有照位图画），不是「你有没有抄旧脚本」——那查不出来 |
 | `raster_to_vector.py` | **位图 → 矢量（临摹备用路径）**：逐像素描摹 + 混合文字（`--text-spec`）+ 语义归组（`--groups`） |
 | `raster_to_vector_semantic.py` | **位图 → 语义分层的全矢量**（先理解再临摹）：真 `<text>`、物理元素图层树、误差可量化。库在 `scripts/raster_vector/`，用法见其 `README.md` |
 | `ir_brief_audit.py` | **★ IR → 简报的无损体检**（哨兵法：字段没进简报 = IR 白写）。改 IR 格式 / 简报模板后必跑，可挂 CI |

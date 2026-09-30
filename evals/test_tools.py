@@ -1629,5 +1629,77 @@ def test_ref_guard_roles():
     assert r.returncode == 0, "有了客户回执就该放行：" + (r.stdout or "")[-600:]
 
 
+
+@case("bitmap_conformance_blocks_unfaithful_redraw",
+      "★ v3.2：【成品必须和所选位图的架构几何对得上】。防"
+      "「拿位图之前就存在的旧构建器当模板」——集体流图 v5 把 SHEAR=6.5 继承下来，"
+      "板子倾角差 11.3 度，而五道门禁全绿（没有一道在量成品和位图像不像）")
+def test_bitmap_conformance():
+    """
+    合成两张图来验闸门的两头（实测标定的那个失败形状）：
+
+      参考位图   上边倾角 17.8 度、侧边竖直，三块板左上角 y 每块低 4.3mm（错位）
+      忠实重画   同一套几何，只把板面填浅灰           -> 必须放行
+      不忠实     倾角 6.5 度 + 侧边跟着斜（= 整格 rotate）+ 三块等高 + 板左移
+                 —— 这就是 v5 的形状                      -> 必须拦住
+
+    ★ 只比架构几何，不比外观：忠实那张的填充色/内容都换了，闸门不许因此报警。
+    """
+    import math
+    import numpy as np
+    from PIL import Image, ImageDraw
+
+    W, H, MM = 1830, 1000, 10.0          # 10 px/mm -> 183 x 100 mm
+
+    def draw(path, tilt_deg, side_deg, corners, w_mm=45.0, h_mm=58.0, x0s=(3.6, 69.6, 135.6)):
+        im = Image.new("RGB", (W, H), "white")
+        d = ImageDraw.Draw(im)
+        t, s_ = math.radians(tilt_deg), math.radians(side_deg)
+        for x0, y0 in zip(x0s, corners):
+            def P(lx, ly):
+                return (x0 + lx * math.cos(t) + ly * math.sin(s_),
+                        y0 - lx * math.sin(t) + ly * math.cos(s_))
+            quad = [P(0, 0), P(w_mm, 0), P(w_mm, h_mm), P(0, h_mm)]
+            d.polygon([(int(a * MM), int(b * MM)) for a, b in quad], fill=(238, 238, 238))
+        im.save(path)
+
+    with tempfile.TemporaryDirectory() as td:
+        ref = Path(td) / "ref.png"
+        ok = Path(td) / "ok.png"
+        bad = Path(td) / "bad.png"
+        # 参考位图 / 忠实重画：完全同一套几何（内容层不同不影响架构量）
+        draw(ref, 17.8, 0.0, (19.9, 24.2, 28.5))
+        draw(ok, 17.8, 0.0, (19.9, 24.2, 28.5))
+        # 不忠实：倾角 6.5（侧边跟着斜 = rotate）、三块等高、板左移、尺寸变了
+        draw(bad, 6.5, 6.5, (14.5, 14.5, 14.5), w_mm=46.0, h_mm=62.0,
+             x0s=(6.0, 66.0, 126.0))
+
+        def run(final):
+            return subprocess.run(
+                [sys.executable, str(SCRIPTS / "bitmap_conformance.py"),
+                 str(ref), str(final), "--panels", "3"],
+                capture_output=True, timeout=300, encoding="utf-8", errors="replace")
+
+        r = run(ok)
+        assert r.returncode == 0, ("忠实重画该放行，实得 %d\n%s"
+                                   % (r.returncode, (r.stdout or "")[-800:]))
+        r = run(bad)
+        assert r.returncode != 0, ("倾角差 11.3 度该被拦住，实得 0\n%s"
+                                   % (r.stdout or "")[-800:])
+        out = r.stdout or ""
+        assert "上边界倾角" in out and "没照所选位图画" in out, out[-600:]
+
+    # 自检：量不出来不等于通过 —— 一张纯白图不该被判「通过」
+    with tempfile.TemporaryDirectory() as td:
+        blank = Path(td) / "blank.png"
+        Image.new("RGB", (W, H), "white").save(blank)
+        ref = Path(td) / "ref.png"
+        draw(ref, 17.8, 0.0, (19.9, 24.2, 28.5))
+        r = subprocess.run(
+            [sys.executable, str(SCRIPTS / "bitmap_conformance.py"), str(ref), str(blank)],
+            capture_output=True, timeout=300, encoding="utf-8", errors="replace")
+        assert r.returncode != 0, ("空白成品该判「无法比对」，实得 0\n%s"
+                                   % (r.stdout or "")[-600:])
+
 if __name__ == "__main__":
     sys.exit(main())
