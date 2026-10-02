@@ -72,6 +72,21 @@ IR 管物理  ｜  生图管风格  ｜  矢量那一步管矢量化
 **另有第四个（后来加的，也按阻断算）**：`audit_composition.py` —— **局部构图**
 （文字互压、线穿文字、出界贴边、留白失衡）。全局指标可能全过，但这类问题必须修。
 
+**第五个（v3.3 加）：`projection_gate.py` —— T3 图的【投影 + 空间关系】闸口。**
+它拦的是那个**致命组合**：*主平面正对读者（x 水平 / y 竖直）+ 法线轴画成有长度* ——
+这两件事同时要，几何上不可能，图必然扁平。
+判据 P0–P3（轴方向 / 前缩 / 不许透视）+ G1–G2（穿透 / 遮挡）。
+
+> ★ 它量的是 **IR 的声明，不是渲染出来的图**。为什么：两个"量图"的探针都被校准否掉了
+> —— 塑形覆盖率会把**扁的**判成更立体；边线方向直方图在 T3-30 真图上只有 6.0%，
+> 和生图模型的 5.7–9.3% 分不开（它量的是边缘锐利度）。而**声明层的自相矛盾是可判定的**，
+> 出图之前就能抓。详见 `references/3d-checklist.md`。
+
+```bash
+python3 scripts/projection_gate.py ir/xxx.ir.yaml          # 画之前跑
+python3 scripts/projection_gate.py ir/*.ir.yaml --strict    # 警告也算失败
+```
+
 跑完把报告交给 `repair_brief.py` 变成**返修单**（归一化坐标 + 具体改法），
 再让模型去改 —— 这是"模型画、skill 验收"分工的关键一环。
 
@@ -1106,6 +1121,7 @@ python3 scripts/auto_converge.py --ref 参考图.png \
 | 什么时候读 | 文件 |
 |---|---|
 | 写 IR、判定风格与后端 | `references/ir-spec.md` |
+| **画 T3 示意图之前 / 图出来觉得"扁"** | **`references/3d-checklist.md`** ★ |
 | 画 SVG、查图元、查技法 | `references/svg-cookbook.md` |
 | 决定用哪个后端、为什么 | `references/tool-selection.md` |
 | 风格量化、闭环修正 | `references/style-bench.md` |

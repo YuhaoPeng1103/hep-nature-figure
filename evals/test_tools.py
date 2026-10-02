@@ -1701,5 +1701,105 @@ def test_bitmap_conformance():
         assert r.returncode != 0, ("空白成品该判「无法比对」，实得 0\n%s"
                                    % (r.stdout or "")[-600:])
 
+@case("projection_block_reaches_brief",
+      "★ composition.projection 必须整块进简报，并带上三条自检。"
+      "为什么单列一节（2026-10-02 实测）：『视角』是自由文本，**锁不住投影** —— "
+      "把 z 的屏幕方向算到小数点后三位写进简报，4 个 seed 里只有 1 个照做。"
+      "没有这个字段时，T3 图的立体感完全靠运气。见 references/3d-checklist.md 第 1 层。")
+def test_projection_block():
+    import ir_to_genbrief as IG
+
+    # ① 有 projection：三轴角度 / 前缩 / 自检 / 主平面 —— 一样都不能少
+    ir = {"composition": {
+        "视角": "斜 3/4 视角",
+        "projection": {"类型": "斜投影（斜二测）",
+                       "轴方向_deg": {"x": -17, "y": -90, "z": 24},
+                       "前缩": {"x": 1.0, "y": 1.0, "z": 0.72}},
+        "主平面": "薄板 = xy 平面（横向平面）"}}
+    out = IG.build(ir, None, "render")
+    assert "★★ 投影" in out, (
+        "composition.projection 没进简报 —— T3 图的投影又变成靠运气")
+    assert "-17" in out and "-90" in out and "24" in out, \
+        "三条轴在画面上的方向必须逐条搬进简报（x 朝右上要写成负角度）"
+    assert "0.72" in out, "法线轴的前缩比必须进简报，否则模型会把 z 画得和 x/y 一样长"
+    assert "0° / ±90°" in out, "三条自检必须进简报 —— 模型要有个能自己核对的判据"
+    assert "斜平行四边形" in out, "主平面必须明说画成斜平行四边形，不是正对读者的矩形"
+
+    # ② IR 没写 projection：不许凭空冒出这一节（别把不做 3D 的图带偏）
+    out2 = IG.build({"composition": {"视角": "正视图"}}, None, "render")
+    assert "★★ 投影" not in out2, "IR 没声明 projection 就不该有这一节"
+
+
+@case("geometry_layer_pierce_and_occlusion_reach_brief",
+      "★ 几何层 G1/G2 —— 穿透 / 遮挡 必须进简报。"
+      "为什么单列（2026-10-02 实测）：立体感的一大半来自「物体穿过这张平面 + "
+      "板边压住物体的后半」，而这两件事原先**只存在于自由文本**（视角/叠放关系）里，"
+      "没人执行 → 出来的图物体像「贴」在板前面，读者读不出「穿过去了」。"
+      "见 references/3d-checklist.md 第 2 层。")
+def test_geometry_layer():
+    import ir_to_genbrief as IG
+
+    ir = {"composition": {
+        "穿透": [{"物体": ["N1", "N2"], "穿什么": "薄板 P1", "露出": "前后各露一半"}],
+        "遮挡": "板 P1 的前缘与板面网格线压住 N1/N2 的后半"}}
+    out = IG.build(ir, None, "render")
+    assert "★★ 空间关系" in out, "穿透/遮挡没进简报 —— 几何层又是空的"
+    assert "穿透：N1 / N2" in out, "多物体要合成一行写出来（列表不能原样倒出去）"
+    assert "前后各露一半" in out, "「露出多少」必须进简报，否则模型只会把物体整个贴在板前"
+    assert "交线" in out, "必须明说要画物体与主平面的交线"
+    assert "压在物体的后半部分之上" in out, "必须明说板边/网格压住物体的后半（遮挡顺序）"
+    assert "接触阴影" in out, "必须明说要留下接触阴影"
+
+    # 没写就不许凭空出现
+    out2 = IG.build({"composition": {"视角": "正视图"}}, None, "render")
+    assert "★★ 空间关系" not in out2, "IR 没写穿透/遮挡就不该有这一节"
+
+
+@case("projection_gate_catches_the_flat_combination",
+      "★ 投影闸口必须抓住那个**致命组合**：「主平面正对读者（x 水平 / y 竖直）"
+      "+ 法线轴画成有长度」——这两件事同时要，在几何上不可能。"
+      "闸口量的是 **IR 的声明**而不是渲染出来的图：两个『量图』的探针都被校准否掉了"
+      "（塑形覆盖率把扁的判成更立体；边线方向直方图在 T3-30 真图上 6.0%、"
+      "和生图模型的 5.7–9.3% 分不开）。声明层的自相矛盾是**可判定**的，出图前就能抓。")
+def test_projection_gate():
+    import projection_gate as PG
+
+    t3 = {"style": {"classification": "半写实科学插画"}}
+
+    # ① 致命组合：x 水平 0° + y 竖直 90°（= 主平面正对读者）
+    ir = dict(t3); ir["composition"] = {"projection": {
+        "类型": "斜投影", "轴方向_deg": {"x": 0, "y": -90, "z": 24},
+        "前缩": {"x": 1.0, "y": 1.0, "z": 0.72}}}
+    rows, ok = PG.check(ir)
+    assert not ok, "x 轴写 0°（水平）= 主平面正对读者，必须判失败"
+    assert any(r[1] == "P1" and r[0] == "❌" for r in rows), "要报在 P1 上"
+
+    # ② 法线轴没前缩
+    ir2 = dict(t3); ir2["composition"] = {"projection": {
+        "类型": "斜投影", "轴方向_deg": {"x": -17, "y": -90, "z": 24},
+        "前缩": {"x": 1.0, "y": 1.0, "z": 1.0}}}
+    assert not PG.check(ir2)[1], "法线轴前缩 = 1（和另两轴一样长）必须判失败"
+
+    # ③ 完全没声明 projection 的 T3 图
+    ir3 = dict(t3); ir3["composition"] = {"视角": "横向平面视角"}
+    assert not PG.check(ir3)[1], "T3 图没写 projection 必须判失败"
+
+    # ④ 合规：三轴分离 + 法线轴前缩 + 穿透/遮挡
+    ir4 = dict(t3); ir4["composition"] = {
+        "projection": {"类型": "斜投影（斜二测）",
+                       "轴方向_deg": {"x": -17, "y": -90, "z": 24},
+                       "前缩": {"x": 1.0, "y": 1.0, "z": 0.72}},
+        "主平面": "薄板 = xy 平面",
+        "穿透": [{"物体": ["N1", "N2"], "穿什么": "薄板 P1", "露出": "前后各露一半"}],
+        "遮挡": "板边压在核的后半上"}
+    rows4, ok4 = PG.check(ir4)
+    assert ok4, "合规的 IR 必须通过；实得：" + str([r for r in rows4 if r[0] != "✅"])
+
+    # ⑤ 非 T3 图不该被这套规矩管
+    ir5 = {"style": {"classification": "矢量插画"}, "composition": {"视角": "正视"}}
+    assert PG.check(ir5)[1], "非 T3 图（数据图/流程示意）不该被投影闸口拦下"
+
 if __name__ == "__main__":
     sys.exit(main())
+
+

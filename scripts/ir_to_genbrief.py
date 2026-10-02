@@ -408,10 +408,70 @@ def build(ir: dict, style: dict | None, stage: str = "sketch",
     zone = comp.get("分区")
     stack = comp.get("叠放关系")
     places = comp.get("元素布局") or []
-    if layout or view or zone or stack or places:
+    # ★ 2026-10-02：条件里必须带上 projection / 主平面。
+    #   否则「只写了 projection、没写 视角」的 IR 会把整个构图节（含投影块）静默丢掉
+    #   —— 新补的 eval 用例 projection_block_reaches_brief 当场抓到的就是这条。
+    proj = comp.get("projection") or comp.get("投影")
+    plane = comp.get("主平面")
+    pierce0 = comp.get("穿透") or []
+    occl0 = comp.get("遮挡")
+    if (layout or view or zone or stack or places or proj or plane
+            or pierce0 or occl0):
         L.append("═══ 二、构图 ═══")
         if view:
             L.append("视角：%s" % " ".join(str(view).split()))
+        # ★ 2026-10-02：投影块 —— 三轴在画面上的方向。
+        #   为什么单列一节：实测「视角」这句自由文本锁不住投影 —— 把 z 的屏幕方向
+        #   算到小数点后三位写进简报，4 个 seed 里只有 1 个照做。有数值块时逐条搬运，
+        #   并带上三条自检，让模型有个能自己核对的判据。见 references/3d-checklist.md
+        if proj:
+            L.append("")
+            L.append("★★ 投影（数值，逐条照做；这一节错了整张图就是废的）")
+            if proj.get("类型"):
+                L.append(f"  · 投影类型：{proj['类型']}"
+                         "（**不要**用透视——示意图形变不可控）")
+            ad = proj.get("轴方向_deg") or {}
+            if ad:
+                L.append("  · 三条轴在画面上的方向（0°=向右，90°=向下，**向上写负数**）："
+                         f" x = {ad.get('x')}°， y = {ad.get('y')}°， z = {ad.get('z')}°")
+                L.append("    ★ 除 y 可以竖直外，**另两条都不许与画面的水平/垂直方向重合**。")
+            fo = proj.get("前缩") or {}
+            if fo:
+                L.append(f"  · 前缩：{fo} —— **板子的法线轴必须明显短于另外两条**。")
+            L.append("  · 自检（三条都满足才算对，不满足就别往下画）：")
+            L.append("    ① 三条轴里没有一条是 0° / ±90°（y 竖直除外）")
+            L.append("    ② 法线轴的前缩明显小于 1")
+            L.append("    ③ 主平面的四条边，方向与张成它的那两根轴一致")
+        if plane:
+            L.append("")
+            L.append("★ 主平面：%s" % " ".join(str(plane).split()))
+            L.append("  ★ 它必须画成**张成它的那两根轴所构成的斜平行四边形**，"
+                     "**不是**正对读者的矩形。")
+        # ★ 2026-10-02：几何层 —— 穿透 / 遮挡。
+        #   为什么单列一节：立体感的一大半来自「物体穿过这张平面 + 板边压住后半」，
+        #   而这两件事原先只存在于自由文本里，没人执行 → 物体看着像"贴"在板前面。
+        #   见 references/3d-checklist.md 的 G1/G2。
+        pierce = comp.get("穿透") or []
+        occl = comp.get("遮挡")
+        if pierce or occl:
+            L.append("")
+            L.append("★★ 空间关系（几何层；这一节决定物体是不是「在同一个空间里」）")
+            for it in (pierce if isinstance(pierce, (list, tuple)) else [pierce]):
+                if not isinstance(it, dict):
+                    L.append(f"  · 穿透：{it}")
+                    continue
+                objs = it.get("物体")
+                if isinstance(objs, (list, tuple)):
+                    objs = " / ".join(str(x) for x in objs)
+                L.append("  · 穿透：%s 穿过 %s —— %s"
+                         % (objs, it.get("穿什么", "主平面"), it.get("露出", "前后各露一半")))
+            if occl:
+                L.append("  · 遮挡：%s" % " ".join(str(occl).split()))
+            L.append("  · ★ 三件必须做到：")
+            L.append("    ① 物体与主平面的**交线**要画出来（不许把物体整个贴在板前）")
+            L.append("    ② 板的前缘与板面网格线**压在物体的后半部分之上**")
+            L.append("    ③ 物体在承接面上留下**接触阴影**")
+            L.append("    （缺①②物体就像「浮」在板前面，读者读不出「穿过去了」）")
         if zone:
             L.append("分区：%s" % " ".join(str(zone).split()))
         if layout:

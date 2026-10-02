@@ -157,7 +157,9 @@ def analyze(fig: Path, profile=None, want_class=None, ir=None):
     doc = fitz.open(pdf)
     page = doc[0]
     pr = page.rect
-    texts, draws = boxes(page)
+    # boxes() 后来加了第三个返回值（被剔除的页面背景数），这里没跟着改，
+    # 导致 unpack 报 "too many values to unpack"——返修单整条路走不通。
+    texts, draws, _n_bg = boxes(page)
     page_area = pr.get_area()
 
     # ── ① 文字互相重叠 ──
