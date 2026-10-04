@@ -44,6 +44,7 @@ ref_guard -- 出图的「参考图角色」硬闸门（作者 2026-09-29 要求�
 from __future__ import annotations
 
 import argparse
+import io
 import json
 import os
 import re
@@ -247,6 +248,110 @@ def find_gen_figure():
     return None
 
 
+# ── v4.1 新增：IR 契约（必须 3D + 必须声明坐标约定） ──────────────────────
+FLAT_ALLOWED = {"render3d"}          # 只认这一档；其余一律要 --allow-flat 理由
+
+
+def ir_contract(ir_path):
+    """返回 (violations, warnings)。作者 2026-10-04：「三轴物理不能错，而且一定要是 3D」。"""
+    v, w = [], []
+    try:
+        import yaml
+        doc = yaml.safe_load(io.open(ir_path, encoding="utf-8").read())
+    except Exception as e:
+        return [("--ir", ir_path, "IR_UNREADABLE", "IR 读不了：%r" % (e,))], []
+    if not isinstance(doc, dict):
+        return [("--ir", ir_path, "IR_NOT_MAPPING", "IR 不是 mapping")], []
+    style = doc.get("style") or {}
+    mode = style.get("mode") if isinstance(style, dict) else None
+    conv = style.get("conventions") if isinstance(style, dict) else None
+    if isinstance(conv, list):
+        text = " ".join(str(x) for x in conv)
+    else:
+        text = "" if conv is None else str(conv)
+    if mode not in FLAT_ALLOWED:
+        v.append(("--ir", ir_path, "NOT_3D",
+                  "style.mode = %r，不是 render3d —— 3D 明暗风是硬规则（AGENTS.md 第 0 节）"
+                  % (mode,)))
+    else:
+        w.append(("--ir", ir_path, "OK", "style.mode = render3d"))
+    kws = ("明暗", "高光", "阴影", "透视", "体积", "limb", "shading", "shadow", "渐变")
+    if not any(k in text for k in kws):
+        w.append(("--ir", ir_path, "NO_3D_LANGUAGE",
+                  "style.conventions 里没写三维材质语言（明暗/高光/阴影/透视/渐变）"))
+    import re as _re
+    inplane = normal = None
+    src = "未找到坐标约定"
+    comp = doc.get("composition") or {}
+    if isinstance(comp, dict):
+        for key in ("坐标约定", "coordinate_convention", "convention"):
+            blk = comp.get(key)
+            if isinstance(blk, dict):
+                ip = blk.get("面内") or blk.get("in_plane") or blk.get("plane")
+                nm_ = blk.get("法线") or blk.get("normal")
+                if ip and nm_:
+                    if isinstance(ip, str):
+                        ip = [x for x in _re.split(r"[\s,、/\u2013-]+", ip) if x]
+                    inplane = [str(x).lower() for x in ip]
+                    normal = str(nm_).lower()
+                    src = "composition.%s" % key
+                    break
+    if inplane is None:
+        for el in (doc.get("elements") or []):
+            if not isinstance(el, dict):
+                continue
+            pr = el.get("params") or {}
+            if not isinstance(pr, dict):
+                continue
+            ip = pr.get("张成轴") or pr.get("plane_axes")
+            nm_ = pr.get("法线轴") or pr.get("normal_axis")
+            if ip and nm_:
+                if isinstance(ip, str):
+                    ip = [x for x in _re.split(r"[\s,、/\u2013-]+", ip) if x]
+                inplane = [str(x).lower() for x in ip]
+                normal = str(nm_).lower()
+                src = "elements[%s].params.张成轴/法线轴" % el.get("id")
+                break
+    if inplane and normal:
+        w.append(("--ir", ir_path, "OK", "坐标约定已声明：面内=%s 法线=%s（%s）" % (inplane, normal, src)))
+    else:
+        v.append(("--ir", ir_path, "NO_CONVENTION",
+                  "IR 没声明坐标约定（%s）—— 加 composition.坐标约定：{面内:[?,?], 法线:?}；"
+                  "交付说明必须照抄这一行" % src))
+    return v, w
+
+
+def post_checks(a):
+    """出图后：3D 闸门 + 三轴物理闸门。返回进程退出码。"""
+    rc = 0
+    here = os.path.dirname(os.path.abspath(__file__))
+    if a.post_3d:
+        cmd = [sys.executable, os.path.join(here, "check_3d_generic.py"), a.post_3d]
+        if a.ir:
+            cmd += ["--ir", a.ir]
+        if a.expect_plane:
+            cmd += ["--expect-plane", a.expect_plane]
+        sys.stdout.flush()
+        print("\n===== 出图后 3D 闸门 =====")
+        sys.stdout.flush()
+        if subprocess.call(cmd) != 0:
+            rc = 1
+    if a.axis_svg or a.axis_png:
+        cmd = [sys.executable, os.path.join(here, "axis_gate.py")]
+        if a.axis_svg:
+            cmd += ["--svg", a.axis_svg]
+        if a.axis_png:
+            cmd += ["--png", a.axis_png]
+        if a.ir:
+            cmd += ["--ir", a.ir]
+        sys.stdout.flush()
+        print("\n===== 出图后 三轴物理闸门 =====")
+        sys.stdout.flush()
+        if subprocess.call(cmd) != 0:
+            rc = 1
+    return rc
+
+
 def main():
     ap = argparse.ArgumentParser(add_help=True,
                                  formatter_class=argparse.RawDescriptionHelpFormatter,
@@ -263,6 +368,15 @@ def main():
     ap.add_argument("--handoff", default=None, help="handoff 目录（自动找 <dir>/choice.json）")
     ap.add_argument("--no-choice-check", action="store_true",
                     help="跳过「客户有没有挑过草图」的检查（只在确有理由时才用）")
+    ap.add_argument("--allow-flat", default=None,
+                    help="确实要出扁平稿时的理由（写进交付说明）；不给则 style.mode != render3d 判硬伤")
+    ap.add_argument("--post", action="store_true",
+                    help="出图后跑 3D 闸门 + 三轴闸门（配合 --post-3d / --axis-svg / --axis-png）")
+    ap.add_argument("--post-3d", default=None, help="成品位图，交给 check_3d_generic.py")
+    ap.add_argument("--axis-svg", default=None, help="交付/重建后的 SVG，交给 axis_gate.py")
+    ap.add_argument("--axis-png", default=None, help="与 SVG 同尺寸的位图（无 OCR 轴名识别）")
+    ap.add_argument("--expect-plane", choices=("auto", "yes", "no"), default=None,
+                    help="传给 check_3d_generic.py：这张图该不该有板面")
     ap.add_argument("--run", action="store_true",
                     help="查过后直接执行 skill 的 gen_figure.py（参数放在 -- 之后）")
     a, rest = ap.parse_known_args()
@@ -281,6 +395,10 @@ def main():
         a.choice = a.choice or x2.get("--choice")
         a.handoff = a.handoff or x2.get("--handoff")
 
+    # --post 且没给 --stage / --run：只跑出图后闸门，不重复跑参考图角色检查
+    if a.post and not a.run and not a.stage:
+        return post_checks(a)
+
     v, w = check(stage or "sketch", style, content, ws, base)
     sys.stdout.write(render_report(stage or "sketch", style, content, v, w, ws, base))
 
@@ -292,6 +410,22 @@ def main():
             sys.stdout.write(r.stdout or "")
             if r.returncode != 0:
                 v = v + [("--ir", ir, "LAYOUT_LOCKED", "IR 把版式写死了，见上面 ir_layout_guard 的报告")]
+
+    # ── v4.1：IR 契约（必须 3D + 必须声明坐标约定） ──
+    if ir:
+        try:
+            civ, ciw = ir_contract(ir)
+        except Exception as e:
+            civ, ciw = [("--ir", ir, "IR_CONTRACT_ERR", repr(e))], []
+        for r_, p_, k_, y_ in ciw:
+            print("[%s] IR 契约 %-24s %s" % ("ok  " if k_ == "OK" else "warn", k_, y_))
+        for r_, p_, k_, y_ in civ:
+            if k_ == "NOT_3D" and a.allow_flat:
+                print("[warn] IR 契约 %-24s %s（--allow-flat \"%s\"）" % (k_, y_, a.allow_flat))
+                w = w + [(r_, p_, k_, y_)]
+            else:
+                print("[FAIL] IR 契约 %-24s %s" % (k_, y_))
+                v = v + [(r_, p_, k_, y_)]
 
     # ── render 之前必须有**客户**挑草图的回执 ──
     if (stage or "sketch") == "render" and not a.no_choice_check:
@@ -330,7 +464,12 @@ def main():
             print("找不到 skill 的 scripts/gen_figure.py（设 HEP_SKILL 环境变量）")
             return 2
         print("ref_guard 通过 -> 执行 %s %s" % (gf, " ".join(argv)))
-        return subprocess.call([sys.executable, gf] + list(argv))
+        rc = subprocess.call([sys.executable, gf] + list(argv))
+        if rc != 0:
+            return rc
+        return post_checks(a) if a.post else 0
+    if a.post:
+        return post_checks(a)
     return 0
 
 
