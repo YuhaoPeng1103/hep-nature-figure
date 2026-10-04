@@ -54,6 +54,10 @@ IR 管物理  ｜  生图管风格  ｜  矢量那一步管矢量化
         （以前只跑闸口①，闸口②是漏的）
         ↓
 ④ 位图 → 矢量。**两个终点，首选重画、备用混合临摹**（见下）
+        ★ v4.0 固定三步：① 客户选定/确认的位图 ② 逐像素**临摹**（raster_to_vector_semantic.py，
+        带 <g data-element> 语义图层）③ **从临摹层重建**（trace_rebuild.py）——
+        几何一律从临摹层的掩膜取，**别再走颜色阈值**（v37 教训：包围盒把真 bbox 切平、
+        「板下淡出」描成卷曲细带；改从 data-element 取几何后 MAE 2.49 / 5.28 → 1.95）
         ↓
 ⑤ 三道门禁 + 返修单 → 交付
 ```
@@ -85,6 +89,20 @@ IR 管物理  ｜  生图管风格  ｜  矢量那一步管矢量化
 ```bash
 python3 scripts/projection_gate.py ir/xxx.ir.yaml          # 画之前跑
 python3 scripts/projection_gate.py ir/*.ir.yaml --strict    # 警告也算失败
+```
+
+**第六个（v4.0 加）：`check_3d.py` —— 在栅格上量「**这张图读起来是实体、还是贴纸**」。**
+五道门禁**全都看不见**这个失败（扁的 v7 与 3D 的 v7 一样能全过；风格门禁的白名单里
+没有任何一条量的是**渲染方式**）。所以它直接在像素上量四条硬判据：
+**C1 接触阴影**（形体必须把它站的那块板压暗）/ **C2 面内内容确实被投影**（面内一串等间隔
+元素在屏幕上的间隔必须不匀）/ **C3 参考圆被压扁**（同一个面里的「各向同性」参考必须是扁的，
+否则 C2 的不匀读起来像随手压扁）/ **C4 明暗带法线场**（高光偏心 + 边缘比中半径暗）。
+★ 它是**面向版式标定的**：判据通用，但搜索窗口（画布毫米 / 受检形体窗口 / 颜色谓词）要按你的
+版式改；找不到受检形体会报 **C0 失败**，不会静默放行。
+
+```bash
+python3 scripts/check_3d.py out/figure_3d.png         # 0 = 四条全过
+python3 scripts/check_render_mode.py out/figure_3d.svg # 交付前：真有渐变吗 + 有没有并排图
 ```
 
 跑完把报告交给 `repair_brief.py` 变成**返修单**（归一化坐标 + 具体改法），
@@ -759,7 +777,7 @@ python3 scripts/repair_brief.py fig.svg --profile assets/style-profiles.json
 | **image 字段** | 本地图 → **base64 data URI**（自动）；公网 URL 直接透传 | mm 端点**只收**公网 URL 或 base64，**不认 `oss://`** —— 实测提交报 400 `Image must be either a public URL or a Base64 encoded string`（v2.6.1 修）|
 | **两个产物** | 草图 PNG + **草图 SVG** + 成品位图，全部落盘 | 用户要能拿到中间产物 |
 | **裁外框** | 出图后跑 `scripts/trim_border.py in.png -o out_clean.png` | 模型**稳定**在四周画 1~2px 外框，简报与 `--negative` 都拦不住（实测 5/5）→ 确定性裁掉，别求模型 |
-| **提示词扩展** | `--prompt-extend` / `--no-prompt-extend`（默认沿用接口行为：mm=True / t2i=False）| `prompt_extend=True` 会让服务端**重写提示词**，简报里的坐标/数量/约束被稀释 → 结构化示意图建议 `--no-prompt-extend`。实际取值记进 `calls.jsonl` |
+| **提示词扩展** | `--prompt-extend` / `--no-prompt-extend`（默认沿用接口行为：mm=True / t2i=False）| ★ **v4.0 实测推翻了 v2.8 的建议**：`prompt_extend=True` 会让服务端**重写提示词**，看起来会稀释简报 → 但**关掉它更糟**：`--no-prompt-extend` 把简报**原样**当提示词，模型于是把「这是一份说明文档」这个先验也画出来（图上出现大段中文、章节编号、色卡）。实测同一份简报 + 同一批参考图：**加 flag 12 张全中，走接口默认 4 张零漏字** → **草图档不要加这个 flag**。实际取值记进 `calls.jsonl` |
 | **画布比例对账** | `--size` 与 IR 声明的比例不符时当场警告 | 同一张图两个比例，IR 的归一化坐标就废了（实测 sketch5_upc 声明 2.10、默认 `--size` 1.79，差 15%）|
 | **调用留痕** | `gen/calls.jsonl` 记 model/seed/size/refs/prompt 指纹 + `prompt_extend` / `no_style_ref` / `ir_ratio_dev` | 出图后要能溯源、核对计费、回溯提示词有没有被服务端重写 |
 | **单个 seed 抖动** | 失败**重试 2 次**（共 3 次尝试），仍失败记 `ok=False` 继续下一个 seed | 实测 2026-09-27：seed 7 撞 TimeoutError 让整批 traceback 退出 —— seed 9 根本没跑、已出的 seed 5 也没进 `calls.jsonl` |
@@ -775,7 +793,7 @@ python3 scripts/repair_brief.py fig.svg --profile assets/style-profiles.json
 **现象**：出的图跟参考图几乎一模一样 —— 物体、布局、箭头方向、文字全是参考图的。
 
 **根因**：`qwen-image-*` 是**图生图**。参考图的内容越接近目标，模型越倾向**直接抄**
-（`prompt_extend` 还会重写提示词，进一步稀释简报 —— 可用 `--no-prompt-extend` 关掉，见下）。参考图给 2 张会加重。
+（`prompt_extend` 会重写提示词 —— ★ 但**别急着关**：v4.0 实测 `--no-prompt-extend` 反而会让模型把简报本身当内容画，见〔生图那一步〕表格与 CHANGELOG v4.0 第 2 条）。参考图给 2 张会加重。
 **这不是"提示词没写清"，是参考图选错了。**
 
 按顺序排查（每一步都能用机器量）：
@@ -1176,6 +1194,11 @@ python3 scripts/auto_converge.py --ref 参考图.png \
 | `ir_layout_guard.py` | **★ IR 版式锁闸门（v3.1）**：IR 把整张版式写死（`composition.分区` / `元素布局`、`elements[].params` 的绝对毫米、`conventions` 里的逐面板脚本 / "exactly N panels in ONE ROW"）→ 同一份物理每次草图都一样。它把**简报真的编译出来再扫**（简报才是模型看到的东西），只查 IR 字面会漏掉被模板合成的那些 |
 | `choice_gate.py` | **★★ 客户拍板闸门（v3.1）**：没有客户回执 `handoff/choice.json` 就**不许出成品位图**；`--by` 只认 `client/customer/author/user/客户/作者/用户/甲方`，写 `agent`/`auto`/`codex` 一律判失败（客户明确说"你定"才用 `manual`）。`ref_guard.py --run --stage render` 会自动带上它 |
 | `make_picker.py` | **★★ 客户选择入口（v3.1）**：handoff 候选 → `pick.html`（客户双击、点一张、底栏给选择码）+ `pick_sheet.png`（贴聊天窗口的总览图）。每张配 `notes.json` 的一句话说明与闸口①读数，有硬伤的卡片点不动 |
+| `trace_rebuild.py` | **★★ 矢量成品三步的第三步（v4.0）**：从**临摹层**（`<g data-element=...>` 的掩膜）重建体积元素 —— 每个体积重做成 `clipPath`（精确可见轮廓）+ **真渐变网格**（每 BAND 一条 `linearGradient`）+ **线稿逐像素保留**。几何一律从掩膜取，**不重新走颜色阈值**。回归基线：v38 输入 MAE **1.946**、三体积像素数逐一对上 |
+| `axonometric.py` | **★ 正交相机 + 校验（v4.0）**：给 `(az, el, roll)` 算三轴的屏幕方向与前缩；`--check` 打印 `\|r\|`、`\|u\|`、`r·u` 判它是不是**合法投影**（手挑三轴方向 = 斜投影，`\|r\|≠1`、`r·u≠0`，眼睛读它就叫「扁」）。★ 它**向上为正**，填 IR 的 `轴方向_deg` 要取负 |
+| `check_3d.py` | **★ 第六道闸门（v4.0）**：栅格上判「实体 vs 贴纸」，四条硬判据 C1 接触阴影 / C2 面内内容被投影 / C3 参考圆被压扁 / C4 明暗带法线场。★ 搜索窗口按版式标定，换版式先改；找不到受检形体报 C0 失败 |
+| `check_render_mode.py` | **★ 交付前「是不是 3D 明暗风」自检（v4.0）**：①[硬] 矢量层真有 `<gradient>` 吗 ②[参考] `ink_colors`（量的是细节密度+文字量，**不是**明暗渲染）③[硬] 有没有出成品 × 风格参考的**并排图** |
+| `audit_refs.py` | **★ 历史对账（v4.0）**：扫全工作区 `calls.jsonl` 逐条过 `ref_guard`。★ 记录里的 `refs` 是 content+style 的**并集**，先 `split_refs()` 拆回两列再判，否则每条合规 render 都会被误判成 SAME_FILE |
 | `bitmap_conformance.py` | **★★ 位图一致性闸门（v3.2）**：把**所选位图**和**成品**各量一遍架构几何（面板数、每个面板的上边界倾角 / 板左缘 x / 板左上角 y / 侧边界角、宽高比），超阈值 = **非零退出**。查的是**结果**（成品有没有照位图画），不是「你有没有抄旧脚本」——那查不出来 |
 | `raster_to_vector.py` | **位图 → 矢量（临摹备用路径）**：逐像素描摹 + 混合文字（`--text-spec`）+ 语义归组（`--groups`） |
 | `raster_to_vector_semantic.py` | **位图 → 语义分层的全矢量**（先理解再临摹）：真 `<text>`、物理元素图层树、误差可量化。库在 `scripts/raster_vector/`，用法见其 `README.md` |
