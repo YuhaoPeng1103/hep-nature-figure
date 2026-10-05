@@ -610,6 +610,31 @@ python3 scripts/repair_brief.py fig.svg --profile assets/style-profiles.json \
 
 # ── 1. IR → 约束简报 ──────────────────────────────────────
 python3 scripts/ir_to_genbrief.py ir/xxx.ir.yaml --stage sketch -o brief1.md
+#
+#    ★★ v4.2 起，**默认先走「极简首轮 + 增量补约束」**（作者 2026-10-05 要求）：
+#       别一上来就灌几 k 字符的规格书；先给「一句话 + 面板序列」，物理错的地方下一轮再补，
+#       一次只补**错的那几条**（对了的不重复写）。
+#
+#         python3 scripts/brief_lite.py ir/xxx.ir.yaml --tier 0 --size 2048*704 -o gen/lite0.md
+#         #   → 出图（照第 2 步）
+#         #   → 看图 + 闸门，把**画错**的点写进 gen/round0_fail.md（一段话，不是重发规格书）
+#         python3 scripts/brief_lite.py ir/xxx.ir.yaml --tier 1 --size 2048*704 \
+#             --add gen/round0_fail.md -o gen/lite1.md
+#
+#       tier 0 = 一句话 + 画布/面板序列 + 输出硬约束   （实测 QGP：548 字符，原规格书 7559）
+#       tier 1 = tier 0 + 五条 3D 空间线索 + 每面板一句形态（实测 QGP：1427 字符）
+#       一句话取 IR 的 figure.one_liner（推荐自己写一句），没有就退回首句 physics_claim。
+#       为什么不做成"自动把失败约束全塞进去"：增量要人判断（看上一轮的图 + 闸门报告），
+#       工具只负责把增量拼进简报。
+#
+#    ★ 实测（QGP，2026-10-05，qwen-image-3.0 mm，同两张风格参考）：
+#       极简档的画面**更接近** Gemini 那类"好看"，但**物理并没有自动变对**——
+#       tier 0 那轮照样把 z 轴与运动方向画反、核没被压扁；补了增量约束的 tier 1 才把
+#       「薄饼方向 / 板面三轴 / 色场管取向」做对（3D 闸门：tier0 1/2 过，tier1 1/2 过，
+#       但 tier1 通过那张的板面占比 4.9% vs tier0 的 0.40%）。
+#       → "提示词短 = 画面好看" 与 "物理对" 是两件事，前者靠生图模型，后者只能靠增量约束 + 闸门。
+#
+#    ★ 完整规格书（本行下面这条）留给**复现论文图**这类必须逐条对账的 A 类任务。
 
 # ── 2. 出草图（★ 必须带风格参考图；key 用你自己的）──────────
 python3 scripts/gen_figure.py --brief brief1.md --stage sketch \
@@ -1221,6 +1246,7 @@ python3 scripts/auto_converge.py --ref 参考图.png \
 | `extract_figures.py` | 从论文 PDF 自动切图 |
 | `audit_composition.py` | **局部构图审计**：文字重叠/线穿文字/出界/留白分布 |
 | `style_profile.py` | **提取风格档案**（存数字不存图，版权干净） |
+| `brief_lite.py` | **极简档简报**：IR → 一句话(tier 0) / +3D 线索与面板形态(tier 1)；`--add` 追加上一轮画错的物理约束 |
 | `delivery_gate.py` | **阻断式门禁**：离目标风格超限就不许交付 |
 | `check_delivery.py` | **投稿前检查**：矢量？文字可编辑？字号达标？ |
 | `demo_combined.py` | **多工具联合示范**：svg_lib(卡通) + TikZ(公式) + PyMuPDF(合成) |
