@@ -6,25 +6,23 @@
   「你给的提示词别那么复杂，从简单到复杂，比如最开始就给他一个草图和风格图，
     一句话说明一下需求，物理不对的地方第二次添加一些物理约束生成」
 
-所以出图不再一上来就灌 7.5k 字符的规格书，改成三轮递增：
+所以出图不再一上来就灌几 k 字符的规格书，改成逐轮递增：
 
-  第 0 轮  --tier 0   一句话 + 画布/面板序列 + 输出硬约束        （约 400 字符）
-  第 1 轮  --tier 1   上面那些 + 五条 3D 空间线索 + 每面板一句形态（约 1.2k 字符）
+  第 0 轮  --tier 0   一句话 + 画布/面板序列 + 输出硬约束        （约 400-600 字符）
+  第 1 轮  --tier 1   上面那些 + 五条 3D 空间线索 + 每面板一句形态（约 1.5k 字符）
   第 N 轮  --tier 1 --add gen/roundN_fail.md
                       只把上一轮**真的画错**的物理点追加进去（错了才加，对了不加）
 
 用法：
-  python scripts/brief_lite.py <ir.yaml> --tier 0 --size 2048*704 -o gen/brief_lite0.md
-  python scripts/brief_lite.py <ir.yaml> --tier 1 --add gen/round0_fail.md -o gen/brief_lite1.md
+  python scripts/brief_lite.py <ir.yaml> --tier 0 --size 1664*909 -o gen/lite0.md
+  python scripts/brief_lite.py <ir.yaml> --tier 1 --add gen/round0_fail.md -o gen/lite1.md
   python scripts/brief_lite.py <ir.yaml> --tier 0            # 不给 -o 就打到 stdout
 
-写出后照常喂给 gen_figure.py（--brief），闸门不用改：
-
-  python scripts/gen_figure.py --brief gen/brief_lite0.md --stage sketch \
-      --ref assets/t3-exemplars/T3-30.png --seeds 401,402 --size 2048*704 --outdir gen
+写出后照常喂给 gen_figure.py（--brief），闸门不用改。
 
 一句话的来源：优先 IR 的 figure.one_liner（推荐自己写一句），
 没有就退回 figure.physics_claim 的前 N 句（--sents，默认 1）。
+允许出现的标签：优先取 IR 里"文字标注"那个元素的 text；没有就用内置的通用短表。
 
 ★ 为什么不自动把失败约束全塞进来：作者要的是「物理不对的地方第二次添加」——
   增量由人判断（看上一轮的图 + 闸门报告），这个脚本只负责把增量拼进简报，不负责猜。
@@ -38,7 +36,7 @@ import os
 import re
 import sys
 
-ALLOWED = "a b c d、QGP、Glasma、hadrons、e+、e-、γ、τ、T_c、x、y、z"
+ALLOWED_DEFAULT = "a b c d、QGP、Glasma、hadrons、e+、e-、γ、τ、T_c、x、y、z（按本图 IR 的元素命名）"
 
 DEPTH = [
     "每个面板画一张【斜置的透视网格板】（反应平面）当空间基准：平行四边形，两条边分别朝画面"
@@ -47,8 +45,7 @@ DEPTH = [
     "暖色反光拖尾。没有接触阴影 = 贴纸。",
     "火球是【半透明的发光体积】：白热核 + 径向温度梯度 + 外发光，且板的网格线能透过它看见。",
     "核与旁观碎片画成【核子球团】：一堆有明暗的小球堆成的团，不是一坨光滑团块。",
-    "坐标三轴画成【有透视的实体轴】：z 沿束流、x 沿碰撞参数（都在板面内，各沿板的一条边），"
-    "y 是板的法线（朝观察者）。",
+    "坐标三轴画成【有透视的实体轴】：轴名与它指的方向必须对得上，三轴每个面板只画一组。",
 ]
 
 PANEL_RE = re.compile(r"^面板\s*([a-zA-Z])\s*[—\-–－:：]+\s*(.+)$")
@@ -88,7 +85,7 @@ def panel_matches(doc):
     for el in (doc.get("elements") or []):
         if not isinstance(el, dict):
             continue
-        m = PANEL_RE.match(_flat(el.get("name")).replace("——", "——"))
+        m = PANEL_RE.match(_flat(el.get("name")))
         if m:
             out.append((m.group(1).lower(), m.group(2).strip(), el))
     return out
@@ -108,45 +105,74 @@ def panel_lines(doc):
     return out
 
 
-def captions(doc):
+def _text_elements(doc):
+    out = []
     for el in (doc.get("elements") or []):
-        if not isinstance(el, dict):
-            continue
-        t = el.get("text")
-        if isinstance(t, str) and "approach" in t:
+        if isinstance(el, dict) and el.get("text"):
+            out.append(el)
+    return out
+
+
+def captions(doc):
+    for el in _text_elements(doc):
+        t = str(el.get("text"))
+        if "approach" in t:
             return _flat(t)
     return ""
+
+
+def labels(doc):
+    """允许出现在图上的标签：取"文字标注 / 命名"那个元素；把 "z (beam)" 这种括号说明去掉。"""
+    for el in _text_elements(doc):
+        nm = _flat(el.get("name"))
+        if any(k in nm for k in ("文字标注", "标签", "label", "legends")):
+            toks = []
+            for raw in re.split(r"[,，、;；]+", str(el.get("text"))):
+                tok = re.sub(r"\s*[（(].*?[)）]\s*$", "", raw.strip())
+                if tok:
+                    toks.append(tok)
+            if toks:
+                return "  ".join(toks)
+    return ALLOWED_DEFAULT
 
 
 def parse_size(text):
     m = re.match(r"^(\d+)\s*[*x×]\s*(\d+)$", str(text).strip())
     if not m:
-        sys.exit("--size 要写成 W*H（如 2048*704），实得 %r" % text)
+        sys.exit("--size 要写成 W*H（如 1664*909），实得 %r" % text)
     return int(m.group(1)), int(m.group(2))
 
 
 def build(doc, tier, wh, added=None, sents=1):
     w, h = wh
+    fig = doc.get("figure") or {}
     ol = one_liner(doc, sents)
     pl = panels_line(doc)
+    n_panels = fig.get("panels_count")
     cap = captions(doc)
+    lab = labels(doc)
     L = []
     L.append("【任务】" + ol)
     L.append("")
     L.append("画成 **3D 渲染风格的期刊插画**（有体积、有明暗），不是扁平矢量；纯白底、不要边框。")
-    L.append("画布 %d×%d（宽高比 %.2f）；四个等宽面板从左到右是同一条时间轴：%s。" % (w, h, w / h, pl))
+    if pl:
+        L.append("画布 %d×%d（宽高比 %.2f）；%s 个等宽面板从左到右是同一条时间轴：%s。"
+                 % (w, h, w / h, len(panel_matches(doc)) or (n_panels or 1), pl))
+    else:
+        L.append("画布 %d×%d（宽高比 %.2f）；单幅示意图，不分面板。" % (w, h, w / h))
     if tier >= 1:
         L.append("")
         L.append("★★★ 必须是【一个三维场景】，不是白底上摆的一堆贴纸。下面五条比好看更重要：")
         for i, d in enumerate(DEPTH, 1):
             L.append("  %d. %s" % (i, d))
-        L.append("")
-        L.append("各面板形态：")
-        L.extend(panel_lines(doc))
+        if panel_lines(doc):
+            L.append("")
+            L.append("各面板形态：")
+            L.extend(panel_lines(doc))
         L.append("全图共用一个光源（方位 128° / 仰角 38°），不要每个物体各自打光。")
     L.append("")
-    L.append("【输出硬约束】图上只许出现这些字符：%s。此外一个字都不要写 ——"
-             "不成段、不图例、不色卡、不章节编号、不说明段落。" % ALLOWED)
+    L.append("【输出硬约束】图上只许出现这些标签：%s。此外一个字都不要写 ——"
+             "不成段、不图例、不色卡、不章节编号、不说明段落。" % lab)
     if cap:
         L.append("面板说明逐字照写（大小写/上下标都对，不要翻译）：%s" % cap)
     L.append("本说明是画图指令，不是要画的内容；不要把指令本身画成文档 / 海报 / 幻灯片。")
@@ -162,7 +188,7 @@ def main():
     ap.add_argument("ir", help="IR 的 .yaml")
     ap.add_argument("--tier", type=int, choices=(0, 1), default=0,
                     help="0=一句话档；1=加五条 3D 线索与各面板形态")
-    ap.add_argument("--size", default="2048*704", help="画布 W*H")
+    ap.add_argument("--size", default="1664*909", help="画布 W*H")
     ap.add_argument("--sents", type=int, default=1,
                     help="figure 里没写 one_liner 时，退回 physics_claim 的前 N 句")
     ap.add_argument("--add", action="append", default=[],
@@ -188,8 +214,8 @@ def main():
         print("wrote %s" % a.out)
     else:
         sys.stdout.write(text)
-    print("tier=%d  字符数=%d  面板=%s  增量约束=%d 个文件"
-          % (a.tier, len(text), panels_line(doc) or "（没识别到）", len(a.add)))
+    print("tier=%d  字符数=%d  面板=%s  标签=%s  增量约束=%d 个文件"
+          % (a.tier, len(text), panels_line(doc) or "（单幅）", labels(doc)[:60], len(a.add)))
 
 
 if __name__ == "__main__":
