@@ -622,7 +622,8 @@ python3 scripts/ir_to_genbrief.py ir/xxx.ir.yaml --stage sketch -o brief1.md
 #             --add gen/round0_fail.md -o gen/lite1.md
 #
 #       tier 0 = 一句话 + 画布/面板序列 + 输出硬约束   （实测 QGP：548 字符，原规格书 7559）
-#       tier 1 = tier 0 + 五条 3D 空间线索 + 每面板一句形态（实测 QGP：1427 字符）
+#       tier 1 = tier 0 + 3D 空间线索 + 每面板一句形态（实测 QGP：1427 字符）
+#         ★ v4.4：3D 线索 = 通用 4 条（板/接触阴影/三轴/光源）+ 火球、核子球团两条按 IR 关键字条件追加（实测：牛顿/法拉第 4 条、UPC 5 条、QGP 6 条）
 #       一句话取 IR 的 figure.one_liner（推荐自己写一句），没有就退回首句 physics_claim。
 #       为什么不做成"自动把失败约束全塞进去"：增量要人判断（看上一轮的图 + 闸门报告），
 #       工具只负责把增量拼进简报。
@@ -1246,7 +1247,7 @@ python3 scripts/auto_converge.py --ref 参考图.png \
 | `extract_figures.py` | 从论文 PDF 自动切图 |
 | `audit_composition.py` | **局部构图审计**：文字重叠/线穿文字/出界/留白分布 |
 | `style_profile.py` | **提取风格档案**（存数字不存图，版权干净） |
-| `brief_lite.py` | **极简档简报**：IR → 一句话(tier 0) / +3D 线索与面板形态(tier 1)；`--add` 追加上一轮画错的物理约束 |
+| `brief_lite.py` | **极简档简报**：IR → 一句话(tier 0) / +3D 线索与面板形态(tier 1)；`--add` 追加上一轮画错的物理约束。★ v4.4：不再硬编码 HEP 语言（公式 4 条 + 火球/核子团按需），面板数取 `figure.panels_count`，面板名支持 `面板 a、名称` 并去重 |
 | `delivery_gate.py` | **阻断式门禁**：离目标风格超限就不许交付 |
 | `check_delivery.py` | **投稿前检查**：矢量？文字可编辑？字号达标？ |
 | `demo_combined.py` | **多工具联合示范**：svg_lib(卡通) + TikZ(公式) + PyMuPDF(合成) |

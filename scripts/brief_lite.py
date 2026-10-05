@@ -38,17 +38,35 @@ import sys
 
 ALLOWED_DEFAULT = "a b c d、QGP、Glasma、hadrons、e+、e-、γ、τ、T_c、x、y、z（按本图 IR 的元素命名）"
 
-DEPTH = [
-    "每个面板画一张【斜置的透视网格板】（反应平面）当空间基准：平行四边形，两条边分别朝画面"
-    "右下方与右上方延伸，网格线比板底色深一档。",
-    "物体【坐在板上】：接触处必须有【接触阴影】（板面在那儿变暗），或顺运动方向留一道"
-    "暖色反光拖尾。没有接触阴影 = 贴纸。",
-    "火球是【半透明的发光体积】：白热核 + 径向温度梯度 + 外发光，且板的网格线能透过它看见。",
-    "核与旁观碎片画成【核子球团】：一堆有明暗的小球堆成的团，不是一坨光滑团块。",
-    "坐标三轴画成【有透视的实体轴】：轴名与它指的方向必须对得上，三轴每个面板只画一组。",
+DEPTH_CORE = [
+    "每个面板画一张【斜置的网格板】当空间基准：它是一块有厚度的平行四边形，两条边分别朝画面"
+    "右下方与右上方延伸；板面上那两组网格线的方向，就是这张板的两个【面内轴】方向。",
+    "物体【坐在板上】：接触处必须有一圈【接触阴影】（板面在那儿变暗）；"
+    "没有接触阴影 = 贴纸。",
+    "坐标三轴画成【有透视的实体轴】：三根轴方向彼此不同、并且与板面对得上 —— 板面内的两根轴"
+    "要【严格贴着板面里的两组网格线】，竖直的那根是板的法线。轴名写在对应轴头上，"
+    "一个面板只画一组三轴，绝不允许出现重复的轴名或悬空的轴名。",
+    "全图共用【一个光源】：所有球的高光落在同一个方位，所有接触阴影朝同一个方向。",
 ]
 
-PANEL_RE = re.compile(r"^面板\s*([a-zA-Z])\s*[—\-–－:：]+\s*(.+)$")
+DEPTH_HEP_FIREBALL = (
+    "火球是【半透明的发光体积】：白热核 + 径向温度梯度 + 外发光，且板的网格线能透过它看见。"
+)
+DEPTH_HEP_NUCLEON = (
+    "核与旁观碎片画成【核子球团】：一堆有明暗的小球堆成的团，不是一坨光滑团块。"
+)
+
+
+def depth_lines(doc):
+    blob = str(doc)
+    out = list(DEPTH_CORE)
+    if any(k in blob for k in ("火球", "QGP", "qgp", "Glasma", "glasma", "夸克胶子", "高温")):
+        out.append(DEPTH_HEP_FIREBALL)
+    if any(k in blob for k in ("核子", "旁观", "碎片")):
+        out.append(DEPTH_HEP_NUCLEON)
+    return out
+
+PANEL_RE = re.compile(r"^面板\s*([a-zA-Z])\s*(?:[—\-–－:：、,，]\s*)?(?:的)?\s*(.+)$")
 
 
 def read_ir(path):
@@ -92,7 +110,20 @@ def panel_matches(doc):
 
 
 def panels_line(doc):
-    return " → ".join("%s %s" % (k, name) for k, name, _ in panel_matches(doc))
+    m = panel_matches(doc)
+    seen = {}
+    for k, name, _el in m:
+        seen.setdefault(k, name)
+    if len(seen) >= 2:
+        return " → ".join("%s %s" % (k, seen[k]) for k in sorted(seen))
+    claims = (doc.get("figure") or {}).get("panel_claim")
+    if isinstance(claims, dict) and claims:
+        out = []
+        for k in sorted(claims):
+            txt = re.sub(r"[（(].*?[）)]", "", _sents(claims[k], 1))
+            out.append("%s %s" % (k, txt[:26]))
+        return " → ".join(out)
+    return " → ".join("%s %s" % (k, name) for k, name, _ in m)
 
 
 def panel_lines(doc):
@@ -102,6 +133,14 @@ def panel_lines(doc):
         prim = _flat(el.get("primitive"))
         tail = "（形态：%s）" % prim if prim else ""
         out.append("- %s %s：%s%s" % (key, name, role, tail))
+    if out:
+        return out
+    # 退回 figure.panel_claim：没有"面板 x"命名的元素时也能给出每面板一句形态
+    claims = (doc.get("figure") or {}).get("panel_claim")
+    if isinstance(claims, dict):
+        for k in sorted(claims):
+            body = re.sub(r"[（(].*?[）)]", "", _sents(claims[k], 2)).strip()
+            out.append("- 面板 %s：%s" % (k, body))
     return out
 
 
@@ -133,6 +172,20 @@ def labels(doc):
                     toks.append(tok)
             if toks:
                 return "  ".join(toks)
+    # 退路二：IR 顶层 texts:（panel_letters / labels_a / labels_b …）
+    blk = doc.get("texts")
+    if isinstance(blk, dict):
+        toks = []
+        for k, v in blk.items():
+            if any(bad in str(k).lower() for bad in ("convention", "说明")):
+                continue
+            vals = v if isinstance(v, list) else [v]
+            for item in vals:
+                tok = _flat(item)
+                if tok and tok not in toks:
+                    toks.append(tok)
+        if toks:
+            return "  ".join(toks)
     return ALLOWED_DEFAULT
 
 
@@ -157,13 +210,15 @@ def build(doc, tier, wh, added=None, sents=1):
     L.append("画成 **3D 渲染风格的期刊插画**（有体积、有明暗），不是扁平矢量；纯白底、不要边框。")
     if pl:
         L.append("画布 %d×%d（宽高比 %.2f）；%s 个等宽面板从左到右是同一条时间轴：%s。"
-                 % (w, h, w / h, len(panel_matches(doc)) or (n_panels or 1), pl))
+                 % (w, h, w / h, n_panels or len(panel_matches(doc)) or 1, pl))
     else:
         L.append("画布 %d×%d（宽高比 %.2f）；单幅示意图，不分面板。" % (w, h, w / h))
     if tier >= 1:
         L.append("")
-        L.append("★★★ 必须是【一个三维场景】，不是白底上摆的一堆贴纸。下面五条比好看更重要：")
-        for i, d in enumerate(DEPTH, 1):
+        _depth = depth_lines(doc)
+        L.append("★★★ 必须是【一个三维场景】，不是白底上摆的一堆贴纸。下面 %d 条比好看更重要："
+                 % len(_depth))
+        for i, d in enumerate(_depth, 1):
             L.append("  %d. %s" % (i, d))
         if panel_lines(doc):
             L.append("")
