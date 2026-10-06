@@ -620,6 +620,28 @@ python3 scripts/repair_brief.py fig.svg --profile assets/style-profiles.json \
   海报 / 图例 / 标题全部消失。A 档单独用不可行（它画的是参考图，不是你的物理）。
 - 实测记录：`fig_spin/gen/pc/EXPERIMENT_prompt_length.md`、`collective_flow/gen/v40/EXPERIMENT_ABC.md`。
 
+
+#### 1.1 阶梯是**机械闸门**，不是文档约定（v4.6）
+
+作者原话：「你要确保后续别的用户使用都是严格按照 ABC 档来的啊」。
+写进文档**拦不住** —— 实测一个会话连出 4 轮草图，简报从 4148 字符涨到 6437 字符，
+**A 档一次都没跑过**，直接拿累计规格书起手。所以做成闸门 `scripts/ladder_gate.py`，
+并挂进 `ref_guard.py`：**出图前自动查，不合规就不许调生图接口**（钱花在构图上之前先拦住）。
+
+```bash
+python scripts/ladder_gate.py --outdir <fig>/gen/B --brief <fig>/gen/B_brief.md --ref <风格图>  # 查
+python scripts/ladder_gate.py --record --outdir <fig>/gen/B --brief <fig>/gen/B_brief.md        # 成功后退图后登记
+```
+
+硬判据：`L1` 顺序 A→B→C 不许跳档；`L2` A 档 ≤ 80 字符 + 必须有风格图，**A 档产物不许进交付链**；
+`L3` B 档必须同时有①面板序列 ②输出硬约束 ③**反抄写**（「不要照抄参考图的内容」必须显式写）；
+`L4` 每轮 C 只许带「上一轮错在哪 → 改成什么」那一节（≤ 3000 字符）；`L5` `ref_sim ≥ 0.60` 判照抄；
+`L6` render 前必须有 A/B/C 三段。账本落在 `<gen-dir>/ladder.json`。
+`--waive "理由"` / `ref_guard --ladder-waive "理由"` 可放行，理由必须照抄进交付说明。
+
+实测（2026-10-06，集体流 v42）：A 档 31 字符 → 4/4 **复刻同题材风格图**（`T3-02`）；
+B 档 767 字符（+反抄写 +标签白名单 +换成构图不同的 `T3-07`）→ 4/4 干净三面板、
+相似度 **0.26**、不再搬参考图的装置名/图注/版式。
 #### 2 3D 感是首要判据
 
 挑图、改稿、交付都以「像不像有体积有明暗的 3D 渲染」为第一取舍。
@@ -1362,6 +1384,7 @@ python3 scripts/auto_converge.py --ref 参考图.png \
 | `sketch_handoff.py` | **★★ 人机交接（交出去）**：多张草图 → `candidates.md`（表格 + 预览 + 三种回音）+ 可编辑 SVG + 预览图。排序复用 `pick_best` 的判据 |
 | `sketch_ingest.py` | **★★ 人机交接（灌回来）**：人改完的 SVG/PNG → 规范化到目标画布 → **强制重跑闸口①**（不过就拒，给返修单）；`--no-gate` 逃生门会留大字 |
 | `ref_guard.py` | **★ 参考图角色闸门（v3.1）**：`--ref` 只许风格书（`assets/t3-exemplars/`）；sketch 的 `--content-ref` 只许作者手绘输入；render 的只许**上一步已过闸口①的草图**；`assets/demos/**` 任何阶段不许；同一张图不许同时占两个角色。`--run --` 包一层 = **先查后调**，查不过就不执行（不烧 API 的钱） |
+| `ladder_gate.py` | **★ 提示词阶梯闸门（v4.6）**：A→B→C 不许跳档；A 档 = 一句话(≤80 字符) + 风格图、**只作诊断不许进交付链**；B 档必须含面板序列 + 输出硬约束 + **反抄写**；每轮 C 只许带「上一轮错在哪→改成什么」(≤3000 字符)；`ref_sim ≥ 0.60` 判照抄；render 前必须有 A/B/C 三段。账本 `<gen-dir>/ladder.json`；`ref_guard.py --run` **出图前自动查、成功后退图后自动登记**，`--ladder-waive "理由"` 可放行 |
 | `ir_layout_guard.py` | **★ IR 版式锁闸门（v3.1）**：IR 把整张版式写死（`composition.分区` / `元素布局`、`elements[].params` 的绝对毫米、`conventions` 里的逐面板脚本 / "exactly N panels in ONE ROW"）→ 同一份物理每次草图都一样。它把**简报真的编译出来再扫**（简报才是模型看到的东西），只查 IR 字面会漏掉被模板合成的那些 |
 | `choice_gate.py` | **★★ 客户拍板闸门（v3.1）**：没有客户回执 `handoff/choice.json` 就**不许出成品位图**；`--by` 只认 `client/customer/author/user/客户/作者/用户/甲方`，写 `agent`/`auto`/`codex` 一律判失败（客户明确说"你定"才用 `manual`）。`ref_guard.py --run --stage render` 会自动带上它 |
 | `make_picker.py` | **★★ 客户选择入口（v3.1）**：handoff 候选 → `pick.html`（客户双击、点一张、底栏给选择码）+ `pick_sheet.png`（贴聊天窗口的总览图）。每张配 `notes.json` 的一句话说明与闸口①读数，有硬伤的卡片点不动 |

@@ -377,6 +377,10 @@ def main():
     ap.add_argument("--axis-png", default=None, help="与 SVG 同尺寸的位图（无 OCR 轴名识别）")
     ap.add_argument("--expect-plane", choices=("auto", "yes", "no"), default=None,
                     help="传给 check_3d_generic.py：这张图该不该有板面")
+    ap.add_argument("--ladder-gen-dir", default=None,
+                    help="ABC 阶梯账本目录（缺省由 --outdir 往上找 ladder.json）")
+    ap.add_argument("--ladder-waive", default=None,
+                    help="确实要放行阶梯闸门（A→B→C）时的理由；会打印出来，交付说明必须照抄")
     ap.add_argument("--run", action="store_true",
                     help="查过后直接执行 skill 的 gen_figure.py（参数放在 -- 之后）")
     a, rest = ap.parse_known_args()
@@ -446,6 +450,38 @@ def main():
             else:
                 w = w + [("--choice", a.choice or a.handoff or "", "OK", "已有客户回执")]
 
+
+    # ── v4.6：提示词阶梯闸门 A -> B -> C（作者 2026-10-06：「严格按 ABC 档来」） ──
+    ladder = Path(__file__).resolve().parent / "ladder_gate.py"
+    lad_out, lad_brief = None, None
+    if argv:
+        for _i, _t in enumerate(argv):
+            if _t == "--outdir" and _i + 1 < len(argv):
+                lad_out = argv[_i + 1]
+            if _t == "--brief" and _i + 1 < len(argv):
+                lad_brief = argv[_i + 1]
+    if (lad_out or a.ladder_gen_dir) and not a.ladder_waive:
+        if not ladder.exists():
+            print("[warn] 找不到 ladder_gate.py —— 提示词阶梯闸门没跑成")
+        else:
+            cmd = [sys.executable, str(ladder), "--stage", stage or "sketch"]
+            if lad_out:
+                cmd += ["--outdir", lad_out]
+            if lad_brief:
+                cmd += ["--brief", lad_brief]
+            if a.ladder_gen_dir:
+                cmd += ["--gen-dir", a.ladder_gen_dir]
+            for _r in (style or []):
+                cmd += ["--ref", _r]
+            _r = subprocess.run(cmd, capture_output=True, text=True, encoding="utf-8")
+            sys.stdout.write(_r.stdout or "")
+            if _r.returncode != 0:
+                v = v + [("--outdir", lad_out or "", "LADDER",
+                          "提示词阶梯 A->B->C 不合规；见上面 ladder_gate 的报告"
+                          "（--ladder-waive \"理由\" 可放行）")]
+    elif (lad_out or a.ladder_gen_dir) and a.ladder_waive:
+        print("[warn] 提示词阶梯闸门已用 --ladder-waive \"%s\" 放行" % a.ladder_waive)
+
     if a.json:
         Path(a.json).write_text(json.dumps(
             {"stage": stage, "refs": style, "content_refs": content, "ir": ir,
@@ -467,6 +503,18 @@ def main():
         rc = subprocess.call([sys.executable, gf] + list(argv))
         if rc != 0:
             return rc
+        if (lad_out or a.ladder_gen_dir) and not a.ladder_waive and ladder.exists():
+            cmd = [sys.executable, str(ladder), "--record"]
+            if lad_out:
+                cmd += ["--outdir", lad_out]
+            if lad_brief:
+                cmd += ["--brief", lad_brief]
+            if a.ladder_gen_dir:
+                cmd += ["--gen-dir", a.ladder_gen_dir]
+            _r = subprocess.run(cmd, capture_output=True, text=True, encoding="utf-8")
+            sys.stdout.write(_r.stdout or "")
+            if _r.returncode != 0:
+                print("[warn] 阶梯账本登记失败 —— 下一轮会被 L1「跳档」拦住")
         return post_checks(a) if a.post else 0
     if a.post:
         return post_checks(a)
