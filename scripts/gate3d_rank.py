@@ -35,8 +35,8 @@ import subprocess
 import sys
 import tempfile
 
-WS = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-CHECK = os.path.join(WS, "scripts", "check_3d_generic.py")
+# 按脚本自身所在目录找 check_3d_generic.py —— skill 里是 scripts/、本工作区是 tools/，两边通用
+CHECK = os.path.join(os.path.dirname(os.path.abspath(__file__)), "check_3d_generic.py")
 
 
 def run_one(img, ir, expect, tmpdir):

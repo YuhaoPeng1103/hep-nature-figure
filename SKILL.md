@@ -651,6 +651,15 @@ python3 scripts/repair_brief.py fig.svg --profile assets/style-profiles.json \
   x 找回后 s1121 通过。
   ★ 图**有意不画轴字母**（只标 `beam`）时用 `--allow-missing-axis` 把 X2 的缺轴名降级为软警，
   理由必须写进交付说明 —— 不加这个开关时缺轴名就是硬伤。
+- **★ 草图的产物是两份，别只交位图**（v4.5 重申，原本就在第 3 步里）：① 位图
+  `gen/sketch_sN_clean.png`（过闸门、排序用）；② **可编辑矢量草图** `gen/sketch_sN.svg` ——
+  `scripts/sketch_to_vector.py <clean.png> -o <stem>.svg`，每个连通域一个 `part-NN` 子层，
+  默认 `--q 16`（量化到 ~2000 条路径才"给人改"得动；`--q 0` 忠实但碎成数万条）。
+  交接时用 `scripts/sketch_handoff.py gen/sketch_s*_clean.png --ir <IR> --outdir handoff`，
+  它一起给 `handoff/candidates.md` + `handoff/cand_NN.svg`（可编辑）+ 预览图；
+  作者改完用 `scripts/sketch_ingest.py <改过的.svg> --ir <IR> -o gen/` 灌回、重过闸口①。
+  ★ **A/B/C 阶梯不替代这一步** —— 阶梯只决定"简报写多长"，草图仍然是"位图 + 矢量"两份产物；
+  只交位图 = 作者改不动，等于把最便宜的返工点丢了。
 - **草图阶段不管、压到位图**：IR 的元素齐全度（缺板面 / 缺公式 / 缺细箭头 / 缺尺寸线）、
   面板形状的精细度、配色与质感。`3D1/3D2`（板面 / 接触阴影）在草图阶段只作读数。
 - 一句话：**草图管「对不对」，不管「全不全、精不精」**。
@@ -682,6 +691,9 @@ python scripts/axis_gate.py --svg <交付.svg> --png <位图.png> --ir <IR>
 
 ★ 正式交付时 render 档仍要客户回执（`choice_gate.py`）；做实验可以 `--no-choice-check`，
   但必须在记录里写明「这是实验、不是交付」。
+★ 这条路 = **路线 3**（草图 → 成品位图 → 矢量）。**要人改草图就走路线 2**：草图矢量化后
+  交人在 Illustrator / Inkscape 里改 → `sketch_ingest.py` 灌回、重过闸口① → 再出位图。
+  两条路的**前两段完全相同**（IR → 简报 → 生图 → 矢量化草图 → 闸口①），别把路线 2 丢了。
 
 ---
 

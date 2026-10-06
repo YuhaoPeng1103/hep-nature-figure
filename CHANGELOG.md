@@ -74,6 +74,18 @@
   **逐条对照清单**：没改对的 + 新冒出来的标签 → 写成下一轮清单，只补没修好的。
 - 复检缺一不可：`gate3d_rank.py --require-all` + `axis_gate.py --svg/--png` + 逐条对照清单。
 
+### 6 澄清：草图的**矢量化输出**照旧，v4.5 没有取消它
+
+- A/B/C 阶梯只决定「简报写多长」，**不改草图的产物**：草图仍是两份 ——
+  ① 位图 `gen/sketch_sN_clean.png`；② **可编辑矢量草图** `gen/sketch_sN.svg`
+  （`scripts/sketch_to_vector.py`，每个连通域一个 `part-NN` 子层，默认 `--q 16`）。
+  交接仍走 `scripts/sketch_handoff.py` → `handoff/candidates.md` + `handoff/cand_NN.svg`
+  （可编辑）+ 预览图；作者改完用 `scripts/sketch_ingest.py` 灌回、重过闸口①。
+- 走「位图精修」= 路线 3；**要人改草图走路线 2**，两者前两段完全相同。
+- 顺手修一个真 bug：`sketch_to_vector.py --help` **直接崩** —— `--q` 的 help 文字里有个裸 `%`
+  （`0.31% 与不量化持平`），argparse 拿它做 `%` 格式化时抛
+  `ValueError: unsupported format character '与'`。改成 `%%` 后 `--help` 正常（实测 2026-10-06）。
+
 ## v4.4 — 2026-10-05
 
 **`brief_lite.py` 去掉 HEP 专属语言：3D 线索拆成「通用 4 条 + 按需 HEP 2 条」；面板数 / 面板名 / 标签表各自兜底**
