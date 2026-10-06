@@ -31,6 +31,11 @@
 
 用法
     python scripts/axis_gate.py --svg <fig.svg> --png <fig.png> --ir <ir.yaml> --json <rep.json> --annot <a.png>
+    python scripts/axis_gate.py --png <草图.png> --ir <ir.yaml>        # 草图/仅位图模式
+        -> X1/X2/X5 仍是硬判据；X3b/X4（轴杆几何）降级为读数 + 软警
+           （草图上的轴杆检测不稳，误杀不起 —— 矢量交付时必须给 --svg）
+    --allow-missing-axis：X2「缺轴名」降级为软警 —— 只在该图**有意不画轴字母**时用
+           （如只标 beam），理由必须写进交付说明
 
 回归标定（改过这里就要重跑；本仓库只带 T3 正样本）
     PASS  fig_upc_3d/out/upc_3d.svg
@@ -234,20 +239,23 @@ def png_labels(path, chars=None, min_score=0.55, margin=0.04, lum_thr=130):
     for L in lines:
         cs = sorted(L["c"], key=lambda c: c[0])
         cur = list(cs[0])
+        grp = [cs[0]]
         for c in cs[1:]:
             if c[0] - cur[2] <= max(14.0, 0.7 * med_h):
                 cur[2] = max(cur[2], c[2]); cur[3] = max(cur[3], c[3])
                 cur[1] = min(cur[1], c[1])
+                grp.append(c)
             else:
-                words.append(cur); cur = list(c)
-        words.append(cur)
+                words.append((cur, grp)); cur = list(c); grp = [c]
+        words.append((cur, grp))
     N = 40
     found = []
-    for x0, y0, x1, y1 in words:
-        h, w = y1 - y0, x1 - x0
-        if h <= 0 or not (0.30 <= w / float(h) <= 2.2):
-            continue
-        patch = mask[y0:y1, x0:x1]
+
+    def _tpl(patch, min_sc):
+        """一个字形位图 -> (char, score)；不过 min_sc / margin 就 None。"""
+        h, w = patch.shape
+        if h <= 0 or w <= 0:
+            return None
         im2 = Image.fromarray((~patch * 255).astype(np.uint8))
         s = N / float(max(h, w))
         im2 = im2.resize((max(1, int(round(w * s))), max(1, int(round(h * s)))), Image.LANCZOS)
@@ -261,9 +269,34 @@ def png_labels(path, chars=None, min_score=0.55, margin=0.04, lum_thr=130):
             scores.append((best, c))
         scores.sort(reverse=True)
         (s1, c1), (s2, c2) = scores[0], scores[1]
-        if s1 >= min_score and s1 - s2 >= margin:
-            found.append({"t": c1, "score": round(s1, 3), "x": (x0 + x1) / 2.0,
+        if s1 >= min_sc and s1 - s2 >= margin:
+            return c1, s1
+        return None
+
+    retry = []
+    for (x0, y0, x1, y1), grp in words:
+        h, w = y1 - y0, x1 - x0
+        r = None
+        if not (h <= 0 or not (0.30 <= w / float(h) <= 2.2)):
+            r = _tpl(mask[y0:y1, x0:x1], min_score)
+        if r:
+            found.append({"t": r[0], "score": round(r[1], 3), "x": (x0 + x1) / 2.0,
                           "y": (y0 + y1) / 2.0, "src": "png"})
+            continue
+        # 整个「词」没判出来 —— 轴标签被并进了旁边的箭头 / 文字里（实测 collective_flow
+        # v40/C/sketch_s1121 的 x 就是这么丢的）—— 记下来按单个连通域再试一次
+        if 1 < len(grp) <= 6:
+            retry.append(grp)
+    # 兜底：按单个连通域再试（min_score 更严 0.08，防把别的字误认成轴名）
+    for grp in retry:
+        for x0, y0, x1, y1 in grp:
+            h, w = y1 - y0, x1 - x0
+            if h <= 0 or not (0.30 <= w / float(h) <= 2.2):
+                continue
+            r = _tpl(mask[y0:y1, x0:x1], min_score + 0.08)
+            if r:
+                found.append({"t": r[0], "score": round(r[1], 3), "x": (x0 + x1) / 2.0,
+                              "y": (y0 + y1) / 2.0, "src": "png"})
     return found, im
 
 
@@ -413,6 +446,9 @@ def main():
     ap.add_argument("--min-score", type=float, default=0.55, help="位图字形识别的最低分")
     ap.add_argument("--strict-x0", action="store_true",
                     help="把「SVG 与位图轴名不一致」也判成硬伤（位图也是交付件时用）")
+    ap.add_argument("--allow-missing-axis", action="store_true",
+                    help="X2「缺轴名」降级为软警 —— 只在该图有意不画轴字母时用（如只标 beam），"
+                         "交付说明里必须写明理由")
     a = ap.parse_args()
 
     rep = {"checks": [], "fails": [], "warns": [], "readings": {}}
@@ -498,16 +534,19 @@ def main():
         expect = ir_axes_multiset(a.ir)
     if expect:
         ck(sorted(names) == sorted(expect), "X2 轴名多重集 == 声明",
-           "实测 %s  声明 %s" % (sorted(names), sorted(expect)))
+           "实测 %s  声明 %s" % (sorted(names), sorted(expect)),
+           hard=not a.allow_missing_axis)
     else:
         want = None
         if conv:
             want = conv[0] + [conv[1]]
         uniq = sorted(set(names))
-        ck(len(uniq) == 3, "X2 恰好三个互不相同的轴名", "实测 %s" % uniq)
+        ck(len(uniq) == 3, "X2 恰好三个互不相同的轴名", "实测 %s" % uniq,
+           hard=not a.allow_missing_axis)
         if want:
             ck(sorted(uniq) == sorted(want), "X2 轴名集合 == 约定",
-               "实测 %s  约定 %s" % (uniq, sorted(want)))
+               "实测 %s  约定 %s" % (uniq, sorted(want)),
+               hard=not a.allow_missing_axis)
     from collections import Counter
     cnt = Counter(names)
     for nm, k in sorted(cnt.items()):
@@ -519,8 +558,12 @@ def main():
         ck(True, "X5 无第四个轴名", "只有 x / y / z")
 
     # ── X3b/X4 几何：轴杆 ──
+    # 草图/仅位图模式（没给 --svg）：位图上的轴杆检测不稳，X3b/X4 只作读数 + 软警
+    geom_hard = bool(a.svg)
     rods = []
     if a.png:
+        if not geom_hard:
+            print("   （无 --svg：草图/仅位图模式 —— X3b/X4 降级为读数 + 软警；矢量交付时必须给 --svg）")
         rods, W, H = detect_rods(a.png)
         print("\n轴杆检测（%d 根，按支持度排序，前 8）" % len(rods))
         for i, R in enumerate(rods[:8]):
@@ -548,12 +591,13 @@ def main():
                 if best and best[0] <= tol_end:
                     assoc[nm] = rods[best[1]]["a"]
                     ck(True, "X3 %s 的两次标注在同一根轴杆两端" % nm,
-                       "rod dir %.1f, 端距 %.0f px (容许 %.0f)" % (rods[best[1]]["a"], best[0], tol_end))
+                       "rod dir %.1f, 端距 %.0f px (容许 %.0f)" % (rods[best[1]]["a"], best[0], tol_end),
+                       hard=geom_hard)
                 else:
                     assoc[nm] = None
                     ck(False, "X3 %s 的两次标注在同一根轴杆两端" % nm,
                        "最近的杆端距 %.0f px > 容许 %.0f —— 两根不同的轴共用一个名字？" % (
-                           best[0] if best else -1, tol_end))
+                           best[0] if best else -1, tol_end), hard=geom_hard)
             else:
                 best = None
                 for i, R in enumerate(rods):
@@ -575,7 +619,7 @@ def main():
                     if d <= 15.0:
                         bad.append("%s/%s 相差 %.1f 度" % (got[i][0], got[j][0], d))
             ck(not bad, "X4 三轴方向两两相差 > 15 度",
-               "；".join(bad) if bad else "；".join("%s=%.1f" % g for g in got))
+               "；".join(bad) if bad else "；".join("%s=%.1f" % g for g in got), hard=geom_hard)
 
         # ── X6 板面 vs 三轴：板在哪个平面、哪根轴是法线 ──
         surf, pdirs, pfrac = plane_dirs(a.png)
