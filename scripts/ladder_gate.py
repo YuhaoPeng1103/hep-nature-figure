@@ -39,6 +39,11 @@ C 档（+ 物理增量）按需往上加，加什么由上一轮真画错的地�
     L7  **风格参考图必须贯穿整条阶梯**：B/C 档的 `--ref` 必须与 A 档一致
         （作者 2026-10-07：「BC档和A档完全不一样啊，BC档是辅助A档物理错误的」）——
         B/C 是 A 的续（只补面板序列 / 输出硬约束 / 物理修正），中途换风格图 = 另起一张。
+    L8  **慢慢增加提示词**（作者 2026-10-07：「你这B档提示词一下子加太多提示词
+        导致图片一下就很难看了」）：草图档每上一档，简报相对上一档最多增加
+        MAX_STEP_GROWTH（250）字符 —— 一次只加一条新约束。实测 v43：A 档 31 字符
+        直接跳到 B 档 767 字符，出图的观感与 A 档完全不是一张图。
+        render 档豁免（它的简报是 IR 编译稿 + 错误清单，见 §0.6）。
 
 ## 用法
 
@@ -63,6 +68,7 @@ MAX_B_CHARS = 1500
 MAX_INC_CHARS = 3000
 SIM_HARD = 0.60
 SIM_SOFT = 0.30
+MAX_STEP_GROWTH = 250
 
 PANEL_MARKERS = ("面板", "从左到右", "a/b/c", "a b c", "三个面板", "两个面板", "四面板")
 NO_DECOR_MARKERS = ("不要图例", "不要标题", "不要说明文字", "不成段", "不图例", "不色卡",
@@ -252,6 +258,14 @@ def precheck(gen_dir, brief_path, outdir, refs, stage):
             v.append("L7 风格参考图与本条阶梯的 A 档不一致：A 档用 %s，这一轮用 %s —— "
                      "B/C 档是 A 档的续（只补面板序列 / 输出硬约束 / 物理修正），"
                      "中途换风格图 = 另起一张，就不是「辅助 A 档」了。" % (a_refs, now_refs))
+    # L8 慢慢加提示词：每上一档只加一条新约束（作者 2026-10-07）
+    if stage == "sketch" and prev is not None:
+        grow = len(text.strip()) - (prev.get("brief_chars") or 0)
+        if grow > MAX_STEP_GROWTH:
+            v.append("L8 这一档比上一档一次多写了 %d 字符（上限 %d）—— 「慢慢增加提示词」："
+                     "每上一档只加一条新约束，一次加太多会把上一档的观感整个换掉"
+                     "（实测 v43：A 档 31 字符 → B 档 767 字符，B/C 出图跟 A 完全不一样）。"
+                     % (grow, MAX_STEP_GROWTH))
     bv, bw = brief_shape(rung, text, refs, prev_text)
     v += bv
     w += bw
