@@ -36,6 +36,9 @@ C 档（+ 物理增量）按需往上加，加什么由上一轮真画错的地�
     L5  **不许照抄风格参考图**：A 档以外，任何一段的 ref_sim 最大值 >= 0.60 判硬伤
         （0.30 ~ 0.60 软警）。读数从 <outdir>/calls.jsonl 取。
     L6  出成品位图之前，阶梯必须至少有 A、B、C 三段。
+    L7  **风格参考图必须贯穿整条阶梯**：B/C 档的 `--ref` 必须与 A 档一致
+        （作者 2026-10-07：「BC档和A档完全不一样啊，BC档是辅助A档物理错误的」）——
+        B/C 是 A 的续（只补面板序列 / 输出硬约束 / 物理修正），中途换风格图 = 另起一张。
 
 ## 用法
 
@@ -241,6 +244,14 @@ def precheck(gen_dir, brief_path, outdir, refs, stage):
         prev_text = _read(bp if bp.is_absolute() else Path(gen_dir) / bp)
     if not refs and prev:
         refs = prev.get("refs") or []
+    # L7 风格参考图必须贯穿整条阶梯（作者 2026-10-07：「B/C 是辅助 A 档物理错误的」）
+    if rungs:
+        a_refs = sorted(os.path.basename(x) for x in (rungs[0].get("refs") or []))
+        now_refs = sorted(os.path.basename(x) for x in (refs or []))
+        if a_refs and now_refs and a_refs != now_refs:
+            v.append("L7 风格参考图与本条阶梯的 A 档不一致：A 档用 %s，这一轮用 %s —— "
+                     "B/C 档是 A 档的续（只补面板序列 / 输出硬约束 / 物理修正），"
+                     "中途换风格图 = 另起一张，就不是「辅助 A 档」了。" % (a_refs, now_refs))
     bv, bw = brief_shape(rung, text, refs, prev_text)
     v += bv
     w += bw
