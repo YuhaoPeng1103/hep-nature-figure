@@ -505,6 +505,7 @@ def main():
             return rc
         if (lad_out or a.ladder_gen_dir) and not a.ladder_waive and ladder.exists():
             cmd = [sys.executable, str(ladder), "--record"]
+            cmd += ["--stage", stage or "sketch"]
             if lad_out:
                 cmd += ["--outdir", lad_out]
             if lad_brief:

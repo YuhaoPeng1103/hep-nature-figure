@@ -180,12 +180,14 @@ def brief_shape(rung, text, refs, prev_text):
             v.append("L3 B 档太长（%d 字符 > %d）：这一档只加面板序列与输出硬约束，"
                      "物理增量留给 C 档。" % (n, MAX_B_CHARS))
         if not any(k in text for k in PANEL_MARKERS):
-            v.append("L3 B 档缺【面板序列】（「面板 a/b/c」「从左到右」这类）。")
+            w.append("L3 B 档还没有【面板序列】（「面板 a/b/c」「从左到右」这类）—— "
+                     "L8 允许分几步加，但**进 render 前必须补齐**（由 L3b 在 render 档把关）。")
         if not any(k in text for k in WHITELIST_MARKERS + NO_DECOR_MARKERS):
-            v.append("L3 B 档缺【输出硬约束】（标签白名单 / 不要图例标题说明文字）。")
+            w.append("L3 B 档还没有【输出硬约束】（标签白名单 / 不要图例标题说明文字）—— "
+                     "L8 允许分几步加，但进 render 前必须补齐。")
         if not any(k in text for k in ANTICOPY_MARKERS):
-            v.append("L3 B 档缺【反抄写】：必须显式写「不要照抄参考图的内容 / 参考图只给风格」——"
-                     "不写这句，模型会把风格参考图的**内容**（装置名、脚注、图题）一起搬过来。")
+            w.append("L3 B 档还没有【反抄写】（「不要照抄参考图的内容 / 参考图只给风格」）—— "
+                     "不写这句模型会把参考图的内容一起搬过来；进 render 前必须补齐。")
     else:
         inc = extract_increment(text)
         if not inc:
@@ -273,6 +275,28 @@ def precheck(gen_dir, brief_path, outdir, refs, stage):
         names = [r.get("rung") for r in rungs]
         if not ("A" in names and "B" in names and "C" in names):
             v.append("L6 出成品位图之前阶梯必须至少有 A、B、C 三段（现在只有 %s）。" % names)
+        # L3b render 档：累积草图简报里三样必须齐全（L3 在 B 档已降级为软警，
+        # 允许分几步慢慢加，但出成品位图前必须补齐）。
+        # 只看 sketch 段的累积简报（render 段简报是 IR 编译稿，不算「草图阶梯」）
+        if rungs:
+            _sk = [r for r in rungs if r.get("stage", "sketch") == "sketch"]
+            last = (_sk or rungs)[-1]
+            lb = last.get("brief")
+            lt = ""
+            if lb:
+                lp = Path(lb)
+                lt = _read(lp if lp.is_absolute() else Path(gen_dir) / lb)
+            miss = []
+            if not any(k in lt for k in PANEL_MARKERS):
+                miss.append("面板序列")
+            if not any(k in lt for k in WHITELIST_MARKERS + NO_DECOR_MARKERS):
+                miss.append("输出硬约束（标签白名单 / 不要图例标题说明文字）")
+            if not any(k in lt for k in ANTICOPY_MARKERS):
+                miss.append("反抄写")
+            if miss:
+                v.append("L3b 出成品位图前，累积草图简报（第 %s 段 %s）还缺：%s —— "
+                         "L3 允许 B 档分步加，但 render 前必须补齐。"
+                         % (last.get("rung"), os.path.basename(lb or ""), "、".join(miss)))
         for r in rungs:
             if r.get("rung") == "A":
                 continue
@@ -287,7 +311,7 @@ def precheck(gen_dir, brief_path, outdir, refs, stage):
     return rung, v, w, idx
 
 
-def do_record(gen_dir, brief_path, outdir, refs, add=None):
+def do_record(gen_dir, brief_path, outdir, refs, add=None, stage="sketch"):
     led = load_ledger(gen_dir)
     rungs = led.get("rungs") or []
     idx = len(rungs)
@@ -303,6 +327,7 @@ def do_record(gen_dir, brief_path, outdir, refs, add=None):
             rel_add = str(Path(add).resolve())
     entry = {
         "rung": rung,
+        "stage": stage,
         "brief": (os.path.relpath(Path(brief_path).resolve(), Path(gen_dir)).replace("\\", "/")
                   if brief_path else None),
         "brief_chars": len(text.strip()),
@@ -344,7 +369,7 @@ def main():
     print("账本 : %s" % ledger_path(gen_dir))
 
     if a.record:
-        entry, p = do_record(gen_dir, a.brief, a.outdir, a.ref, a.add)
+        entry, p = do_record(gen_dir, a.brief, a.outdir, a.ref, a.add, a.stage)
         n = len(load_ledger(gen_dir)["rungs"])
         print("已登记第 %d 段：%s 档 | 简报 %d 字符 | 增量 %d 字符 | ref_sim_max=%s"
               % (n, entry["rung"], entry["brief_chars"], entry["inc_chars"], entry["sim_max"]))
