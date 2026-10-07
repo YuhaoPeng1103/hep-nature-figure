@@ -41,7 +41,7 @@ python3 evals/test_tools.py geom   # 只跑名字含 geom 的
 | `gradfit_never_drops_thin_strips` | 真渐变丢台阶块时，**细条（min(w,h)<3）一律不丢**：防浅色球面上的网格线（… |
 | `gradfit_aradial_uses_group_transform` | aradial 渐变**不能用 gradientTransform**：cairosv… |
 | `dump_elements_table_follows_out_png` | --elmap 的元素明细表要落在 out_png **旁边**，不许写进 cwd：防… |
-| `gen_figure_content_ref_downgraded_to_layout` | 构图参考（--content-ref）默认必须**降级成 layout-only** … |
+| `gen_figure_content_ref_sent_as_is` | 构图参考（--content-ref）默认必须**原样送**（v4.7 起不降级） … |
 | `genbrief_carries_element_material` | IR 的 `material:` 必须进简报（以前**整段丢**，只用 primiti… |
 | `genbrief_lossless_render` | IR 里写了、简报里没有 = 从来没写过（编译器丢字段 = IR 白写） |
 | `jet_path_asymmetry_catches_inverted_vertex` | 喷注淬火：穿过介质的【路径长度】必须机器量的出来 |

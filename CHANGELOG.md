@@ -1,5 +1,51 @@
 # 变更记录
 
+## v4.7 — 2026-10-07
+
+**构图参考（`--content-ref`）默认**原样送**：`auto` 不再降级成 layout-only（旧默认 v2.6.8–v4.6.3）**
+
+作者原话：「**建议给位图的草图全部都变成 full 吧，都不要降级成 layout**」
+
+### 为什么要改：降级只对**扁平**草图成立
+
+`--content-ref-mode auto` 原来是 `render` 档先降级成 layout-only（灰度 + 降采样 + 模糊，
+只留布局）。那条规则是 2026-09-27 用**扁平**草图（形变核→火球）标定的 ——
+下面那张表还在，但它现在只解释「什么时候才该**显式**加 `--content-ref-mode layout`」。
+
+★ 2026-10-07 法拉第电磁感应（`faraday_law`）实测，同一份简报 / seed 1902+1903，
+只改 `--content-ref-mode` 与 `--ref`。那张草图**本身就是 3D 的**
+（3D 分 0.0478，风格目标 T3-07 = 0.0548）：
+
+| 组 | `--content-ref-mode` | `--ref` | 3D 闸门 | 三轴闸门 | 与草图粗结构相关 r |
+|---|---|---|---|---|---|
+| A（旧默认） | `layout` | 给 | 2/2 PASS（但降级图自己连 3D0 都过不了） | **2/2 FAIL** | 0.416 / 0.654 |
+| B | `full` | 不给 | 2/2 PASS | **2/2 PASS** | 0.425 / 0.597 |
+| C | `full` | 给 | 2/2 PASS | 1/2 PASS | 0.433 / 0.545 |
+
+- **降级没有换来更好的构图**（0.416/0.654 vs 0.425/0.597 —— 全在噪声里）；
+- **降级反而画错物理**：三轴闸门实测轴名 `['x','z']` 且 `x` 出现 4 次、
+  没有 `y`（另一 seed 只剩 `['z']`）—— **模糊参考图承载不了可读的 x/y/z 标签**，
+  模型只能自己编轴。
+- C 组另一 seed 的 FAIL 是**斜体字形没被字形识别读出来**（图上标签在），不是物理错。
+
+### 改了什么
+
+- `scripts/gen_figure.py`：`auto` → 总是 `full`（不再看 stage）；文件头、
+  `_degrade_to_layout` 的 docstring、`--content-ref-mode` 的 help 全部改写
+  （降级现在是 opt-in，只给扁平草图）。`--content-ref-mode layout` **开关保留**。
+- `evals/test_tools.py`：`gen_figure_content_ref_downgraded_to_layout` →
+  **`gen_figure_content_ref_sent_as_is`**（钉住新默认：render/sketch 都不落 `layout_*.png`、
+  记录 `mode=full`、送的是原草图；显式 `layout` 仍降级且必须是灰度、
+  风格参考不被降级）。
+- `SKILL.md` / `README.md` / `scripts/ref_guard.py` / `scripts/sketch_ingest.py` /
+  `scripts/check_sketch.py`：把「默认降级」的说法改成「默认原样送」。
+
+### 实测证据在哪
+
+`faraday_law/gen/v46/exp_layout_ref|exp_full_noref|exp_full_ref/`（各 2 张）、
+三档对比图 `faraday_law/gen/v46/exp_mode_A_B_C.png` 与轴区放大
+`faraday_law/gen/v46/exp_mode_axis_zoom.png`。
+
 ## v4.5 — 2026-10-06
 
 **入口固定 A 档（一句话 + 风格参考图）· 3D 感是首要判据（`scripts/gate3d_rank.py`）· 责任分界「草图管对不对、位图管全不全」· 草图档也能跑三轴闸门（`axis_gate.py --png`）**

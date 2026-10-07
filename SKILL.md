@@ -716,7 +716,7 @@ python scripts/ir_to_genbrief.py <IR> --stage render --style-mode render3d -o br
 #    ==== 构图依据（草图）已知画错的地方 —— 这一步必须改对，不许照拄 ====
 #    1. <错在哪> -> <改成什么>（一条一行，只写真画错的）
 #    2. 图上只许出现这些标签：…（一个都不许多）   <- 必须带这条
-# 2) 出图：content-ref 走 render 档默认（auto -> layout 降级：只传版式，不传草图的颜色与扁平风格）
+# 2) 出图：content-ref 原样送（auto -> full，v4.7 起不降级 —— 位图是对草图的润色）
 python scripts/gen_figure.py --brief brief_render_fix.md --stage render \
        --ref <风格书> --content-ref <选中草图> --seeds a,b,c --size W*H --outdir gen/
 # 3) 复检（缺一不可）
@@ -838,27 +838,27 @@ python3 scripts/ir_to_genbrief.py ir/xxx.ir.yaml --stage render -o brief2.md
 python3 scripts/gen_figure.py --brief brief2.md --stage render \
     --content-ref gen/sketch_s1_clean.png --ref refs/T3-33.png --seeds 21,22 --outdir gen/
 #   ★ 上一步选中的草图走 **--content-ref**（不是 --ref）：它是构图依据（已过闸口①）。
-#     ⚠️ 别把草图写进 --ref —— 降级只作用于 --content-ref，--ref 是**原样送**；
-#       彩色扁平草图会把「扁平」这个渲染风格一起带进去（同源实测：--content-ref
-#       原样送 `full` 时布局 r 0.873 但火球=纯色橙盘；--ref 连降级入口都没有）。
-#       角色写错时两个机制同时失效：草图不再降级、
+#     ⚠️ 别把草图写进 --ref —— 草图是**构图依据**，--ref 只收风格书；
+#       角色写错时两个机制同时失效：草图不再当构图依据、
 #       而 ref_leak_check 又只拿 style_refs 判「有没有抄参考图」→ 静默失败。
 #     只传风格参考图 = 让模型重新猜一遍构图，构图会被改坏
 #     （实测 2026-09-26：UPC 算例漏传草图，成品位图把核 B 画成了横扁，
 #      与 IR 的 Lorentz 收缩方向相反）。
-#   ★ 草图送进去**之前会被降级成 layout-only**（--content-ref-mode auto，v2.6.8）：
-#     构图照旧沿用草图，但草图的**颜色与扁平渲染风格**先去掉了 ——
-#     否则模型会把"扁平"当风格一起继承，把风格参考稀释掉（见「风格没学到」一节）。
-#     实测（形变核→火球，同一简报 / seed 53）：原样送 -> 布局相关 r=0.873 但火球=纯色橙盘；
-#     降级后 -> r=0.904 **且**火球=3D 辉光+亮核。降级图落 --outdir/layout_*.png，
-#     送的是哪张记在 calls.jsonl 的 content_ref_sent。要原样送：--content-ref-mode full。
+#   ★ 草图**原样送**（--content-ref-mode auto -> full，v4.7 起不再降级）：
+#     位图这一步就是对草图的润色 —— 形体 / 材质 / 光照 / 文字都该原样带进去。
+#     ★ 旧默认（v2.6.8–v4.6.3）是 render 档先降级成 layout-only（灰度模糊、只留布局）；
+#     它只为**扁平**草图标定（形变核→火球：原样送 0.873 但火球=纯色橙盘；
+#     降级后 0.904 且火球=3D 辉光+亮核）。草图自己已经 3D 时降级是纯损失 ——
+#     2026-10-07 法拉第算例实测：降级图连 3D0 都过不了，构图保真反而没变好
+#     （0.416/0.654 vs 原样 0.425/0.597），且三轴闸门 2/2 FAIL（模糊图承载不了
+#     可读的 x/y/z 标签）。所以只有**扁平**草图才显式加 --content-ref-mode layout。
 #   成品位图同样带外框 → 同样裁掉再进闸口/临摹（外框两层时加 --bg 0.975）：
 python3 scripts/trim_border.py gen/render_s22.png -o gen/render_s22_clean.png --bg 0.975
 
 # ── 6. ★ 闸口②：成品位图再过一次同一个闸口 ─────────────────
 #   ★ 加 --sketch 给出**构图依据**：闸口会量「成品位图有没有沿用草图的构图」
-#     （布局相关 r；低于 --fidelity-min 直接算硬伤）。实测：降级送草图 0.904 /
-#     原样送 0.873 / 完全不带构图参考 0.696 —— 掉到 0.696 时以前没人发现。
+#     （布局相关 r；低于 --fidelity-min 直接算硬伤）。锚点（形变核→火球）：
+#     完全不带构图参考 0.696 = 构图跑掉；带草图 0.87–0.90。
 python3 scripts/check_sketch.py gen/render_s22_clean.png --ir ir/xxx.ir.yaml \
     --sketch gen/sketch_s1_clean.png
 
@@ -1093,11 +1093,13 @@ IR 的 `style` 明写「半写实插画 / 3D 椭球 / 球面明暗 + 网格线 /
 | 不送 | 0.696 | 3D 辉光，但构图跑掉（三取向涨落画成三个球） |
 | **降级成 layout-only** | **0.904** | 3D 辉光 + 亮核 |
 
-修法：`gen_figure.py --content-ref-mode auto|layout|full`（默认 `auto`）——
-`render` 档先把构图参考降级成「灰度 + 降采样再放大 + 轻微模糊」的**只含布局**的图
-（落盘 `layout_*.png`；送的是哪张记在 `calls.jsonl` 的 `content_ref_sent`），
-只留"哪儿有什么、多大、什么位置"；`sketch` 档保持原样（草图阶段本来就该跟手绘稿走）。
-★ 这不是"拿构图换风格"：**两边同时变好**（0.873 → 0.904）。
+修法：`gen_figure.py --content-ref-mode auto|layout|full`。
+★ **v4.7 起默认 `auto` = 原样送（`full`）** —— 上表那个降级只对**扁平**草图成立，
+所以它现在是 opt-in：只有草图本身是扁平稿时才显式 `--content-ref-mode layout`
+（降级成「灰度 + 降采样再放大 + 轻微模糊」的只含布局的图，落盘 `layout_*.png`）。
+草图已经 3D 时降级是纯损失（2026-10-07 法拉第算例：降级档三轴闸门 2/2 FAIL，
+连可读的 x/y/z 标签都被磨掉）。送的是哪张记在 `calls.jsonl` 的 `content_ref_sent`。
+★ 对**扁平**草图，这不是"拿构图换风格"：**两边同时变好**（0.873 → 0.904）。
 
 排查顺序（按这个顺序，别跳）：
 1. 打开简报看**第四节（风格）+ 第五节（禁止项）**：出现「不是 3D 渲染图」
@@ -1108,9 +1110,11 @@ IR 的 `style` 明写「半写实插画 / 3D 椭球 / 球面明暗 + 网格线 /
    ```
 2. 简报第四节现在会把 IR 的 `style.palette` / `line_widths` **原样带出来**；
    要是没有，就往 IR 的 `style` 段补配色和线宽（`render3d` 档尤其需要）。
-3. **查 `calls.jsonl` 的 `content_ref_mode` / `content_ref_sent`**：如果送的是
-   **原样草图**（`full`），改 `--content-ref-mode layout` 用**同一个 seed** 再跑一遍
-   —— 这是最便宜的一刀，实测同时救回风格和构图。
+3. **查 `calls.jsonl` 的 `content_ref_mode` / `content_ref_sent`**：先量**草图自己**是
+   不是已经 3D（`scripts/gate3d_rank.py <草图>`）。草图**扁平**、而这一轮又送了
+   **原样草图**（`full`）→ 加 `--content-ref-mode layout` 用**同一个 seed** 再跑一遍 ——
+   这是最便宜的一刀，实测同时救回风格和构图。★ 草图已经 3D 时**不要**降级：
+   降级会把形体与可读的轴标签一起磨掉（2026-10-07 法拉第算例，三轴闸门 2/2 FAIL）。
 4. 到这里才对不上，才考虑换模型 / 加 seed。
 
 ### ★ 出的图「很 AI」/ 火球像颗光滑糖球（v2.6.9）

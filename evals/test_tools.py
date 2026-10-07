@@ -861,18 +861,22 @@ def test_dump_elements_table_path():
     assert not (run / "_elem_table.txt").exists(), "不许把 _elem_table.txt 写进 cwd"
 
 
-@case("gen_figure_content_ref_downgraded_to_layout",
-      "构图参考（--content-ref）默认必须**降级成 layout-only** 再送模型。"
-      "实测（2026-09-27 形变核→火球，qwen-image-3.0 / seed 53，同一简报）："
-      "原样送扁平草图 -> 与草图布局相关 r=0.873 但火球退化成纯色橙盘（模型把草图的"
-      "「扁平」渲染风格一起继承了，风格参考被稀释）；降级成 layout-only -> r=0.904 "
-      "**且**火球恢复 3D 辉光+亮核。防有人把这步「优化」掉、退回原样送。")
-def test_gen_figure_content_ref_layout_mode():
+@case("gen_figure_content_ref_sent_as_is",
+      "构图参考（--content-ref）默认必须**原样送**（v4.7 起），不许自动降级成 layout-only。"
+      "实测（2026-10-07 法拉第电磁感应，同一简报 / seed 1902+1903，只改 --content-ref-mode 与 --ref）："
+      "那张草图**本身就是 3D**（3D 分 0.0478，风格目标 T3-07 = 0.0548），降级成灰度模糊图后 "
+      "① 连 3D0 都过不了（灰度模糊图「画布里没有彩色主体」）② 构图保真没有变好"
+      "（粗结构相关 r 降级 0.416/0.654 vs 原样 0.425/0.597）③ 三轴闸门 2/2 FAIL"
+      "（实测轴名 ['x','z']、x 出现 4 次且没有 y）—— 模糊参考图承载不了可读的 x/y/z 标签。"
+      "旧默认（v2.6.8 render 档降级）只对**扁平**草图成立，那种情况现在要显式 --content-ref-mode layout。"
+      "防有人把默认又改回降级。")
+def test_gen_figure_content_ref_full_mode():
     """
     ★ 实测数字见上面 why。这个 case 用**必然失败**的 api-base 跑（只看预处理和记录，
-      不花钱、不联网）：① render 档 auto -> layout：落盘 layout_*.png、记录
-      mode=layout、送的确实是它、且它是灰度；② sketch 档 auto -> full：不降级；
-      ③ 显式 --content-ref-mode full：render 档也不降级。
+      不花钱、不联网）：① render 档 auto -> full：不落盘 layout_*.png、记录 mode=full、
+      送的就是**原草图**；② sketch 档 auto -> full：同上；
+      ③ 显式 --content-ref-mode layout：开关还在（扁平草图才用），render 档仍然降级，
+      且降级图是灰度、风格参考不被降级。
     """
     import json
     import os
@@ -910,34 +914,37 @@ def test_gen_figure_content_ref_layout_mode():
                          .strip().splitlines()[0])
         return out, rec, r.stdout
 
-    # ① render 档：auto -> layout，且真的落盘 + 记录 + 送的是它 + 是灰度
+    # ① render 档：auto -> full（v4.7 起不降级）
     out, rec, so = run("--stage", "render")
-    lay = out / ("layout_%s.png" % sketch.stem)
-    assert lay.exists(), ("render 档默认要把构图参考降级落盘成 layout_*.png，实得 %s\n%s"
-                          % (sorted(p.name for p in out.iterdir()), so[-600:]))
-    assert rec["content_ref_mode"] == "layout", rec["content_ref_mode"]
-    assert rec["content_ref_sent"][0].endswith("layout_%s.png" % sketch.stem), (
-        "记录里要写清**送模型的是布局图**，实得 %s" % rec["content_ref_sent"])
-    assert "构图参考降级" in so, "要打印出来让人知道降级发生了"
-    b = np.asarray(Image.open(str(lay)).convert("RGB")).astype(np.int16)
-    assert (b[:, :, 0] == b[:, :, 1]).all() and (b[:, :, 1] == b[:, :, 2]).all(), (
-        "布局图必须是灰度的 —— 颜色正是要被去掉的「扁平风格」信号")
-    sat0 = float((a.max(2) - a.min(2)).mean())
-    assert float((b.max(2) - b.min(2)).mean()) < sat0 / 4.0, (
-        "布局图要几乎无彩度，实得 %s vs 原图 %s" % (float((b.max(2)-b.min(2)).mean()), sat0))
-    # 风格参考不许被降级
-    assert not (out / ("layout_%s.png" % style.stem)).exists(), (
-        "--ref 风格参考是原样送的，不该被降级")
+    assert rec["content_ref_mode"] == "full", rec["content_ref_mode"]
+    assert not (out / ("layout_%s.png" % sketch.stem)).exists(), (
+        "v4.7 起 render 档默认**不许**降级 —— 不该再有 layout_*.png，实得 %s\n%s"
+        % (sorted(p.name for p in out.iterdir()), so[-600:]))
+    assert rec["content_ref_sent"][0].endswith(sketch.name), (
+        "记录里要写清**送模型的是原草图**，实得 %s" % rec["content_ref_sent"])
+    assert "构图参考降级" not in so, "默认档不该发生降级，实得：%s" % so[-400:]
 
     # ② sketch 档：auto -> full（草图阶段本来就该跟手绘稿的形体走）
     out2, rec2, _ = run("--stage", "sketch")
     assert rec2["content_ref_mode"] == "full", rec2["content_ref_mode"]
     assert not (out2 / ("layout_%s.png" % sketch.stem)).exists(), "sketch 档不该降级"
 
-    # ③ 显式 full：render 档也不降级
-    out3, rec3, _ = run("--stage", "render", "--content-ref-mode", "full")
-    assert rec3["content_ref_mode"] == "full", rec3["content_ref_mode"]
-    assert not (out3 / ("layout_%s.png" % sketch.stem)).exists(), "显式 full 不该降级"
+    # ③ 显式 layout：开关还在（只给**扁平**草图），降级必须落盘 + 是灰度 + 只作用于 content-ref
+    out3, rec3, so3 = run("--stage", "render", "--content-ref-mode", "layout")
+    lay = out3 / ("layout_%s.png" % sketch.stem)
+    assert rec3["content_ref_mode"] == "layout", rec3["content_ref_mode"]
+    assert lay.exists(), ("显式 --content-ref-mode layout 时必须落盘 layout_*.png，实得 %s"
+                          % sorted(p.name for p in out3.iterdir()))
+    assert rec3["content_ref_sent"][0].endswith("layout_%s.png" % sketch.stem), rec3["content_ref_sent"]
+    assert "构图参考降级" in so3, "要打印出来让人知道降级发生了"
+    b = np.asarray(Image.open(str(lay)).convert("RGB")).astype(np.int16)
+    assert (b[:, :, 0] == b[:, :, 1]).all() and (b[:, :, 1] == b[:, :, 2]).all(), (
+        "布局图必须是灰度的 —— 颜色正是要被去掉的「扁平风格」信号")
+    sat0 = float((a.max(2) - a.min(2)).mean())
+    assert float((b.max(2) - b.min(2)).mean()) < sat0 / 4.0, (
+        "布局图要几乎无彩度，实得 %s vs 原图 %s" % (float((b.max(2)-b.min(2)).mean()), sat0))
+    assert not (out3 / ("layout_%s.png" % style.stem)).exists(), (
+        "--ref 风格参考是原样送的，不该被降级")
 
 
 @case("genbrief_carries_element_material",

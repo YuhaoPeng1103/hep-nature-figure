@@ -24,8 +24,8 @@ ref_guard -- 出图的「参考图角色」硬闸门（作者 2026-09-29 要求�
     · skill 的 assets/demos/**（那是**成品示例图**，不是风格书）
     · 同一张图同时出现在 --ref 和 --content-ref（v3 的 bug 就是这个形状）
 
-  警告（不算硬伤，但会打印）：把作者手绘稿放进 --ref —— 规范是只放 --content-ref，
-  否则它会绕过 layout-only 降级、把平涂风格原样送进去。
+  警告（不算硬伤，但会打印）：把作者手绘稿放进 --ref —— 手绘稿是**构图依据**，
+  规范是只放 --content-ref；--ref 只收风格书。
 
 用法
 --------------------------------------------------------------------------------
@@ -149,9 +149,9 @@ def check(stage: str, style, content, ws: str | None = None, base: str | None = 
             v.append(("--ref", p, r, "★ 不许拿自家成品当风格参考（作者 2026-09-29）。"
                                      "风格参考只许取 skill 的 t3-exemplars/ 或 _T3精选/"))
         elif r == OWN_SKETCH:
-            v.append(("--ref", p, r, "★ 自家草图也不许当风格参考（会把平涂风格原样带进去）；--ref 只收风格书"))
+            v.append(("--ref", p, r, "★ 自家草图也不许当风格参考（它是构图依据，走 --content-ref）；--ref 只收风格书"))
         elif r == AUTHOR_IN:
-            w.append(("--ref", p, r, "作者手绘稿放进 --ref 会绕过 layout-only 降级；"
+            w.append(("--ref", p, r, "作者手绘稿是**构图依据**，"
                                      "规范是只放 --content-ref，--ref 只放风格书"))
         elif r not in rules["style"]:
             v.append(("--ref", p, r, "风格参考的角色不对：只许 %s" % "/".join(sorted(rules["style"]))))

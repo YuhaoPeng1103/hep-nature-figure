@@ -178,7 +178,7 @@ def main():
     print("       --content-ref %s --ref refs/<风格参考>.png --seeds 21,22 --outdir gen/"
           % dst.name)
     print()
-    print("   （--content-ref 会在送模型前自动降级成 layout-only —— 手改的草图照样降级，"
+    print("   （--content-ref 是**构图依据**，v4.7 起原样送、不再降级；"
           "别用 --ref 传它。）")
     return 0
 

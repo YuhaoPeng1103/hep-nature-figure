@@ -34,9 +34,17 @@ gen_figure —— 第 ② 步：把 IR 简报变成【草图】或【成品位�
 **要给参考图就必须用 `mm` 那条**（qwen-image 系列）。实测：`wanx2.0-t2i-turbo`
 对结构化示意图太弱（画不出顶点、箭头、e⁺e⁻），且不支持参考图。
 
-## ★ 构图参考（--content-ref）默认「降级」再送（v2.6.8）
+## ★ 构图参考（--content-ref）默认**原样送**（v4.7）
 
-`--content-ref-mode auto|layout|full`（默认 `auto`）。
+`--content-ref-mode auto|layout|full`（默认 `auto` → 总是 `full`，即不降级）。
+
+**位图这一步是对草图的润色**：草图的形体 / 材质 / 光照 / 文字都该原样带进去。
+所以默认什么都不做 —— 只有当草图是**扁平稿**时才显式 `--content-ref-mode layout`。
+
+★ 旧默认（v2.6.8–v4.6.3）是 `--stage render` 先降级成 layout-only（灰度 + 降采样再放大 +
+轻微模糊，只留「哪儿有什么 / 多大 / 什么位置」）。那条规则是为**扁平草图**标定的；
+下面这张表还在，但它现在只解释「**什么时候才该显式加 `--content-ref-mode layout`**」，
+不再是默认行为。
 
 实测（2026-09-27，形变核→火球 算例，**同一份简报**、qwen-image-3.0、seed 53）：
 
@@ -46,15 +54,31 @@ gen_figure —— 第 ② 步：把 IR 简报变成【草图】或【成品位�
 | 不送 | 0.696 | 3D 辉光，但构图跑掉（三取向涨落画成了三个球） |
 | 降级成 layout-only | **0.904** | 3D 辉光 + 亮核（构图与风格**同时**拿到） |
 
-原因：qwen-image 是**图生图**，`--content-ref` 给的草图是**扁平**的，
+原因：qwen-image 是**图生图**，那张 `--content-ref` 给的草图是**扁平**的，
 模型会把"扁平"这个**渲染风格**连同构图**一起**继承，把风格参考图稀释掉 ——
 于是"用了 diffusion model 却没用它的好处"，火球退化成纯色圆盘。
+★ 注意这个前提：**草图自己就是扁平的**。草图已经 3D 时降级是纯损失，见下。
 
-所以默认（`auto`）：`--stage render` 时把构图参考先降级成
-「灰度 + 降采样再放大 + 轻微模糊」的**只含布局**的图（落盘为 `layout_*.png`），
-只留"哪儿有什么、多大、什么位置"，去掉颜色与扁平渲染风格；
-`--stage sketch` 保持原样（草图阶段本来就该跟手绘稿的形体走）。
-想让模型连草图的风格一起继承，显式 `--content-ref-mode full`。
+★ v4.7 把「降级」从默认降为 opt-in（2026-10-07，法拉第电磁感应 算例，
+同一份简报 / seed 1902+1903，只改 `--content-ref-mode` 与 `--ref`）：
+那张草图**本身就是 3D 的**（过 3D 闸门，3D 分 0.0478，风格目标 T3-07 是 0.0548），
+于是降级成了纯损失 ——
+
+- **降级图连 `3D0` 都过不了**（灰度模糊图：「画布里没有彩色主体」）——
+  等于先把自己要的东西删掉，再让模型去猜；
+- **构图并没有更好**：与草图的粗结构相关 r = 降级 0.416 / 0.654、
+  原样送 0.425 / 0.597、原样送 + 风格图 0.433 / 0.545 —— 全在噪声里；
+- **反而画错物理**：三轴闸门 **降级档 2/2 seed FAIL**（轴名实测 `['x','z']`
+  且 `x` 出现 4 次、没有 `y`；另一 seed 只剩 `['z']`）—— 模糊参考图**承载不了
+  可读的 x/y/z 标签**，模型只能自己编轴；原样送（不给 `--ref`）2/2 PASS，
+  原样送 + 风格图 1/2 PASS（另一 seed 是斜体字形没被字形识别读出来，不是物理错）。
+
+判据因此是「**草图自己是不是已经 3D**」（跑 `scripts/gate3d_rank.py` 量）：
+
+- 草图过 3D 闸门 → 原样送（**默认**，什么都不用加）；
+- 草图是扁平稿 → 显式 `--content-ref-mode layout`（就是上表那个算例）。
+
+`--stage sketch` 一向不降级。降级只作用于 `--content-ref`，`--ref` 风格参考永远原样送。
 
 ## ★ v2.8：三个新开关（都为了「少花钱、少猜」）
 
@@ -182,10 +206,15 @@ def _degrade_to_layout(src, dst, width=160):
     只留形体（哪儿有什么 / 多大 / 什么位置），丢掉颜色和**扁平的渲染风格** ——
     这样模型就不会把草图的"扁平"当成要继承的风格。
 
-    ★ 实测（2026-09-27，形变核→火球 算例，同一份简报 / 同一 seed 53，qwen-image-3.0）：
+    ★ v4.7 起这是 **opt-in**（`--content-ref-mode layout`），不再是默认：
+      它只对**扁平草图**成立。草图自己已经 3D 时，降级会把形体、
+      材质与**可读的 x/y/z 标签**一起磨掉
+      （2026-10-07 法拉第算例：降级档三轴闸门 2/2 FAIL）。
+
+    ★ 原始实测（2026-09-27，形变核→火球 算例，同一份简报 / 同一 seed 53，qwen-image-3.0）：
       原样送扁平草图 -> 与草图布局的列剖面相关 r=0.873，但火球被压成纯色橙盘；
       降级成 layout-only -> r=0.904 **且**火球是 3D 辉光 + 亮核。
-      即降级不是"拿构图换风格"，是两边**都**变好。
+      即对**扁平**草图，降级不是"拿构图换风格"，是两边**都**变好。
     """
     from PIL import Image, ImageFilter
     im = Image.open(str(src)).convert("RGB")
@@ -372,10 +401,10 @@ def main():
                          "所以不参与「照抄」判定，并会排在风格参考前面送给模型")
     ap.add_argument("--content-ref-mode", choices=("auto", "full", "layout"),
                     default="auto",
-                    help="构图参考的预处理：auto=render 档降级成 layout-only、"
-                         "sketch 档原样（默认）；layout=总是降级；full=总是原样。"
-                         "★ 实测：原样送扁平草图会把'扁平'渲染风格一起带进去，"
-                         "风格参考被稀释（详见文件头部说明）")
+                    help="构图参考的预处理：auto=总是原样送（默认，v4.7 起——"
+                         "位图是对草图的润色，不降级）；layout=降级成灰度 layout-only"
+                         "（只给**扁平**草图用，见文件头部）；full=总是原样送。"
+                         "★ 实测：降级会磨掉可读的 x/y/z 标签，让位图自己编轴")
     ap.add_argument("--no-ref-check", action="store_true",
                     help="出图后不做「参考图照抄」自检（默认做）")
     ap.add_argument("--allow-no-ref", action="store_true",
@@ -444,13 +473,13 @@ def main():
                           "API 却按 %s 出 —— IR 的归一化坐标会失效。"
                           % (sw, sh, a.size))
     all_ref = list(a.content_ref) + list(a.ref)
-    # ★ 构图参考降级（v2.6.8）：扁平草图会把"扁平"渲染风格一起带进去，
-    #   把风格参考稀释掉。render 档默认先降级成 layout-only（理由见文件头部）。
+    # ★ 构图参考不再默认降级（v4.7）：位图是对草图的润色，草图自己已经 3D 时
+    #   降级是纯损失（连可读的 x/y/z 标签都会磨掉）。要降级请显式 --content-ref-mode layout。
     cr_mode = a.content_ref_mode
     if cr_mode == "auto":
-        cr_mode = "full" if a.stage == "sketch" else "layout"
+        cr_mode = "full"
     print("构图参考    : %s" % (", ".join(a.content_ref) if a.content_ref else "（无）"))
-    print("构图参考模式: %s%s" % (cr_mode, "（auto -> 按 stage 定）" if a.content_ref_mode == "auto" else ""))
+    print("构图参考模式: %s%s" % (cr_mode, "（auto -> 原样送）" if a.content_ref_mode == "auto" else ""))
     print("风格参考    : %s" % (", ".join(a.ref) if a.ref
           else "（无 —— 已用 --allow-no-ref 放行，出来会偏通用）"))
     print("提示词      : 已写出 %s（%d 字符，sha1 %s）"
@@ -475,7 +504,8 @@ def main():
     print("提示词扩展  : %s%s" % (pe_eff,
           "（接口默认）" if a.prompt_extend is None else "（命令行指定）"))
 
-    # ★ 构图参考降级（v2.6.8）：只把 --content-ref 降级；--ref 风格参考原样送
+    # ★ 构图参考降级（v2.6.8；v4.7 起只在显式 --content-ref-mode layout 时发生）：
+    #   只把 --content-ref 降级；--ref 风格参考原样送
     sent = {}
     for r in a.content_ref:
         src = pathlib.Path(r)

@@ -625,7 +625,7 @@ def check_one(img_path, a, ir):
                 ok_fid = fid_r >= a.fidelity_min
                 print("  %s 构图保真：与草图 %s 的布局相关 r=%.3f（下限 %.2f）"
                       % ("✅" if ok_fid else "❌", sp.name, fid_r, a.fidelity_min))
-                print("     （锚点：降级送草图 0.904 / 原样送 0.873 / 完全不带 0.696）")
+                print("     （锚点（形变核→火球）：完全不带构图参考 0.696 = 构图跑掉；带草图 0.87–0.90）")
                 if not ok_fid:
                     print("     → 构图跑掉了：成品位图没沿用草图的布局。先查 gen_figure "
                           "是不是漏了 `--content-ref <草图>`。")
