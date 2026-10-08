@@ -399,7 +399,9 @@ python3 scripts/ir_brief_audit.py --verbose  # 每行都打理由
 **不靠读代码猜**。字段分四类：
 
 - `carry` —— 两档都必须到。
-- `carry-render` —— 只要求 render 档（sketch 刻意不带：那一步要扁平，带 3D 风格定位会打架）。
+- `carry-render` —— 只要求 render 档（sketch 刻意不带 `style.mode` 那一行：这一档
+  只管构图，渲染风格由**参考图 + `style.conventions`** 带过去；2026-10-08 起
+  sketch 档本身不再禁止 3D，见风格一节）。
 - `context` —— 到了，但简报里明说「仅供理解，不要画进图」。
 - `skip` —— 刻意不带：`figure.title` / `execution.*` / `assertions.*` 这类给工具和人用的，
   画上去就是错。
@@ -1054,8 +1056,12 @@ python3 scripts/ref_leak_check.py gen/render_s22.png \
 
 `auto` 的判据 = IR 的 `style` 段（`classification` / `evidence` / `conventions`）
 关键词：含 `3D` / 体积 / 网格线 / 半写实 → `render3d`；含 扁平 / 平涂 → `flat`；
-都没有 → `ref`。**只有 `sketch` 档永远保持扁平**（那是为了能自动切矢量图层，
-**不是最终风格**）；成品位图档按上表走。
+都没有 → `ref`。（`sketch` 档的扁平问题见下面 ★）
+★ **2026-10-08 起 `sketch` 档不再强制扁平**（作者原话：「不要有限制观感的东西」，
+选 A 档）：草图只管**构图**，允许体积与明暗、允许渐变色阶；只要求**不堆噪点 /
+材质纹理** —— 因为下一步要自动切矢量图层。实测 `--q 16` 量化后，带明暗的草图切出
+5.3k–6.3k 条路径，与原来扁平稿的 5.4k–5.7k 同量级，**没有变碎**。
+（旧说法「sketch 档永远保持扁平，那不是最终风格」已作废。）成品位图档按上表走。
 
 > ★ **默认档 = `render3d`（作者 2026-09-28 定）**：所有配图**一律** 3D 明暗风，
 > IR 的 `style.mode` 一律写 `render3d`；扁平（`flat`）**只允许**出现在
