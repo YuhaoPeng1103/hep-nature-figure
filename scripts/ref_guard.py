@@ -318,6 +318,41 @@ def ir_contract(ir_path):
         v.append(("--ir", ir_path, "NO_CONVENTION",
                   "IR 没声明坐标约定（%s）—— 加 composition.坐标约定：{面内:[?,?], 法线:?}；"
                   "交付说明必须照抄这一行" % src))
+    # ── 否决权分层（作者 2026-10-11）：IR 必须把「硬物理」与「画法偏好」分开 ──
+    #   以前 physics_role / style.conventions 把两者混在一句里，写 IR 的人可以把自己的
+    #   口味升级成"物理要求"，于是"单幅不要插图框""火球必须是光滑杏仁"这类画法被当成
+    #   物理，把作者参考图里有用的元素删掉了（A->C 丢 −b/2/b/2 插图那次，见
+    #   references/physics-vs-style.md）。硬层 = 能在图上量出来 / 证伪的关系，每条必须
+    #   给出 measure（怎么量）—— 给不出 measure 的说明它是画法，该降到 style_preferences。
+    hp = doc.get("hard_physics")
+    if not isinstance(hp, list) or not hp:
+        v.append(("--ir", ir_path, "NO_HARD_PHYSICS",
+                  "IR 没写 hard_physics（唯一的否决层）—— 加 hard_physics: "
+                  "[{id: HP1, claim: 什么关系, measure: 怎么在图上量}]，只写能「量出来」的关系"))
+    else:
+        _ids = []
+        for _k, _it in enumerate(hp, 1):
+            if not isinstance(_it, dict):
+                v.append(("--ir", ir_path, "HP_BAD_ENTRY", "hard_physics[%d] 不是 mapping" % _k))
+                continue
+            _hid = str(_it.get("id") or ("HP%d" % _k))
+            _ids.append(_hid)
+            if not str(_it.get("claim") or "").strip():
+                v.append(("--ir", ir_path, "HP_NO_CLAIM", "%s 没写 claim" % _hid))
+            if len(str(_it.get("measure") or "").strip()) < 8:
+                v.append(("--ir", ir_path, "HP_NO_MEASURE",
+                          "%s 没写 measure（怎么在图上量出来）—— 量不出来的就不是物理，"
+                          "请降级到 style_preferences" % _hid))
+        if _ids:
+            w.append(("--ir", ir_path, "OK",
+                      "hard_physics %d 条：%s" % (len(_ids), ",".join(_ids))))
+    sp = doc.get("style_preferences")
+    if not isinstance(sp, list) or not sp:
+        w.append(("--ir", ir_path, "NO_STYLE_PREFS",
+                  "IR 没写 style_preferences（第 2 层：外观建议，可被更美观的画法替换）"))
+    else:
+        w.append(("--ir", ir_path, "OK",
+                  "style_preferences %d 条（第 2 层，可被更美观的画法替换）" % len(sp)))
     return v, w
 
 

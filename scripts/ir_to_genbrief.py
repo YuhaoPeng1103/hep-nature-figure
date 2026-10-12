@@ -317,6 +317,28 @@ def build(ir: dict, style: dict | None, stage: str = "sketch",
         L.append("（本图定位：" + "；".join(_meta) + " —— **仅供理解，不要画进图里**）")
     L.append("")
 
+    # ── 〇、硬物理（第 1 层：唯一的否决层，作者 2026-10-11）──
+    #   为什么单列在最前：IR 的 physics_role / style.conventions 把"物理"和"画法"
+    #   混在一句话里，于是写 IR 的人可以把自己的口味升级成"物理要求"。实测代价：
+    #   集体流那张为了满足 style 里的"单幅、不要插图框"，把作者参考图里 −b/2 / b/2
+    #   的碰撞几何插图整块删了。这里把硬层顶到最前并给编号，让"改动"必须能追溯到
+    #   某一条 [HPn] —— 追溯不到的就是第 2 层外观，见「三·补」。
+    hp = ir.get("hard_physics") or []
+    if hp:
+        L.append("═══ 〇、★ 硬物理（唯一有否决权的一层：错了这张图就是废图）═══")
+        L.append("★ 本图的**改动只有一条出路**：逐条对着下面 [HPn] 的判据改。")
+        L.append("★ **任何修改都必须能追溯到下面某一条 [HPn]**；追溯不到的改动一律不许做 ——")
+        L.append("  那属于第 2 层（外观，见「三·补」）：可以更漂亮，但不是物理要求。")
+        L.append("")
+        for _k, _it in enumerate(hp, 1):
+            if not isinstance(_it, dict):
+                continue
+            _hid = str(_it.get("id") or ("HP%d" % _k))
+            L.append("  · [%s] %s" % (_hid, " ".join(str(_it.get("claim") or "").split())))
+            if _it.get("measure"):
+                L.append("        怎么量：%s" % " ".join(str(_it["measure"]).split()))
+        L.append("")
+
     # ── 物理内容（不许改）──
     L.append("═══ 一、物理内容（这是图要表达的东西，不许改）═══")
     claim = (fig.get("physics_claim") or "").strip()
@@ -543,10 +565,23 @@ def build(ir: dict, style: dict | None, stage: str = "sketch",
     #   光子线在两核之间 / 末态背对背」四条，没有一条管形状朝向）。
     #   约定只写在 IR 里 = 没人执行。必须显式落到简报上。
     conv = (ir.get("style") or {}).get("conventions") or []
-    if conv:
-        L.append("═══ 三·补、★ 形态约定（照画，不许自己发挥）═══")
+    spref = ir.get("style_preferences") or []   # ★ 第 2 层（2026-10-11）：以前只进闸门、进不了简报
+    if conv or spref:
+        L.append("═══ 三·补、外观建议（第 2 层：可以改得更漂亮，只要不违反上面的 [HPn]）═══")
+        L.append("**这一节说的是「怎么画好看」，不是物理。**")
+        L.append("★ 参考图 / 你自己的画法如果在这些约定之外更漂亮，**就照更漂亮的画** ——")
+        L.append("  只要没有违反 [HPn]，就不算错；也可以在这一节之外**增加**视觉元素。")
+        L.append("★ 唯一不许的：为了满足这一节，去删掉 / 改坏 [HPn] 要求的骨架。")
+        L.append("")
         for c in conv:
             L.append(f"  · {c}")
+        if spref:
+            L.append("")
+            L.append("  【本图 IR 特别声明的第 2 层默认】默认就是「保持不变」——")
+            L.append("   里面带「默认保留 / 默认沿用」字样的元素（如参考图里的插图、核子配色），")
+            L.append("   不许顺手删；要替换，必须第 1 层不更差、观感更好，并在交付说明里写明理由。")
+            for c in spref:
+                L.append(f"  · {c}")
         L.append("")
 
     # ── 风格 ──

@@ -18,6 +18,12 @@ pymupdf>=1.24          # PDF 几何审计、拼版、从论文切图
 cairocffi>=1.6         # labels.py 栅格化文字做逐词对齐（★必须与成品同渲染器）
 fonttools>=4.40        # labels.py 读字体度量表 —— 量字宽的字体必须与 SVG 写的族名一致
 
+# ── 位图 → 矢量 四档（v4.10）──
+#   pick_layer.py     零依赖（纯字符串拼接）
+#   pick_verify.py    numpy + Pillow + cairosvg + scipy + opencv-python
+#   smooth_metric.py  numpy + Pillow + scipy
+#   ★ 渲染带 <mask> 的成品（光滑档）用 Edge / Chrome，不要用 cairosvg（它不画 mask）
+
 # ── 按用途选装 ──
 matplotlib>=3.7        # 定量图（T1/T2）
 scipy>=1.10            # 统计、插值；raster_vector 的连通域/元素切分也用它

@@ -1,5 +1,130 @@
 # 变更记录
 
+## v4.10 — 2026-10-12
+
+**「位图 → 矢量」定成固定四档 + 一批可复用脚本（作者定：以后都这样）**
+
+作者原话：「那你把现在的从位图到矢量图的方法放入 skill，以后都这样吧，在 V4.9 的基础上修改」。
+
+背景：2026-10-11 ~ 10-12「喷注淬火 JET-QUENCH-3D」第 7 ~ 12 轮，把最后一步（位图 → 矢量）从
+「三种实现挑一个」收敛成**一条带判据的流水线**，并且发现旧写法有两个真错：
+**几何不该重新抠**、**"点一下"要选中整个物体而不是可见的那一块**。这一版把它固化下来。
+
+### 四档（`references/bitmap-to-vector.md` 是全文）
+
+| 档 | 做什么 | 产物 | 什么时候用 |
+|---|---|---|---|
+| ① 位图 | 生图模型出图、客户选定 | `gen/chosen.png` | 总是 |
+| ② 临摹 | 逐像素 + 语义分层 | `<stem>_trace.svg` | **总是**（③ 的几何只能从这里来） |
+| ③-A 对象档 | 可改形状 / 改色 | `<stem>_obj.svg` | 客户要改几何 / 配色 |
+| ③-B **光滑档** | 逐行自适应渐变网格 | `<stem>_mesh.svg` | **默认交付**（放大不糊） |
+| ④ 拾取层 | 每结构一条不可见闭合路径 | `<stem>_mesh_pick.svg` | 要「点一下 = 一个物理结构」 |
+
+### 新增脚本
+
+| 脚本 | 作用 |
+|---|---|
+| `scripts/pick_layer.py` | 第 ④ 档：叠一层 `fill-opacity="0" pointer-events="all"` 的「每结构一条闭合路径」；`--sub` 支持子物体（核里逐核子），子画在父之后 |
+| `scripts/pick_verify.py` | ④ 的验收：覆盖表 / 探针表 / 子物体表（每条路径单独栅格化），`不符 = 0` 才过 |
+| `scripts/smooth_metric.py` | 光滑判据：只在**位图本身就平滑**的像素上量成品的相邻通道跳变（mean / p99 / >8 占比 / max） |
+
+### 新增文档
+
+- `references/bitmap-to-vector.md` —— 四档全流程 + amodal 补全的七种声明式策略 + **一批被废弃的错方法**（凸包用于球堆 /
+  21 px sd 找球簇 / 椭圆目测 / `hull(layer)` 火球 / 火球不做 `close` / 整幅 MAE 当选型判据 / 颜色阈值 ∩ 包围盒）。
+
+### 固化下来的三条实测结论（以前只写在文档里，现在有脚本）
+
+1. **「整幅 MAE 更低」不等于更好**：把梯度预算调大，整幅 MAE 6.418 → **5.984**，代价是**把三轴吃成了渐变**
+   （z 轴没箭头、x 轴只剩短桩）。必须逐元素看。
+2. **cairosvg 不画 `<mask>`**：带 `mask` 的光滑档用 cairosvg 渲染会**整块丢掉旁衬层**，
+   「成品 vs 位图」的 MAE 全错。渲染 / 验 MAE **必须用 Edge 或 Chrome**。
+3. **`unc smooth|text` 这一列才是判"该不该再补"的依据**：`nucleus-A` 的可见像素覆盖率只有 **0.608**，
+   但未被覆盖的那 39% 里 **82% 是纹理**（核投在板上的影子 + 板暗边带被临摹层算进了核），**不是漏球** ——
+   只看 `covered` 会做出完全相反的判断。
+
+### 改了什么
+
+- `SKILL.md`：第 7 步（位图 → 矢量）新增「★★ 第 7 步的固定四档（v4.10）」小节；「按需参考」加 `bitmap-to-vector.md`；
+  脚本表加 `pick_layer.py` / `pick_verify.py` / `smooth_metric.py`。
+- 新增 `references/bitmap-to-vector.md`、`scripts/pick_layer.py`、`scripts/pick_verify.py`、`scripts/smooth_metric.py`。
+
+### 验收（本版脚本在喷注淬火图上重跑）
+
+- `pick_layer.py` 产物渲染 MD5 = `b8a9f821a28584e919991858e69c4eb5`，与**不含拾取层的成品逐字节相同**
+  （+10 条整对象路径，+37 条子物体路径；Edge 1664×909）。
+- `pick_verify.py` 覆盖表逐行复现交付读数（plate 2160131 / nucleus-A 138243 / fireball 659903 …）；
+  `probes that do NOT do what is claimed = 0`。
+- `smooth_metric.py`：光滑档 **1.19 / p99 3 / >8 0.000**，位图自己 1.21 / 3 / 0.000，VTracer 默认参数 43.67 / 84 / 0.990。
+
+## v4.9 — 2026-10-11
+
+**否决权分层：IR 必须把「硬物理」和「画法」分开（作者定）**
+
+作者原话：「就按这么来修改skill就行」（三层 + 三条操作规则）。
+
+### 背景（实测翻车，不是假设）
+
+collective_flow 第 68 版：A 档（55 字简报 + T3-30 当 --ref，作者认可）→ C 档，为了满足
+IR style.conventions 里那句「全图唯一一个三维场景、没有插图框、没有分割线」，
+把作者参考图里 −b/2 / /2 的碰撞几何插图**整块删掉**，还把 红(质子)/灰(中子) 的核子配色
+改成纯灰。**那不是模型画错，是 IR 越权** —— IR 把「口味」写成了「物理」，而旧闸门
+（ir_contract 只查 style.mode / 3D 材质语言 / 坐标约定；ir_layout_guard 只查版式写死）
+一条也拦不住。
+
+### 三层（写进 IR）
+
+| 层 | 字段 | 判据 | 权限 |
+|---|---|---|---|
+| 1 硬物理 | hard_physics:（每条带 measure）| 能不能在图上量出来 / 证伪 | **唯一可否决** |
+| 2 画法偏好 | style_preferences: | 不涉及可量化的关系 | 建议，可被更美观的画法替换 |
+| 3 美观 / 质感 | （不写 IR）| —— | 交给生图模型 |
+
+### 三条操作规则
+
+1. 「以生图模型的图为准」有前提：只在它不违反第 1 层时成立（模型在"关系"上常打架 ——
+   同一个 x 标到两根杆上、 不落在核芯上、面内箭头比面外短）。
+2. 「能更美观就增加」有边界：只加第 2 层视觉元素，**不许顺手删骨架**。
+3. 默认"不变"，改动要举证（第 1 层不更差 + 观感更好）。
+
+### 改了什么
+
+- 新增 
+eferences/physics-vs-style.md（规则全文 + IR 例子 + 闸门表）。
+- 
+eferences/ir-spec.md：六层结构图加 hard_physics / style_preferences；完整格式块加两段示例；新增「否决权分层」章节。
+- SKILL.md：新增「否决权分层」章节。
+- scripts/ir_to_genbrief.py：简报**开头**加 ═══ 〇、★ 硬物理 块（[HPn] 编号顶到最前，
+  并写明「任何改动都必须能追溯到某条 [HPn]」）；═══ 三·补 由「形态约定（照画，不许自己发挥）」
+  改成「外观建议（第 2 层：可以改得更漂亮）」。
+- scripts/ref_guard.py + 工作区 	ools/ref_guard.py：ir_contract() 新增校验 ——
+  缺 hard_physics = 硬伤 NO_HARD_PHYSICS；某条没写 measure = 硬伤 HP_NO_MEASURE；
+  缺 style_preferences = 软警。	ools/ref_guard.py 另把 --ir 透传给 
+ender_brief_gate.py。
+- 工作区 	ools/render_brief_gate.py：新增 --ir；**R7**（hard_physics 存在时，位图简报
+  「必须改对」每条必须带 [HPn] 出处，追溯不到 = 硬伤）/ **R8**（不许引用 IR 里没有的 id）。
+
+### 标定（回归，2026-10-11）
+
+| 用例 | 期望 | 实测 |
+|---|---|---|
+| 
+ef_guard.py --ir <IR 完整> | PASS | **PASS**（hard_physics 8 条 + style_preferences 6 条）|
+| 去掉 hard_physics | FAIL | **FAIL**（NO_HARD_PHYSICS）|
+| 某条 HP 的 measure 留空 | FAIL | **FAIL**（HP_NO_MEASURE）|
+| 
+ender_brief_gate.py 的「改对」条不带 [HPn] | FAIL | **FAIL**（R7）|
+| 「改对」条引用 [HP9]（IR 里没有）| FAIL | **FAIL**（R8）|
+| ir_to_genbrief.py 编译出的简报 | 含「○、硬物理」+「三·补、外观建议」| **含** |
+| xis_gate.py / gate3d_rank.py | 不受影响 | **不受影响**（仍 PASS）|
+
+### 配套（工作区，非技能仓库）
+
+- AGENTS.md 新增 **§0.7 硬规则：IR 必须把「硬物理」与「画法」分开**（含机械执行命令）。
+- collective_flow/ir/collective_flow_v62_1p.ir.yaml 已按新格式改造：hard_physics HP1–HP8 +
+  style_preferences 6 条；并把「不要插图框」改成 **默认保留** 参考图里的 −b/2 / /2 插图
+  （作者 2026-10-11 规则 3：默认不变）。
+
 ## v4.8 — 2026-10-08
 
 **`sketch` 档不再强制扁平；删掉限制观感/限制物体的措辞（作者选 A 档）**
