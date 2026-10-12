@@ -1,6 +1,7 @@
 # 位图 → 矢量：四档固定流程、判据、被废弃的方法（v4.10）
 
 > **配套脚本**：`scripts/raster_to_vector_semantic.py`（② 临摹）· `scripts/trace_rebuild.py`（③-A 对象档）
+> · `scripts/shade_smooth.py`（③-B 光滑档装配器）
 > · `scripts/pick_layer.py`（④ 拾取层）· `scripts/pick_verify.py`（④ 验收）· `scripts/smooth_metric.py`（光滑判据）
 > **配套文档**：`references/trace-rebuild.md`（v4.0 的三步原文）· `references/svg-cookbook.md`（矢量怎么画）
 > · `references/3d-checklist.md`（3D 怎么立起来）· `references/gotchas.md`
@@ -32,7 +33,7 @@
 | **① 位图** | 生图模型出图、客户选定 | `gen/chosen.png` | 总是 | 闸口②（物理对） |
 | **② 临摹** | 逐像素 + 语义分层 | `<stem>_trace.svg` | **总是**（③ 的几何只能从这里来） | 回渲染 MAE |
 | **③-A 对象档** | 把每个元素重做成「可改形状/改色」 | `<stem>_obj.svg`（几百条 path） | 客户要改几何 / 配色时 | **逐元素**看，不看整幅 MAE |
-| **③-B 光滑档** | 逐行自适应渐变网格 | `<stem>_mesh.svg`（几万条 path） | **默认交付**：放大不糊 | `smooth_metric.py` |
+| **③-B 光滑档** | 逐行自适应渐变网格（`shade_smooth.py`） | `<stem>_mesh.svg`（几万条 path） | **默认交付**：放大不糊 | `smooth_metric.py` |
 | **④ 拾取层** | 每结构一条不可见闭合路径 | `<stem>_mesh_pick.svg` | 要「点一下 = 一个物理结构」 | `pick_verify.py` |
 
 > ★ **③-A 与 ③-B 是两个档，不是同一个文件**：`_mesh.svg` 保真 + 光滑但难改形状；
@@ -91,7 +92,7 @@
 
 ---
 
-## 4. ③-B 光滑档（默认交付）：逐行自适应渐变网格
+## 4. ③-B 光滑档（默认交付）：逐行自适应渐变网格（`scripts/shade_smooth.py`）
 
 - 每个元素一条 `clipPath`（几何仍来自 ②）；
 - 网格 = 每 `BAND` 像素一条 `linearGradient`（`NSTOP` 个 stop）+ 纵向 `mask`；
@@ -239,8 +240,10 @@ python scripts/raster_to_vector_semantic.py fig_jet_3d/gen/chosen_x2.png \
 python build/objfit3.py --klayers 12 --nstops 16 \
        --sil build/mesh/_sil.json --out out/jet_q_obj.svg
 
-# ③-B 光滑档（默认交付；渲染必须用 Edge，不要用 cairosvg）
-#     见工作区 build/mesh2svg.py + meshfit.py 的装配说明
+# ③-B 光滑档（默认交付）—— 逐行渐变网格 + 纵向 mask，一条命令（几何仍只从临摹层来）
+python scripts/shade_smooth.py --src gen/chosen_x2.png \
+       --trace <第②步的临摹.svg> --stem jet_q --outdir out --size 3328x1818
+#     回渲染用 Edge / Chrome（带 <mask>，cairosvg 会丢旁衬层）；判据见 smooth_metric.py
 
 # ④ 拾取层 + 验收
 python scripts/pick_layer.py out/jet_q_mesh.svg \

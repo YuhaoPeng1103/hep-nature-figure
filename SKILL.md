@@ -1212,7 +1212,7 @@ material: >
 > 而 **ChatGPT 沙箱里两者都没有** —— 那条环境只能走重画。
 
 
-### ★★ 第 7 步的固定四档（v4.10，作者定：以后都这样）
+### ★★ 第 7 步的固定四档（v4.11，作者定：以后都这样）
 
 **几何只来自第 ② 步的临摹层。** ③ 只做三件事：按元素**拟合**、按声明**补全**、把线稿**贴回**；
 ④ 再叠一层不可见的「每个物理结构一条闭合路径」，让**点一下 = 一个物理结构**。
@@ -1221,10 +1221,11 @@ material: >
 |---|---|---|---|
 | ② 临摹 | 逐像素 + 语义图层 | `<stem>_trace.svg` | **总是**（③ 的几何只能从这里来） |
 | ③-A 对象档 | 可改形状 / 改色 | `<stem>_obj.svg` | 客户要改几何 / 配色 |
-| ③-B **光滑档** | 逐行自适应渐变网格 | `<stem>_mesh.svg` | **默认交付**（放大不糊） |
+| ③-B **光滑档** | 逐行自适应渐变网格（`shade_smooth.py`） | `<stem>_mesh.svg` | **默认交付**（放大不糊） |
 | ④ 拾取层 | 每结构一条 `fill-opacity="0" pointer-events="all"` 路径 | `<stem>_mesh_pick.svg` | 要「点一下 = 一个物理结构」 |
 
-配套脚本：`pick_layer.py`（④）· `pick_verify.py`（④ 验收：覆盖表 / 探针表 / 子物体表）·
+配套脚本：`shade_smooth.py`（③-B 装配器：位图 + 临摹 → 光滑档 SVG）·
+`pick_layer.py`（④）· `pick_verify.py`（④ 验收：覆盖表 / 探针表 / 子物体表）·
 `smooth_metric.py`（「放大会不会看出台阶」的可测判据）。
 **完整方法、全部实测读数、以及一批被废弃的错方法 → `references/bitmap-to-vector.md`（必读）。**
 
@@ -1467,6 +1468,7 @@ python3 scripts/auto_converge.py --ref 参考图.png \
 | `choice_gate.py` | **★★ 客户拍板闸门（v3.1）**：没有客户回执 `handoff/choice.json` 就**不许出成品位图**；`--by` 只认 `client/customer/author/user/客户/作者/用户/甲方`，写 `agent`/`auto`/`codex` 一律判失败（客户明确说"你定"才用 `manual`）。`ref_guard.py --run --stage render` 会自动带上它 |
 | `make_picker.py` | **★★ 客户选择入口（v3.1）**：handoff 候选 → `pick.html`（客户双击、点一张、底栏给选择码）+ `pick_sheet.png`（贴聊天窗口的总览图）。每张配 `notes.json` 的一句话说明与闸口①读数，有硬伤的卡片点不动 |
 | `trace_rebuild.py` | **★★ 矢量成品三步的第三步（v4.0）**：从**临摹层**（`<g data-element=...>` 的掩膜）重建体积元素 —— 每个体积重做成 `clipPath`（精确可见轮廓）+ **真渐变网格**（每 BAND 一条 `linearGradient`）+ **线稿逐像素保留**。几何一律从掩膜取，**不重新走颜色阈值**。回归基线：v38 输入 MAE **1.946**、三体积像素数逐一对上 |
+| `shade_smooth.py` | **★★ 位图→矢量 第 ③-B 档装配器（v4.11）**：`--src 位图 --trace 临摹.svg` → **光滑档 SVG**。几何只有临摹层一个来源（每个 `<g data-element>` 单独栅格化成掩膜，按文档顺序 back→front 叠成分区）；每个元素 = `clipPath`（Chaikin 轮廓）+ **逐行自适应 `linearGradient`**（颜色简化到最少 stop）+ 纵向 `<mask>` 插值；网格解释不了的线稿走**残差层**（`|src-base|>thr` 的细网格，按距离场羽化）。`background` 元素吞掉画布的白色空白，所以元素不会糊出边界。回归基线：喷注淬火图上火球 ROI `smooth_metric` **mean 1.16 / >8 0.000**（= 交付件读数；位图自己 1.19） |
 | `pick_layer.py` | **★★ 位图→矢量 第 ④ 档（v4.10）**：在成品上叠一层**不可见**的「每个物理结构一条闭合路径」（`fill-opacity="0" pointer-events="all"`）⇒ **点一下 = 一个物理结构**。顺序必须 = 图里的真实遮挡（back→front），因为**一次点击由最后画的那条路径决定**。`--sub` 支持**子物体**（如核里逐核子一条），子画在父之后 ⇒ 点球选球、点没被切开的区域选核 |
 | `pick_verify.py` | **★★ 拾取层验收（v4.10）**：把拾取层每条路径**单独栅格化**，出三张表 —— 覆盖表（`covered` / `extra` / `empty` / **`unc smooth|text`**）、探针表（位图上是甚么 vs 点一下选中甚么，`不符 = 0` 才算过）、子物体表（面积 / 合并块 / 编号地图）。★ 它把 `cli >> json` 也存下来，可直接进交付说明 |
 | `smooth_metric.py` | **★ 光滑判据（v4.10）**：只在**位图本身就是平滑**的像素上（相邻步长 ≤3、行列双向都满足，再内缩 7 px）量成品与位图的相邻像素最大通道差 —— mean / p99 / **>8 占比** / max。实测光滑档 1.19（位图自己 1.21，不可区分）vs VTracer 43.67。★ MAE 会把一条硬边摊薄，这条不会 |

@@ -1,5 +1,54 @@
 # 变更记录
 
+## v4.11 — 2026-10-12
+
+**③-B 光滑档的装配器进 skill：`scripts/shade_smooth.py`（位图 + 临摹 → 光滑档 SVG）**
+
+作者原话：「需要」（问「要不要把 `mesh2svg.py` / `meshfit.py` 也泛化后搬进 skill」）。
+
+v4.10 把「位图 → 矢量」定成固定四档、并给了 ②③-A④ 的脚本，但 **③-B 光滑档当时只在
+`references/bitmap-to-vector.md` §9 里指到工作区代码**（`fig_jet_3d/build/mesh2svg.py` + `meshfit.py`）
+—— 换成新图就断了。v4.11 把那条链**整个泛化成一个自足脚本**，输入只剩两样：
+位图 + 第 ② 步的临摹 SVG。
+
+**它把工作区四个脚本合成一个**（`trace_masks.py` 的掩膜 + `_meshvis.py` 的分区 +
+`meshfit.py` 的拟合 + `mesh2svg.py` 的装配）：
+
+| 工作区原脚本 | v4.11 里成了什么 |
+|---|---|
+| `trace_masks.py` | 每个 `<g data-element>` 单独栅格化成掩膜（own region） |
+| `_meshvis.py` | 按文档顺序 back→front 叠成分区；`background` 元素吞掉画布空白 |
+| `meshfit.py` | 每个连通域一个自适应格距的格点阵列（`component_lattice` / `predict_span`） |
+| `mesh2svg.py` | 逐行 `linearGradient` + 纵向 `<mask>` 插值 + 残差线稿层 + 真 `<text>` |
+
+**两个 v4.10 里没有、这轮才发现必须有的东西**（都是实测踩出来的，不是猜的）：
+
+1. **文字坐标是【临摹 SVG 自己的坐标系】。** 临摹层 `viewBox` 是 1664×909，成品却按 3328×1818 栅格化 ——
+   直接把临摹里的 `<text x>` 塞进 3328 的画布，文字会跑到**一半的位置**（实测「gluon radiation」
+   落在星星旁边而不是右侧引线处）。⇒ 必须按 `W_out / W_trace` 缩放 `x/y/font-size`。
+   另外 `data-role="text"` 组会**嵌套**（`text-layer` ⊃ `a-text`），不透过去重会得到 36 条而不是 18 条。
+2. **画布上的白色空白归 `background`，且要算进它的【拟合区】。** 临摹层只标"画了东西"的像素，
+   白色画布是空的（实测空 59.66%）。若把这 59.66% 用"离谁近算谁"填，元素会糊出边界；
+   若只把它记成分区、却不加进 `background` 的拟合区，`background` 的颜色场会被它自己的**深色引线**
+   带偏 → `base` 发灰 → **残差层被迫重画整张画布**（实测 detail mask 70.7%、成品 30.8 MB）。
+   两处都改对之后：**detail mask 15.3%、成品 20.3 MB**。
+
+**回归基线**（喷注淬火 `chosen_x2.png` + `jet_q_trace.svg`，3328×1818）：
+
+| 读数 | 本脚本 v4.11 | 已交付 `jet_q_mesh.svg` | 位图自己 |
+|---|---|---|---|
+| 火球 ROI `smooth_metric` mean / >8 | **1.16 / 0.000** | 1.16 / 0.000 | 1.19 / 0.000 |
+| 板 ROI `smooth_metric` mean / >8 | 0.81 / 0.000 | — | 0.46 / 0.000 |
+| 成品体积 | 20.3 MB | 34.6 MB | — |
+
+⇒ 与已交付的光滑档**读数等价**（火球 ROI mean 1.16 对 1.16），且体积更小。
+
+同时更新：`SKILL.md`（四档小节 → v4.11、脚本表加一行）、`references/bitmap-to-vector.md`
+（§1 表 / §4 标题 / §9 例子里那条"见工作区代码"换成本脚本命令）、`requirements.txt`。
+
+> **依赖**：numpy + scipy + opencv-python + Pillow + cairosvg。**回渲染必须用 Edge / Chrome** ——
+> 成品带 `<mask>`，cairosvg 会把旁衬层整块丢掉（v4.10 已记过的老坑）。
+
 ## v4.10 — 2026-10-12
 
 **「位图 → 矢量」定成固定四档 + 一批可复用脚本（作者定：以后都这样）**
