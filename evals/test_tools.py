@@ -606,59 +606,6 @@ def test_element_of():
         P.ELEMENTS = saved
 
 
-@case("ref_leak_check_flags_copied_reference",
-      "要能量出『出图把参考图整幅抄了』：同一张图 r>=0.85/照抄、结构不同的图通过；"
-      "还要能认出『上一步草图』不参与判定、且实测的健康值不与【照抄】混淆")
-def test_ref_leak():
-    """
-    ★ 实测（2026-09-27）：用户用 Claude Code 跑本 skill 时，出图**整幅**变成参考图的
-      样子（qwen-image 是图生图）。原流程没有任何机器判据能发现，只能人眼。实测量到的
-      分布（见 CHANGELOG v2.6.4）：
-        同一张图互比 r=1.000/dHash=0（照抄上限）
-        出图 vs 自己的草图 r=0.634（本来就该像 -> 用 --content-ref 标出来）
-        两张不同参考图互比（基线） r=0.125
-        出图 vs 风格参考（健康） r=0.017 / 0.117
-      所以阈值定 0.85：高于 0.634，正常的构图继承不会被误判。
-    """
-    import numpy as np
-    from PIL import Image
-    from ref_leak_check import similarity, verdict, looks_like_content_ref
-    tmp = Path(tempfile.mkdtemp(prefix="leaktest_"))
-
-    def mk(name, blocks):
-        a = np.full((200, 300, 3), 255, np.uint8)
-        for sl, val in blocks:
-            a[sl] = val
-        q = tmp / name
-        Image.fromarray(a).save(q)
-        return q
-
-    base = mk("a.png", [((slice(60, 140), slice(40, 120)), 0),
-                        ((slice(80, 120), slice(180, 280)), (200, 40, 40))])
-    same = tmp / "a_copy.png"
-    Image.open(base).save(same)
-    other = mk("b.png", [((slice(0, 200), slice(0, 150)), 0),
-                         ((slice(20, 90), slice(200, 280)), (30, 60, 200))])
-
-    d = similarity(base, same)
-    assert d["r"] > 0.99 and d["dhash"] == 0, f"同一张图应几乎完全一致：{d}"
-    assert verdict(d["r"], d["dhash"]) == "copy", "同一张图必须判成照抄"
-    d2 = similarity(base, other)
-    assert d2["r"] < 0.6, f"结构不同的图不该判成照抄：{d2}"
-    assert verdict(d2["r"], d2["dhash"]) == "ok", "结构不同的图应通过"
-    # 实测的两个健康值必须在通过区，且 0.634（出图 vs 草图）不能被误判成照抄
-    assert verdict(0.017, 338) == "ok" and verdict(0.117, 384) == "ok"
-    assert verdict(0.634, 175) == "high", "0.634 落在偏高带（0.60~0.85），不是照抄"
-    assert verdict(0.318, 333) == "ok", "半张裁切（0.318）测不到 —— 这是已知边界"
-    # 构图参考（上一步草图）**不参与判定**：即使像也不升级成照抄
-    from ref_leak_check import check
-    worst, _ = check(base, [other], [same])
-    assert worst == "ok", "构图参考不该把判定升成照抄"
-    # 角色识别：草图的文件名要被自动当成构图参考
-    assert looks_like_content_ref("gen/sketch_s9_clean.png")
-    assert not looks_like_content_ref("refs/T3-33.png")
-
-
 # ══════════════════════════════════════════════════════════════
 #  坑 10：形变核→火球 算例（2026-09-27，CHANGELOG v2.6.5）
 #  这一批的共性：**"写得更清楚/更省事"的输入被工具拒绝**，
@@ -717,11 +664,6 @@ def test_genbrief_style_mode():
     assert IG.resolve_style_mode(irnone, "render3d") == "render3d"
     assert IG.resolve_style_mode(ir3d, "flat") == "flat"
 
-    # 4) 参考图 = 风格书：本图内容可以完全不同于参考图（必须写进简报）
-    outref = IG.build(irnone, None, "render")
-    assert "参考图是**风格书**" in outref
-    assert "内容可以和参考图完全不同" in outref
-
     # 5) sketch 档保持扁平（那是切矢量图层的需要），但要说明它不是最终风格
     outsk = IG.build(ir3d, None, "sketch")
     assert "扁平矢量风" in outsk
@@ -749,6 +691,7 @@ def test_gen_figure_seed_tolerance():
     _I.fromarray(_np.full((60, 90, 3), 200, _np.uint8)).save(str(tmp / "ref.png"))
     env = dict(os.environ)
     env["DASHSCOPE_API_KEY"] = "sk-dummy-for-test"      # 只为过检查，不真的能用
+    env["HEP_ALLOW_UNGATED"] = "1"     # 本 case 测 gen_figure 内部，不测闸门
     r = subprocess.run([sys.executable, str(SCRIPTS / "gen_figure.py"),
                         "--brief", str(tmp / "b.md"), "--ref", str(tmp / "ref.png"),
                         "--seeds", "1,2",
@@ -898,6 +841,7 @@ def test_gen_figure_content_ref_full_mode():
     (tmp / "b.md").write_text("# 简报\n画四个阶段的演化链。\n", encoding="utf-8")
     env = dict(os.environ)
     env["DASHSCOPE_API_KEY"] = "sk-dummy-for-test"      # 只为过检查
+    env["HEP_ALLOW_UNGATED"] = "1"     # 本 case 测 gen_figure 内部，不测闸门
 
     def run(*extra):
         out = tmp / ("gen%d" % len(list(tmp.glob("gen*"))))
@@ -1280,6 +1224,7 @@ def test_gen_figure_ref_and_prompt_extend():
     # ③ --no-prompt-extend 要真的关掉、并写进调用记录（用必然失败的 api-base，不花钱）
     env = dict(os.environ)
     env["DASHSCOPE_API_KEY"] = "sk-dummy-for-test"
+    env["HEP_ALLOW_UNGATED"] = "1"     # 本 case 测 gen_figure 内部，不测闸门
     out = tmp / "g2"
     r3 = subprocess.run([sys.executable, str(SCRIPTS / "gen_figure.py"),
                          "--brief", str(tmp / "b.md"), "--ref", str(tmp / "ref.png"),
@@ -1293,6 +1238,58 @@ def test_gen_figure_ref_and_prompt_extend():
     assert rec["prompt_extend"] is False, (
         "--no-prompt-extend 必须落进 calls.jsonl（不然回溯不了提示词有没有被服务端重写）")
     assert rec["no_style_ref"] is False, "给了 --ref 就该记 no_style_ref=false"
+
+
+@case("gen_figure_blocks_ungated_direct_call",
+      "直调 gen_figure.py = 绕开工作区唯一那道机械闸门（ref_guard 先查后调）。"
+      "v4.12 起 gen_figure.py 内嵌硬闸门（甲方案）：没有 HEP_GUARD_PASSED 令牌、"
+      "又不是 --dry-run / HEP_ALLOW_UNGATED=1，就直接退出、一行 API 都不调。")
+def test_gen_figure_gate_blocks_direct_call():
+    """★ 实测（2026-10-12，作者定「选择甲」）：以前闸门只在 ref_guard --run 里，
+       直调 gen_figure.py 就跳过了全部检查 —— 现在内嵌闸门把这条路堵死。"""
+    import os as _os
+    import numpy as _np
+    from PIL import Image as _I
+
+    tmp = Path(tempfile.mkdtemp(prefix="gfguard_"))
+    (tmp / "b.md").write_text("# 简报\n画一个四阶段演化链。\n", encoding="utf-8")
+    _I.fromarray(_np.full((60, 90, 3), 200, _np.uint8)).save(str(tmp / "ref.png"))
+
+    env = dict(_os.environ)
+    env.pop("HEP_GUARD_PASSED", None)
+    env.pop("HEP_ALLOW_UNGATED", None)
+    env["DASHSCOPE_API_KEY"] = "sk-dummy-for-test"
+
+    # ① 无令牌 + 非 dry-run -> 被拦，且不落调用记录
+    out = tmp / "g0"
+    r = subprocess.run([sys.executable, str(SCRIPTS / "gen_figure.py"),
+                        "--brief", str(tmp / "b.md"), "--ref", str(tmp / "ref.png"),
+                        "--seeds", "1", "--outdir", str(out),
+                        "--api-base", "http://127.0.0.1:9/v1", "--timeout", "2"],
+                       capture_output=True, text=True, timeout=120,
+                       encoding="utf-8", errors="replace", env=env)
+    assert r.returncode != 0, "没令牌 + 非 dry-run 必须被拦"
+    assert "HEP_GUARD_PASSED" in (r.stdout + r.stderr), "被拦时要提示正确入口/令牌"
+    assert not (out / "calls.jsonl").exists(), "被拦时不许调 API、不许落调用记录"
+
+    # ② --dry-run 放行（自检提示词，不花钱）
+    r2 = subprocess.run([sys.executable, str(SCRIPTS / "gen_figure.py"),
+                         "--brief", str(tmp / "b.md"), "--ref", str(tmp / "ref.png"),
+                         "--dry-run", "--outdir", str(tmp / "g1")],
+                        capture_output=True, text=True, timeout=120,
+                        encoding="utf-8", errors="replace", env=env)
+    assert r2.returncode == 0, "--dry-run 要放行：%s" % (r2.stdout or "")[-300:]
+
+    # ③ 带令牌放行（ref_guard 通过后就是这么放的）
+    env2 = dict(env)
+    env2["HEP_GUARD_PASSED"] = "1"
+    r3 = subprocess.run([sys.executable, str(SCRIPTS / "gen_figure.py"),
+                         "--brief", str(tmp / "b.md"), "--ref", str(tmp / "ref.png"),
+                         "--seeds", "1", "--outdir", str(tmp / "g2"),
+                         "--api-base", "http://127.0.0.1:9/v1", "--timeout", "2"],
+                        capture_output=True, text=True, timeout=300,
+                        encoding="utf-8", errors="replace", env=env2)
+    assert r3.returncode == 0, "带 HEP_GUARD_PASSED 要放行：%s" % (r3.stdout or "")[-300:]
 
 
 @case("gen_figure_warns_when_size_ratio_differs_from_ir",

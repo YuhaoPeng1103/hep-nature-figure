@@ -535,7 +535,11 @@ def main():
             print("找不到 skill 的 scripts/gen_figure.py（设 HEP_SKILL 环境变量）")
             return 2
         print("ref_guard 通过 -> 执行 %s %s" % (gf, " ".join(argv)))
-        rc = subprocess.call([sys.executable, gf] + list(argv))
+        # ★ 甲方案（作者 2026-10-12）：gen_figure.py 内嵌了「没通过本闸门就不许调 API」
+        #   的硬闸门；这里把令牌发下去，直调 gen_figure.py 的人拿不到令牌就被拦。
+        _env = dict(os.environ)
+        _env["HEP_GUARD_PASSED"] = "1"
+        rc = subprocess.call([sys.executable, gf] + list(argv), env=_env)
         if rc != 0:
             return rc
         if (lad_out or a.ladder_gen_dir) and not a.ladder_waive and ladder.exists():

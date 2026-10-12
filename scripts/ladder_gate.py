@@ -18,7 +18,7 @@ C 档（+ 物理增量）按需往上加，加什么由上一轮真画错的地�
 
     {"rungs": [{"rung": "A", "brief": "A_brief.md", "brief_chars": 30,
                 "outdir": ".../gen/A", "refs": [...], "seeds": ["1401"],
-                "sim_max": 0.36, "sim": {...}, "inc_chars": 0}, ...]}
+                "inc_chars": 0}, ...]}
 
 `<gen-dir>` 由 `--outdir` 往上找最近的、含 `ladder.json` 的目录；找不到就是 `--outdir` 的父目录。
 
@@ -27,14 +27,9 @@ C 档（+ 物理增量）按需往上加，加什么由上一轮真画错的地�
     L1  顺序不许跳档：第 1 段必须是 A、第 2 段必须是 B、之后都是 C。
     L2  A 档 = 一句话：简报 <= 80 字符 + 至少一张风格参考图；A 档产物**只作诊断**，
         不许进交付链（--stage render 时构图依据来自 A 档的 outdir → 硬伤）。
-    L3  B 档必须同时有三样：① 面板序列；② 输出硬约束（标签白名单 / 不要图例标题说明文字）；
-        ③ **反抄写**（「不要照抄参考图的内容」这类话必须显式写）——
-        不写这句，模型会把风格参考图的**内容**一起搬（实测 A 档 sim 0.36 时，
-        图上出现参考图的装置名、脚注换算、图题）。
+    L3  B 档必须有两样：① 面板序列；② 输出硬约束（标签白名单 / 不要图例标题说明文字）。
     L4  每一轮 C 必须带「上一轮错在哪 → 改成什么」那一节，且 <= 3000 字符（增量，不是规格书）；
         简报还得是累积稿（上一轮简报的内容在里面）。
-    L5  **不许照抄风格参考图**：A 档以外，任何一段的 ref_sim 最大值 >= 0.60 判硬伤
-        （0.30 ~ 0.60 软警）。读数从 <outdir>/calls.jsonl 取。
     L6  出成品位图之前，阶梯必须至少有 A、B、C 三段。
     L7  **风格参考图必须贯穿整条阶梯**：B/C 档的 `--ref` 必须与 A 档一致
         （作者 2026-10-07：「BC档和A档完全不一样啊，BC档是辅助A档物理错误的」）——
@@ -66,8 +61,6 @@ from pathlib import Path
 MAX_A_CHARS = 80
 MAX_B_CHARS = 1500
 MAX_INC_CHARS = 3000
-SIM_HARD = 0.60
-SIM_SOFT = 0.30
 MAX_STEP_GROWTH = 250
 
 PANEL_MARKERS = ("面板", "从左到右", "a/b/c", "a b c", "三个面板", "两个面板", "四面板")
@@ -75,9 +68,6 @@ NO_DECOR_MARKERS = ("不要图例", "不要标题", "不要说明文字", "不�
                     "不章节编号", "不要边框")
 WHITELIST_MARKERS = ("只许出现这些标签", "只允许出现这些标签", "只许写这些标签",
                      "标签白名单", "图上只允许出现", "只许出现", "白名单")
-ANTICOPY_MARKERS = ("不要照抄", "不许照抄", "别照抄", "不是要你抄", "不要抄参考",
-                    "参考图只给风格", "参考图只当风格", "参考图只作风格", "只学风格",
-                    "不要把参考图", "不许把参考图", "不要把参考图里", "照抄参考图")
 FAIL_MARKERS = ("错", "改成", "上一轮", "这一轮必须改对", "没做对", "改成什么")
 INC_SEPS = ("上一轮画错", "上一轮真画错", "上一版画错", "上一轮（", "上一轮(", "════", "====")
 
@@ -128,7 +118,7 @@ def read_calls(outdir):
     p = Path(outdir or "") / "calls.jsonl"
     if not p.exists():
         return None
-    sims, seeds, refs, content_refs, stages = {}, [], [], [], set()
+    seeds, refs, content_refs, stages = [], [], [], set()
     for line in _read(p).splitlines():
         line = line.strip()
         if not line:
@@ -146,11 +136,7 @@ def read_calls(outdir):
         for r in d.get("content_refs") or []:
             if r not in content_refs:
                 content_refs.append(r)
-        for k, v in (d.get("ref_sim") or {}).items():
-            if isinstance(v, (int, float)):
-                sims[k] = max(sims.get(k, -9.0), float(v))
-    return {"sim": sims, "sim_max": (max(sims.values()) if sims else None),
-            "seeds": seeds, "refs": refs, "content_refs": content_refs,
+    return {"seeds": seeds, "refs": refs, "content_refs": content_refs,
             "stages": sorted(x for x in stages if x)}
 
 
@@ -185,9 +171,6 @@ def brief_shape(rung, text, refs, prev_text):
         if not any(k in text for k in WHITELIST_MARKERS + NO_DECOR_MARKERS):
             w.append("L3 B 档还没有【输出硬约束】（标签白名单 / 不要图例标题说明文字）—— "
                      "L8 允许分几步加，但进 render 前必须补齐。")
-        if not any(k in text for k in ANTICOPY_MARKERS):
-            w.append("L3 B 档还没有【反抄写】（「不要照抄参考图的内容 / 参考图只给风格」）—— "
-                     "不写这句模型会把参考图的内容一起搬过来；进 render 前必须补齐。")
     else:
         inc = extract_increment(text)
         if not inc:
@@ -202,22 +185,6 @@ def brief_shape(rung, text, refs, prev_text):
         if prev_text and prev_text.strip() and prev_text.strip() not in text:
             w.append("L4 这一轮简报不是累积稿（上一轮简报的内容不在里面）——"
                      "确认是有意重写，还是漏了。")
-    return v, w
-
-
-def check_sim(rung, calls, label):
-    v, w = [], []
-    if not calls:
-        w.append("L5 %s 没找到 calls.jsonl —— 照抄判据（ref_sim）没测成。" % label)
-        return v, w
-    sm = calls.get("sim_max")
-    if sm is None:
-        return v, w
-    if rung != "A" and sm >= SIM_HARD:
-        v.append("L5 %s 内容照抄风格参考图：ref_sim = %.2f >= %.2f。" % (label, sm, SIM_HARD))
-    elif sm >= SIM_SOFT:
-        w.append("L5 %s ref_sim = %.2f（%.2f ~ %.2f 偏高）—— 看一眼像不像参考图的内容。"
-                 % (label, sm, SIM_SOFT, SIM_HARD))
     return v, w
 
 
@@ -291,18 +258,10 @@ def precheck(gen_dir, brief_path, outdir, refs, stage):
                 miss.append("面板序列")
             if not any(k in lt for k in WHITELIST_MARKERS + NO_DECOR_MARKERS):
                 miss.append("输出硬约束（标签白名单 / 不要图例标题说明文字）")
-            if not any(k in lt for k in ANTICOPY_MARKERS):
-                miss.append("反抄写")
             if miss:
                 v.append("L3b 出成品位图前，累积草图简报（第 %s 段 %s）还缺：%s —— "
                          "L3 允许 B 档分步加，但 render 前必须补齐。"
                          % (last.get("rung"), os.path.basename(lb or ""), "、".join(miss)))
-        for r in rungs:
-            if r.get("rung") == "A":
-                continue
-            sm = r.get("sim_max")
-            if sm is not None and sm >= SIM_HARD:
-                v.append("L5 第 %s 段照抄了风格参考图（ref_sim %.2f）。" % (r.get("rung"), sm))
         if outdir:
             od = os.path.abspath(outdir)
             for r in rungs:
@@ -335,8 +294,6 @@ def do_record(gen_dir, brief_path, outdir, refs, add=None, stage="sketch"):
         "refs": (calls or {}).get("refs") or list(refs or []),
         "content_refs": (calls or {}).get("content_refs") or [],
         "seeds": (calls or {}).get("seeds") or [],
-        "sim": (calls or {}).get("sim") or {},
-        "sim_max": (calls or {}).get("sim_max"),
         "inc_chars": len(inc),
         "add": rel_add,
     }
@@ -371,8 +328,8 @@ def main():
     if a.record:
         entry, p = do_record(gen_dir, a.brief, a.outdir, a.ref, a.add, a.stage)
         n = len(load_ledger(gen_dir)["rungs"])
-        print("已登记第 %d 段：%s 档 | 简报 %d 字符 | 增量 %d 字符 | ref_sim_max=%s"
-              % (n, entry["rung"], entry["brief_chars"], entry["inc_chars"], entry["sim_max"]))
+        print("已登记第 %d 段：%s 档 | 简报 %d 字符 | 增量 %d 字符"
+              % (n, entry["rung"], entry["brief_chars"], entry["inc_chars"]))
         print("账本 -> %s" % p)
         return 0
 
@@ -390,7 +347,7 @@ def main():
         else:
             print("-" * 70)
             print("结论：阶梯不合规 —— 不许调生图接口。")
-            print("  阶梯：A（一句话 + 风格图，只作诊断）→ B（+ 面板序列 + 输出硬约束 + 反抄写）"
+            print("  阶梯：A（一句话 + 风格图，只作诊断）→ B（+ 面板序列 + 输出硬约束）"
                   "→ C（只补上一轮真画错的）")
             if a.json:
                 Path(a.json).write_text(json.dumps(

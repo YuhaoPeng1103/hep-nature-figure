@@ -64,6 +64,21 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 import ir_canvas          # 画布的唯一读取口（composition.canvas 优先）
 
 
+def _layout_corr(p1, p2, n=96):
+    """96x96 灰度、z 归一化后的逐像素相关 —— 量「成品位图有没有沿用草图的构图」。
+
+    ★ v4.12：原来借用 ref_leak_check.corr，那个「照抄参考图」判据已按作者要求删除；
+      这个相关函数只服务于构图保真，内联在这里。
+    """
+    def gray(path):
+        return np.asarray(Image.open(path).convert("L").resize((n, n), Image.LANCZOS),
+                          dtype=np.float64)
+    a, b = gray(p1), gray(p2)
+    a = (a - a.mean()) / (a.std() + 1e-6)
+    b = (b - b.mean()) / (b.std() + 1e-6)
+    return float((a * b).mean())
+
+
 def load_ir(path: Path) -> dict:
     text = path.read_text(encoding="utf-8")
     try:
@@ -608,7 +623,7 @@ def check_one(img_path, a, ir):
             print(f"  （风格量测跳过：{type(e).__name__}）")
     print()
 
-    # ★ 构图保真（v2.8）：成品位图 vs 上一步的草图。闸口以前只查「照抄参考图」，
+    # ★ 构图保真（v2.8）：成品位图 vs 上一步的草图。闸口以前只查能机器量到的构图/风格，
     #   没人查「有没有把草图的构图丢掉」—— 实测（形变核→火球，seed 53）不送构图
     #   参考时布局相关掉到 0.696，得肉眼看到出图才发现。
     if a.sketch:
@@ -617,8 +632,7 @@ def check_one(img_path, a, ir):
             print("  ⚠️ --sketch 不存在：%s —— 保真这一项跳过" % sp)
         else:
             try:
-                import ref_leak_check as RLC
-                fid_r = RLC.corr(str(img_path), str(sp))
+                fid_r = _layout_corr(str(img_path), str(sp))
             except Exception as e:
                 print("  ⚠️ 构图保真量不了（%s: %s）" % (type(e).__name__, e))
             if fid_r is not None:

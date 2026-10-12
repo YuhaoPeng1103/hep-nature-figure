@@ -5,7 +5,7 @@
 ## ① 工具回归测试（机器可跑）
 
 ```bash
-python3 evals/test_tools.py        # 39 个 case
+python3 evals/test_tools.py        # 47 个 case
 python3 evals/test_tools.py -v     # 显示每个 case 防的是什么坑
 python3 evals/test_tools.py geom   # 只跑名字含 geom 的
 ```
@@ -33,7 +33,6 @@ python3 evals/test_tools.py geom   # 只跑名字含 geom 的
 | `ink_map_detects_coarse_stroke_interior` | ink_map 要把【粗笔画内部】判成墨迹 |
 | `trim_border_removes_frame_and_is_idempotent` | trim_border 要裁掉生图模型稳定画的 1~2px 外框，且【幂等】（裁完再跑… |
 | `element_of_accepts_float_predicates_and_tight_fallback` | 元素表的颜色条件要能返回【float 加分】（bool 仍按 +0.22 兼容） |
-| `ref_leak_check_flags_copied_reference` | 要能量出『出图把参考图整幅抄了』：同一张图 r>=0.85/照抄、结构不同的图通过 |
 | `ir_brief_accepts_list_params` | IR 里参数写成【列表】（三个箭头共用一个元素 -> cx: [0.175, 0.38… |
 | `genbrief_style_mode_not_hardcoded_flat` | 生图简报的风格**不许写死成扁平矢量**：IR 的 style 段说要 3D（半写实 … |
 | `gen_figure_survives_dead_seeds` | 生图时**单个 seed 的网络抖动不许打断整批**：防 seed 7 撞 Timeo… |
@@ -48,7 +47,8 @@ python3 evals/test_tools.py geom   # 只跑名字含 geom 的
 | `canvas_read_from_composition_not_silently_dropped` | 画布必须**只由 ir_canvas 读**：规范写 composition.canvas，旧代码读 figure.c… |
 | `ir_brief_audit_probes_canvas_at_spec_position` | 无损体检的探针必须跟规范同位置：哨兵原来塞在 figure.canvas 下，所以… |
 | `check_sketch_multi_image_json_and_pick_best` | 一次出多张要能**一次全查、机器排序、人眼只审入围的** |
-| `check_sketch_composition_fidelity_floor` | 闸口以前只查「照抄参考图」，没人查「成品位图有没有沿用草图的构图」 |
+| `check_sketch_composition_fidelity_floor` | 闸口以前只查能机器量到的构图/风格，没人查「成品位图有没有沿用草图的构图」 |
+| `gen_figure_blocks_ungated_direct_call` | 直调 `gen_figure.py` = 绕开闸门：v4.12 起内嵌硬闸门（甲方案），没 `HEP_GUARD_PASSED` 令牌且非 `--dry-run` 就直接退出、不调 API |
 | `gen_figure_requires_ref_and_records_prompt_extend` | 风格参考图是硬规矩（只给文字 -> 通用插画脸），缺了要直接报错 |
 | `gen_figure_warns_when_size_ratio_differs_from_ir` | 同一张图两个比例就废了 IR 的归一化坐标：简报按 IR 声明写、API 按 -… |
 | `gen_figure_backs_off_on_rate_limit` | 429/限流时**立刻重试只会再撞一次** |

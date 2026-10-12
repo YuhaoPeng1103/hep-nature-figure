@@ -114,7 +114,7 @@ a-nucleus-far        px= 25884 bands= 21 inkrects= 1180 inkpx=  9213  shade_resi
 `trace_rebuild.py` 的产物**不自动等于可交付**：
 
 1. 五道门禁（`check_render` / `audit_composition` / `check_delivery` / `delivery_gate` /
-   `projection_gate`），相关时加 `verify_scene` / `ref_leak_check` / `pdf_roundtrip`；
+   `projection_gate`），相关时加 `verify_scene` / `pdf_roundtrip`；
 2. `bitmap_conformance.py`（v3.2）：成品 vs **所选位图**的架构几何对账 ——
    这条正是"重画"与"临摹"两条路的共同底线；
 3. `check_render_mode.py` + **成品 × 风格参考的并排图**（机器判不了 3D，就让人 5 秒内能判）；

@@ -230,44 +230,6 @@ def _degrade_to_layout(src, dst, width=160):
     return dst
 
 
-def _ref_leak_check(out_png, style_refs, content_refs, skip=False):
-    """出图 vs 风格参考：量「有没有把参考图抄了」（v2.6.4）。
-
-    ★ 实测（2026-09-27，用 Claude Code 跑本 skill）：qwen-image 是**图生图**，
-      参考图内容越像目标就越容易被**整幅照抄** —— 出的图物体/布局/箭头/文字
-      全变成参考图的，而流程里没有任何一步会发现。现在出图后自动量一次，
-      把 r 写进 calls.jsonl；r>=0.85 就打印警告（判据见 scripts/ref_leak_check.py）。
-      上一步的草图是**构图依据**（本来就该像），所以要走 content_refs，不参与判定。
-    """
-    if skip or not style_refs:
-        return None
-    try:
-        sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
-        import ref_leak_check as RLC
-    except ImportError:
-        return None
-    try:
-        worst, rows = RLC.check(out_png, style_refs, content_refs)
-    except Exception as e:                      # 自检失败不许影响出图
-        print("  （参考图自检跳过：%s）" % e)
-        return None
-    sims = {}
-    for role, name, r, dh, v in rows:
-        if role != "style":
-            continue
-        sims[name] = round(r, 3)
-        if v != "ok":
-            print("  ⚠️ 与风格参考 %s 的相似度 r=%.3f（照抄线 %.2f）"
-                  % (name, r, RLC.THR_COPY))
-    if worst == "copy":
-        print("     → 出图疑似把参考图抄了：参考图要换「**内容不同、风格相同**」的；"
-              "上一步的草图用 `--content-ref` 传（见 SKILL.md"
-              "「输出变成参考图的内容」一节）。")
-    elif worst == "high":
-        print("     → 与风格参考的相似度偏高，建议人眼比一眼。")
-    return worst, sims
-
-
 # ────────────────────────────────────────────────────────── 两种后端
 def _prompt_extend(cfg, default):
     """prompt_extend 的取值：命令行 > 接口默认（mm=True / t2i=False）。
@@ -398,15 +360,13 @@ def main():
                     help="风格参考图，可多次给（★ 不给就会很'通用'）")
     ap.add_argument("--content-ref", action="append", default=[],
                     help="构图参考图（上一步选中的草图）：出图本来就该像它，"
-                         "所以不参与「照抄」判定，并会排在风格参考前面送给模型")
+                         "会排在风格参考前面送给模型")
     ap.add_argument("--content-ref-mode", choices=("auto", "full", "layout"),
                     default="auto",
                     help="构图参考的预处理：auto=总是原样送（默认，v4.7 起——"
                          "位图是对草图的润色，不降级）；layout=降级成灰度 layout-only"
                          "（只给**扁平**草图用，见文件头部）；full=总是原样送。"
                          "★ 实测：降级会磨掉可读的 x/y/z 标签，让位图自己编轴")
-    ap.add_argument("--no-ref-check", action="store_true",
-                    help="出图后不做「参考图照抄」自检（默认做）")
     ap.add_argument("--allow-no-ref", action="store_true",
                     help="★ 确实要纯文生图才加：不放行时缺 --ref 直接报错"
                          "（只给文字简报出来的图一定「通用」）")
@@ -426,6 +386,26 @@ def main():
     ap.add_argument("--dry-run", action="store_true",
                     help="只写出提示词和调用计划，不调 API（自检用）")
     a = ap.parse_args()
+
+    # ★★ 出图前的强制闸门（作者 2026-10-12：甲方案）★
+    #   直调 gen_figure.py = 绕开工作区唯一的那道机械闸门（ref_guard 先查后调）。
+    #   这里把它堵死：没通过闸门就 sys.exit(2)，一行 API 都不调。
+    #   闸门由 ref_guard / 工作区入口设置 HEP_GUARD_PASSED 令牌放行；
+    #   单独想跑自检（--dry-run）或确实知情的特例，用 HEP_ALLOW_UNGATED=1。
+    if not os.environ.get("HEP_GUARD_PASSED"):
+        if os.environ.get("HEP_ALLOW_UNGATED") == "1":
+            print("⚠️ HEP_ALLOW_UNGATED=1：已跳过出图前闸门（特例放行）。")
+        elif a.dry_run:
+            print("ℹ️ --dry-run：只自检提示词，跳过出图前闸门。")
+        else:
+            sys.exit(
+                "★ 出图前闸门未通过 —— 直调 gen_figure.py 会绕开 ladder/参考图角色检查。\n"
+                "  正确入口（先查后调）：\n"
+                "    python tools/ref_guard.py --run --stage <sketch|render> \\\n"
+                "        --ir <IR> --ref <风格书> [--content-ref <草图>] -- \\\n"
+                "        --brief <brief.md> --stage <...> --ref <...> --seeds ...\n"
+                "  （ref_guard 通过后会设 HEP_GUARD_PASSED 再调本脚本。）\n"
+                "  只想自检提示词：加 --dry-run；确实要绕过：设 HEP_ALLOW_UNGATED=1。")
 
     if not a.ref and not a.allow_no_ref:
         sys.exit("★ 缺少 --ref 风格参考图。\n"
@@ -584,9 +564,6 @@ def main():
             rec["bytes"] = out.stat().st_size
             outs.append(out.name)
             print("  ✓ %s  %.0f KB  (%s)" % (out.name, out.stat().st_size / 1024.0, note))
-            chk = _ref_leak_check(out, a.ref, a.content_ref, skip=a.no_ref_check)
-            if chk:
-                rec["ref_leak"], rec["ref_sim"] = chk
             ok += 1
         with open(log, "a", encoding="utf-8") as fh:
             fh.write(json.dumps(rec, ensure_ascii=False) + "\n")

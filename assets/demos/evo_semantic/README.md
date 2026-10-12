@@ -85,7 +85,6 @@ python3 $S/../assets/demos/evo_semantic/sweep.py --src src_render.png \
 闸口①（草图）  宽高比 1.80 vs IR 1.79 ✅ | 9 格有内容 ✅ | 人答 7/7
 闸口②（成品）  宽高比 1.80 vs IR 1.79 ✅ | 9 格有内容 ✅ | 人答 7/7
   阶段横向中心 167/583/1037/1493 | 3 箭头全向右 | 阶段3 交叠 83px | 饱和度 0.034/0.029/0.072/0.838
-参考图照抄自检（calls.jsonl 的 ref_sim，判据 0.85）
   sketch s5/s7/s9 = 0.134/0.086/0.109 | render s22/s31 = 0.091/0.087 -> 全部 ok
 临摹自检  整幅 MAE 0.626 | >8 0.74% | >32 0.45% | PSNR 29.73 dB
           31005 <path> | 5 <text> | 0 <image> | 3.99 MB

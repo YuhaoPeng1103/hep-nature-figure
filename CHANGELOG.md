@@ -1,5 +1,42 @@
 # 变更记录
 
+## v4.12 — 2026-10-12
+
+**删掉全部反抄写判据 + 甲方案（闸门内嵌进 `gen_figure.py`）**
+
+作者原话：「不需要任何放抄写判据」「选择甲」「在官网最新的版本上更改，现在是 V4.11」。
+同日还有一句纠正了本 skill 长期的一个前提：「A 档复刻参考图就复刻参考图呗，说明参考图大致
+就是我要的物理内容啊」—— 也就是说，**「出图长得像参考图」在 A 档不是错**，而 skill 过去
+（v2.6.4 起）一直把它当错，还给它配了判据、简报硬约束和一整节排查文档。
+
+### 1. 删除全部反抄写判据
+
+| 位置 | 原来 | 现在 |
+|---|---|---|
+| `scripts/ref_leak_check.py` | 整个工具（r >= 0.85 判「照抄」，退出码 2 可当门禁） | **删除** |
+| `scripts/gen_figure.py` | 出图后自动跑 `_ref_leak_check`，把 `ref_leak`/`ref_sim` 写进 `calls.jsonl`；`--no-ref-check` 关它 | 自检与开关**删除**（不再产生这两个字段） |
+| `scripts/ladder_gate.py` | `L5`：`ref_sim >= 0.60` 判硬伤；账本记 `sim` / `sim_max` | `L5` 与 `ref_sim` 全部**删除** |
+| `scripts/ir_to_genbrief.py` | 简报里写「★★ 参考图只给风格，不许抄内容……冲突时永远以本文为准」 | 整块**删除** |
+| `SKILL.md` | 「输出『变成参考图的内容』了怎么办」整节、`L3③反抄写`、`L5 ref_sim`、脚本表描述 | 全部**删除**；「参考图 = 风格书，不是内容模板」改为「参考图 = 风格书」，并写明复刻参考图不是错 |
+| `README.md` / `assets/t3-exemplars/NOTICE.md` / `references/trace-rebuild.md` | 指向 `ref_leak_check.py` 的说明 | 不再提 |
+| `assets/demos/*/brief_*.md` | 编译产物里残留的反抄写段落 | 逐行删除 |
+| `evals/test_tools.py` / `evals/README.md` | `ref_leak_check_flags_copied_reference` 用例 | 删除（39 -> 38 个 case） |
+
+**唯一留下来的**：`check_sketch.py` 的「构图保真」读数 —— 那是量「成品位图有没有沿用
+**上一步的草图**的构图」，与「有没有抄风格参考图」无关。它原来借用 `ref_leak_check.corr`，
+现在把这个相关函数（`_layout_corr`）内联进 `check_sketch.py`。
+
+### 2. 甲方案：`gen_figure.py` 内嵌闸门（直调绕不过去）
+
+以前闸门只在 `ref_guard.py --run` 里 —— **直调 `gen_figure.py` 就绕过了全部检查**。
+现在 `gen_figure.py` 一进来先看环境变量 `HEP_GUARD_PASSED`：
+
+- 没有令牌、不是 `--dry-run`、也没设 `HEP_ALLOW_UNGATED=1` → 打印正确入口后 `sys.exit(2)`，
+  **一行 API 都不调**；
+- `ref_guard.py --run` 通过检查后，设 `HEP_GUARD_PASSED=1` 再调 `gen_figure.py`。
+
+回归（实测，三条路径）：直调无令牌 → **被拦**；`--dry-run` → 放行；
+`HEP_GUARD_PASSED=1` → 放行。
 ## v4.11 — 2026-10-12
 
 **③-B 光滑档的装配器进 skill：`scripts/shade_smooth.py`（位图 + 临摹 → 光滑档 SVG）**
