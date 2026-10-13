@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-ref_guard -- 出图的「参考图角色」硬闸门（作者 2026-09-29 要求；v3.1 起随 skill 发布，脚本在 scripts/）
+ref_guard -- 出图的「参考图角色」硬闸门（作者 2026-09-29 要求；v3.1 起随 skill 发布，v4.13 起多了「上一轮草图」例外）
 
 作者原话：
     「出草图时不给自家成品当参考，skill 库里的只是风格参考图」
@@ -18,6 +18,7 @@ ref_guard -- 出图的「参考图角色」硬闸门（作者 2026-09-29 要求�
   --ref        （风格参考）只许取：skill 的 assets/t3-exemplars/、本工作区 _T3精选/
   --content-ref（构图依据）sketch 阶段：只许作者手绘输入（.../sketches_in/、hand_sketch*.png）
                           render 阶段：只许本图上一步**已过闸口①**的草图
+                          v4.13：**同一条阶梯上一轮的草图**也放行（LADDER_PREV；由 ladder_gate 的 L9 强制）
 
   任何阶段都不许：
     · 本工作区的成品（*/out/**、render_*.png、chosen*.png、*.svg、*.pdf、*@4000.png）
@@ -60,6 +61,7 @@ OWN_SKETCH = "OWN_SKETCH"      # 本工作区草图：**/sketch_*.png、*_clean.
 AUTHOR_IN = "AUTHOR_IN"        # 作者手绘输入：**/sketches_in/**、hand_sketch*.png ...
 SKILL_ASSET = "SKILL_ASSET"    # skill 的其它 assets
 SKILL_OTHER = "SKILL_OTHER"    # skill 的其它文件
+LADDER_PREV = "LADDER_PREV"    # 同一条阶梯里、上一轮的草图（作者 2026-10-13：B/C 必须拿到修改前的图）
 UNKNOWN = "UNKNOWN"
 
 ALLOWED = {
@@ -75,6 +77,7 @@ ROLE_CN = {
     AUTHOR_IN: "作者手绘输入",
     SKILL_ASSET: "skill 的其它 assets",
     SKILL_OTHER: "skill 的其它文件",
+    LADDER_PREV: "同一阶梯上一轮的草图（允许当草图档的构图依据）",
     UNKNOWN: "认不出来的路径",
 }
 
@@ -97,6 +100,39 @@ def resolve(path: str, base: str | None = None) -> str:
             if os.path.exists(c):
                 return c
     return os.path.normpath(os.path.join(base or os.getcwd(), q))
+
+
+def ladder_prev_ok(path, base=None):
+    """这张图是不是「某条阶梯已登记的上一轮产物」。
+
+    作者 2026-10-13：「A 档出图后，BC 档每次修改都要给修改前的图」。
+    为什么不能直接放开 OWN_SKETCH：§0.1 记录的 bug 是「拿自家成品/上一版当参考」造成同一物理每次一样。
+    这里收紧到：**只放行「当前这条阶梯账本已登记的 rung 目录里的草图」**（即上一轮的图），
+    不放行任何 out/** 成品、也不放行别的阶梯的图。
+    """
+    import json as _json
+    rp = os.path.normcase(os.path.abspath(resolve(path, base)))
+    d = os.path.dirname(os.path.abspath(resolve(path, base)))
+    for _ in range(8):
+        led = os.path.join(d, "ladder.json")
+        if os.path.exists(led):
+            try:
+                doc = _json.load(io.open(led, encoding="utf-8"))
+            except Exception:
+                return False
+            for r in (doc.get("rungs") or []):
+                od = r.get("outdir")
+                if not od:
+                    continue
+                od_n = os.path.normcase(os.path.abspath(od))
+                if rp == od_n or rp.startswith(od_n + os.sep):
+                    return True
+            return False
+        nd = os.path.dirname(d)
+        if nd == d:
+            break
+        d = nd
+    return False
 
 
 def classify(path: str, ws: str | None = None) -> str:
@@ -149,9 +185,9 @@ def check(stage: str, style, content, ws: str | None = None, base: str | None = 
             v.append(("--ref", p, r, "★ 不许拿自家成品当风格参考（作者 2026-09-29）。"
                                      "风格参考只许取 skill 的 t3-exemplars/ 或 _T3精选/"))
         elif r == OWN_SKETCH:
-            v.append(("--ref", p, r, "★ 自家草图也不许当风格参考（它是构图依据，走 --content-ref）；--ref 只收风格书"))
+            v.append(("--ref", p, r, "★ 自家草图也不许当风格参考（会把平涂风格原样带进去）；--ref 只收风格书"))
         elif r == AUTHOR_IN:
-            w.append(("--ref", p, r, "作者手绘稿是**构图依据**，"
+            w.append(("--ref", p, r, "作者手绘稿放进 --ref 会绕过 layout-only 降级；"
                                      "规范是只放 --content-ref，--ref 只放风格书"))
         elif r not in rules["style"]:
             v.append(("--ref", p, r, "风格参考的角色不对：只许 %s" % "/".join(sorted(rules["style"]))))
@@ -159,10 +195,17 @@ def check(stage: str, style, content, ws: str | None = None, base: str | None = 
         r = classify(p, ws)
         if r == DEMO_FIG:
             v.append(("--content-ref", p, r, "skill 的 demo 成品图不许当构图依据"))
+        elif stage == "sketch" and r in (OWN_FINAL, OWN_SKETCH) and ladder_prev_ok(p, base):
+            w.append(("--content-ref", p, LADDER_PREV,
+                      "★ 认作同一条阶梯**上一轮的图**（作者 2026-10-13：B/C 每轮都要给修改前的图）。"
+                      "它只许来自本阶梯账本已登记的 rung 目录（含该轮选定的 chosen.png）；"
+                      "--ref 仍只收风格书。"))
         elif stage == "sketch" and r in (OWN_FINAL, OWN_SKETCH):
             v.append(("--content-ref", p, r,
                       "★★ 出草图时不许拿自家成品/自家草图当参考（作者 2026-09-29）—— "
-                      "这正是「同一物理每次 IR 出的草图长一样」的根因之一：模型会照着我上一版描"))
+                      "这正是「同一物理每次 IR 出的草图长一样」的根因之一：模型会照着我上一版描；"
+                      "例外只有一条：同一条阶梯**上一轮的草图**（LADDER_PREV —— 落在本阶梯账本"
+                      "已登记的 rung 目录里，由 ladder_gate 的 L9 强制；--ref 仍只收风格书）"))
         elif stage == "render" and r == OWN_FINAL:
             v.append(("--content-ref", p, r,
                       "render 的构图依据只能是**上一步已过闸口①的草图**，不是成品图"))
@@ -356,7 +399,7 @@ def ir_contract(ir_path):
     return v, w
 
 
-def post_checks(a):
+def post_checks(a, ws=None):
     """出图后：3D 闸门 + 三轴物理闸门。返回进程退出码。"""
     rc = 0
     here = os.path.dirname(os.path.abspath(__file__))
@@ -436,7 +479,7 @@ def main():
 
     # --post 且没给 --stage / --run：只跑出图后闸门，不重复跑参考图角色检查
     if a.post and not a.run and not a.stage:
-        return post_checks(a)
+        return post_checks(a, ws)
 
     v, w = check(stage or "sketch", style, content, ws, base)
     sys.stdout.write(render_report(stage or "sketch", style, content, v, w, ws, base))
@@ -499,6 +542,7 @@ def main():
         if not ladder.exists():
             print("[warn] 找不到 ladder_gate.py —— 提示词阶梯闸门没跑成")
         else:
+            lad_brief = lad_brief or a.brief   # --brief 写在 ref_guard 自己那一侧也要认
             cmd = [sys.executable, str(ladder), "--stage", stage or "sketch"]
             if lad_out:
                 cmd += ["--outdir", lad_out]
@@ -508,6 +552,8 @@ def main():
                 cmd += ["--gen-dir", a.ladder_gen_dir]
             for _r in (style or []):
                 cmd += ["--ref", _r]
+            for _c in (content or []):
+                cmd += ["--content-ref", _c]
             _r = subprocess.run(cmd, capture_output=True, text=True, encoding="utf-8")
             sys.stdout.write(_r.stdout or "")
             if _r.returncode != 0:
@@ -551,13 +597,19 @@ def main():
                 cmd += ["--brief", lad_brief]
             if a.ladder_gen_dir:
                 cmd += ["--gen-dir", a.ladder_gen_dir]
+            for _r in (style or []):
+                cmd += ["--ref", _r]
+            for _c in (content or []):
+                cmd += ["--content-ref", _c]
             _r = subprocess.run(cmd, capture_output=True, text=True, encoding="utf-8")
             sys.stdout.write(_r.stdout or "")
             if _r.returncode != 0:
                 print("[warn] 阶梯账本登记失败 —— 下一轮会被 L1「跳档」拦住")
-        return post_checks(a) if a.post else 0
+        if a.post:
+            return post_checks(a, ws)
+        return 0
     if a.post:
-        return post_checks(a)
+        return post_checks(a, ws)
     return 0
 
 

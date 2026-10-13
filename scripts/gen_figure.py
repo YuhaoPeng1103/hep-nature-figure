@@ -139,6 +139,7 @@ import urllib.request
 
 DEF_BASE = "https://dashscope.aliyuncs.com"
 MM_MODEL_HINT = ("qwen-image",)
+SN_MODEL_HINT = ("sensenova",)      # SenseNova / ShangTang RiRiXin (OpenAI images endpoints)
 
 
 # ────────────────────────────────────────────────────────── HTTP 小工具
@@ -304,10 +305,41 @@ def gen_t2i(cfg, prompt, negative, seed, refs):
     return None, "轮询超时"
 
 
+def gen_sn(cfg, prompt, negative, seed, refs):
+    """SenseNova (ShangTang RiRiXin) backend -- OpenAI images style endpoints.
+
+    t2i    : POST {base}/images/generations
+    img2img: POST {base}/images/edits   (images=[{image_url: <url|data-uri>}])
+    size uses "1664x928" (star replaced by x); response is {data:[{url:...}]}.
+    Added 2026-10-13 for SenseNova U1.5 Lite.
+    """
+    size = str(cfg["size"]).replace("*", "x")
+    base = cfg["base"]
+    payload = {"model": cfg["model"], "prompt": prompt, "n": 1, "size": size,
+               "response_format": "url", "output_format": "png",
+               "watermark": False,
+               "prompt_extend": _prompt_extend(cfg, True)}
+    if refs:
+        url = base + "/images/edits"
+        payload["images"] = [{"image_url": u} for u in refs]
+    else:
+        url = base + "/images/generations"
+    st, r = _req(url, cfg["key"], payload)
+    if not isinstance(r, dict) or "data" not in r:
+        return None, "submit failed %s: %s" % (st, str(r)[:400])
+    try:
+        u = r["data"][0]["url"]
+    except (KeyError, IndexError, TypeError):
+        return None, "no image in response: %s" % json.dumps(r, ensure_ascii=False)[:400]
+    return u, json.dumps(r.get("usage", {}), ensure_ascii=False)
+
+
 # ────────────────────────────────────────────────────────── 主流程
 def pick_mode(mode, model):
     if mode != "auto":
         return mode
+    if any(h in model for h in SN_MODEL_HINT):
+        return "sn"
     return "mm" if any(h in model for h in MM_MODEL_HINT) else "t2i"
 
 
@@ -375,7 +407,7 @@ def main():
                     help="服务端是否重写提示词。默认沿用接口行为（mm=True / t2i=False）；"
                          "结构化示意图建议 --no-prompt-extend（重写会稀释简报里的坐标/约束）")
     ap.add_argument("--model", default="qwen-image-3.0")
-    ap.add_argument("--mode", choices=("auto", "mm", "t2i"), default="auto")
+    ap.add_argument("--mode", choices=("auto", "mm", "t2i", "sn"), default="auto")
     ap.add_argument("--size", default="1664*928", help="WxH，乘号写 *")
     ap.add_argument("--seeds", default="1")
     ap.add_argument("--negative", default="", help="负面提示词文件（可选）")
@@ -422,7 +454,7 @@ def main():
         negative = pathlib.Path(a.negative).read_text(encoding="utf-8").strip()
 
     mode = pick_mode(a.mode, a.model)
-    mode_fn = {"mm": gen_mm, "t2i": gen_t2i}[mode]
+    mode_fn = {"mm": gen_mm, "t2i": gen_t2i, "sn": gen_sn}[mode]
     seeds = [int(s) for s in str(a.seeds).split(",") if s.strip()]
     base = a.api_base or os.environ.get("DASHSCOPE_BASE", DEF_BASE)
 
@@ -480,7 +512,7 @@ def main():
                  % (a.key_env, a.key_env, a.key_env))
     cfg = dict(key=key, base=base.rstrip("/"), model=a.model, size=a.size,
                timeout=a.timeout, prompt_extend=a.prompt_extend)
-    pe_eff = _prompt_extend(cfg, mode == "mm")
+    pe_eff = _prompt_extend(cfg, mode in ("mm", "sn"))
     print("提示词扩展  : %s%s" % (pe_eff,
           "（接口默认）" if a.prompt_extend is None else "（命令行指定）"))
 
@@ -510,7 +542,7 @@ def main():
         p = pathlib.Path(sent.get(r, r))
         if not p.exists():
             sys.exit("参考图不存在: %s" % r)
-        if mode == "mm":
+        if mode in ("mm", "sn"):
             print("参考图  : %s" % p.name, flush=True)
             refs.append(ref_to_image_field(p))
         else:

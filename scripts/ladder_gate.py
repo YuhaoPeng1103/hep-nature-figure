@@ -18,16 +18,19 @@ C 档（+ 物理增量）按需往上加，加什么由上一轮真画错的地�
 
     {"rungs": [{"rung": "A", "brief": "A_brief.md", "brief_chars": 30,
                 "outdir": ".../gen/A", "refs": [...], "seeds": ["1401"],
-                "inc_chars": 0}, ...]}
+                "sim_max": 0.36, "sim": {...}, "inc_chars": 0}, ...]}
 
 `<gen-dir>` 由 `--outdir` 往上找最近的、含 `ladder.json` 的目录；找不到就是 `--outdir` 的父目录。
 
 ## 硬判据
 
     L1  顺序不许跳档：第 1 段必须是 A、第 2 段必须是 B、之后都是 C。
-    L2  A 档 = 一句话：简报 <= 80 字符 + 至少一张风格参考图；A 档产物**只作诊断**，
+    L2  A 档 = 一句话：简报 <= 80 字符，**默认不带风格参考图**（作者 2026-10-13：
+        「把 A 档不放参考图作为默认」）；带了 --ref 只作软警。A 档产物**只作诊断**，
         不许进交付链（--stage render 时构图依据来自 A 档的 outdir → 硬伤）。
-    L3  B 档必须有两样：① 面板序列；② 输出硬约束（标签白名单 / 不要图例标题说明文字）。
+    L3  B 档必须有三样：① **风格参考图**（A 档默认没有，风格从 B 档引入 ——
+        作者 2026-10-13「B 档还是有参考图」）；② 面板序列；③ 输出硬约束
+        （标签白名单 / 不要图例标题说明文字）。
     L4  每一轮 C 必须带「上一轮错在哪 → 改成什么」那一节，且 <= 3000 字符（增量，不是规格书）；
         简报还得是累积稿（上一轮简报的内容在里面）。
     L6  出成品位图之前，阶梯必须至少有 A、B、C 三段。
@@ -39,11 +42,28 @@ C 档（+ 物理增量）按需往上加，加什么由上一轮真画错的地�
         MAX_STEP_GROWTH（250）字符 —— 一次只加一条新约束。实测 v43：A 档 31 字符
         直接跳到 B 档 767 字符，出图的观感与 A 档完全不是一张图。
         render 档豁免（它的简报是 IR 编译稿 + 错误清单，见 §0.6）。
+    L9  **B/C 档每一轮都要把「修改前的图」当 --content-ref 交进去**（作者 2026-10-13：
+        「A 档出图后，BC 档每次修改都要给修改前的图，这样方便模型理解什么修改，
+        什么保留」）：B/C 档（stage=sketch）必须给至少一条 --content-ref，
+        且它要落在**本阶梯账本已登记的 rung 目录**里（= 上一轮的图）。
+        只给文字说「改这个、别的别动」不够 —— 模型看不到上一版，就会把上一版
+        已经画对的东西一起重画（实测：A 档的 QGP 火球是从风格图继承来的，
+        B/C 档看不到上一版、只好自己重画，同一张图的 QGP 在两档之间换了形状）。
+        不给 = 硬伤（--waive "理由" 可放行，理由照抄进交付说明）。
+    L10 **C 档必须严格在上一张图上改**（作者 2026-10-13：「只有 C 档时严格在上一张
+        图片上改」）：只改下面列出的那几条，其余连形状 / 质感 / 配色 / 光源 / 视角 /
+        位置都不许变 —— 不许重画、不许换材质、不许加也不许删（命中 >= 2 个严格措辞）。
+        为什么标出来：C 档不写"严格"，B 档刚改对的东西会被整张重画一遍
+        （实测：C 档把 B 档的火球质感重画成了光滑球）。
+        ★ **B 档不判这条**（作者 2026-10-13：「B 不就一轮吗，怎么还有挑着保留这一说」）：
+        B 只跑一轮，简报就是「A 的内容 + 面板序列 + 输出硬约束」= v4.12 的 B 档；
+        "该保留什么"由 L9 把上一张图交给它、模型自己看着办，不写成硬措辞。
 
 ## 用法
 
     # 出图前查（ref_guard.py --run 会自动调）
-    python3 scripts/ladder_gate.py --stage sketch --outdir <fig>/gen/B --brief <fig>/gen/B_brief.md --ref <风格图>
+    python3 scripts/ladder_gate.py --stage sketch --outdir <fig>/gen/B --brief <fig>/gen/B_brief.md --ref <风格图> \
+            --content-ref <fig>/gen/A/sketch_s1.png      # L9：这一档必须给「修改前的图」
     # 出图后登记（ref_guard.py --run 成功退出后自动调）
     python3 scripts/ladder_gate.py --record --outdir <fig>/gen/B --brief <fig>/gen/B_brief.md
     # 单独查账本
@@ -70,6 +90,10 @@ WHITELIST_MARKERS = ("只许出现这些标签", "只允许出现这些标签", 
                      "标签白名单", "图上只允许出现", "只许出现", "白名单")
 FAIL_MARKERS = ("错", "改成", "上一轮", "这一轮必须改对", "没做对", "改成什么")
 INC_SEPS = ("上一轮画错", "上一轮真画错", "上一版画错", "上一轮（", "上一轮(", "════", "====")
+
+# L10：C 档"严格在上一张图上改"（★ B 档不判 —— B 只跑一轮，见文件头 L10）
+STRICT_KEEP_MARKERS = ("严格", "原样保留", "不许重画", "不许换", "不许换材质", "不许删",
+                       "不许加", "不许变", "完全一致", "一模一样", "只改下面")
 
 
 def _read(p):
@@ -157,14 +181,19 @@ def brief_shape(rung, text, refs, prev_text):
         if n > MAX_A_CHARS:
             v.append("L2 A 档必须是一句话（<= %d 字符），这份简报 %d 字符 —— A 档是用来"
                      "看模型对这个题材的先验的，不是交付稿；要加约束请走 B 档。" % (MAX_A_CHARS, n))
-        if not refs:
-            v.append("L2 A 档必须带风格参考图（--ref）：只给一句话、不给风格图，会退化成通用信息图。")
+        if refs:
+            w.append("L2 A 档**默认不带风格参考图**（作者 2026-10-13「把 A 档不放参考图作为默认」）"
+                     "—— A 档是看模型对这个题材的先验、只作诊断，风格由 B 档引入。"
+                     "这一轮带了 --ref %s，确认是有意的。" % (refs,))
     elif rung == "B":
         if n < 40:
             v.append("L3 B 档太短（%d 字符）：B = A + 面板序列 + 输出硬约束。" % n)
         if n > MAX_B_CHARS:
             v.append("L3 B 档太长（%d 字符 > %d）：这一档只加面板序列与输出硬约束，"
                      "物理增量留给 C 档。" % (n, MAX_B_CHARS))
+        if not refs:
+            v.append("L3 B 档必须带**风格参考图**（--ref）：A 档默认不带参考图，风格是从 B 档"
+                     "开始引入的（作者 2026-10-13「B 档还是有参考图」）。")
         if not any(k in text for k in PANEL_MARKERS):
             w.append("L3 B 档还没有【面板序列】（「面板 a/b/c」「从左到右」这类）—— "
                      "L8 允许分几步加，但**进 render 前必须补齐**（由 L3b 在 render 档把关）。")
@@ -197,7 +226,7 @@ def order_checks(led):
     return []
 
 
-def precheck(gen_dir, brief_path, outdir, refs, stage):
+def precheck(gen_dir, brief_path, outdir, refs, stage, content_refs=None):
     led = load_ledger(gen_dir)
     rungs = led.get("rungs") or []
     v, w = order_checks(led), []
@@ -219,14 +248,22 @@ def precheck(gen_dir, brief_path, outdir, refs, stage):
         prev_text = _read(bp if bp.is_absolute() else Path(gen_dir) / bp)
     if not refs and prev:
         refs = prev.get("refs") or []
-    # L7 风格参考图必须贯穿整条阶梯（作者 2026-10-07：「B/C 是辅助 A 档物理错误的」）
+    # L7 风格参考图必须贯穿整条阶梯（作者 2026-10-07）。
+    #     ★ 2026-10-13：A 档默认不带参考图，所以锚点取**阶梯里第一个带 refs 的 rung**
+    #     （现在一般是 B 档），不再写死 rungs[0]（那会让这条规则失效）。
     if rungs:
-        a_refs = sorted(os.path.basename(x) for x in (rungs[0].get("refs") or []))
+        anchor = None
+        for _r in rungs:
+            if _r.get("refs"):
+                anchor = _r
+                break
         now_refs = sorted(os.path.basename(x) for x in (refs or []))
-        if a_refs and now_refs and a_refs != now_refs:
-            v.append("L7 风格参考图与本条阶梯的 A 档不一致：A 档用 %s，这一轮用 %s —— "
-                     "B/C 档是 A 档的续（只补面板序列 / 输出硬约束 / 物理修正），"
-                     "中途换风格图 = 另起一张，就不是「辅助 A 档」了。" % (a_refs, now_refs))
+        if anchor is not None:
+            a_refs = sorted(os.path.basename(x) for x in (anchor.get("refs") or []))
+            if now_refs and a_refs != now_refs:
+                v.append("L7 风格参考图与本条阶梯的 %s 档不一致：%s 档用 %s，这一轮用 %s —— "
+                         "B/C 档是同一张风格书的续，中途换风格图 = 另起一张。"
+                         % (anchor.get("rung"), anchor.get("rung"), a_refs, now_refs))
     # L8 慢慢加提示词：每上一档只加一条新约束（作者 2026-10-07）
     if stage == "sketch" and prev is not None:
         grow = len(text.strip()) - (prev.get("brief_chars") or 0)
@@ -235,6 +272,41 @@ def precheck(gen_dir, brief_path, outdir, refs, stage):
                      "每上一档只加一条新约束，一次加太多会把上一档的观感整个换掉"
                      "（实测 v43：A 档 31 字符 → B 档 767 字符，B/C 出图跟 A 完全不一样）。"
                      % (grow, MAX_STEP_GROWTH))
+    # L9 B/C 档每一轮都要把「修改前的图」交进去（作者 2026-10-13）
+    if stage == "sketch" and rung in ("B", "C") and rungs:
+        hit_any, hit_prev, prev_od = False, False, None
+        if prev and prev.get("outdir"):
+            prev_od = os.path.abspath(prev["outdir"])
+        for x in (content_refs or []):
+            if not x:
+                continue
+            cp = os.path.abspath(x)
+            for r in rungs:
+                od = r.get("outdir")
+                if not od:
+                    continue
+                od_a = os.path.abspath(od)
+                if cp == od_a or cp.startswith(od_a + os.sep):
+                    hit_any = True
+                    if prev_od and od_a == prev_od:
+                        hit_prev = True
+        if not hit_any:
+            v.append("L9 %s 档必须把**上一档的图**当 --content-ref 交进去（作者 2026-10-13："
+                     "「BC 档每次修改都要给修改前的图，方便模型理解什么修改、什么保留」）—— "
+                     "这一轮没给任何落在本阶梯**已登记 rung 目录**里的 --content-ref。"
+                     "做法：--content-ref %s"
+                     % (rung, prev_od or "<gen>/<上一档>/sketch_sN.png"))
+        elif not hit_prev:
+            w.append("L9 给的 --content-ref 不在**紧邻的上一档**目录里 —— "
+                     "确认给的是「修改前」那一版，不是更早的版本。")
+    # L10 C 档必须严格在上一张图上改（作者 2026-10-13）；B 档不判（B 只跑一轮）
+    if stage == "sketch" and rung == "C":
+        _hits = [k for k in STRICT_KEEP_MARKERS if k in (text or "")]
+        if text and len(_hits) < 2:
+            v.append("L10 C 档必须写清它是**严格在上一张图上改**（作者 2026-10-13："
+                     "「只有 C 档时严格在上一张图片上改」）—— 只改下面列出的那几条，"
+                     "其余连形状 / 质感 / 配色 / 光源 / 视角 / 位置都不许变，不许重画、"
+                     "不许换材质、不许加也不许删。现在只命中 %s。" % (_hits or "0 个严格措辞"))
     bv, bw = brief_shape(rung, text, refs, prev_text)
     v += bv
     w += bw
@@ -270,7 +342,7 @@ def precheck(gen_dir, brief_path, outdir, refs, stage):
     return rung, v, w, idx
 
 
-def do_record(gen_dir, brief_path, outdir, refs, add=None, stage="sketch"):
+def do_record(gen_dir, brief_path, outdir, refs, add=None, stage="sketch", content_refs=None):
     led = load_ledger(gen_dir)
     rungs = led.get("rungs") or []
     idx = len(rungs)
@@ -284,6 +356,12 @@ def do_record(gen_dir, brief_path, outdir, refs, add=None, stage="sketch"):
             rel_add = os.path.relpath(Path(add).resolve(), Path(gen_dir)).replace("\\", "/")
         except Exception:
             rel_add = str(Path(add).resolve())
+    # 出图记录里的 `refs` 会把 --content-ref 一起算进去；登记"风格参考"时必须剔掉它，
+    # 否则 L7（风格图贯穿整条阶梯）会把上一轮的图当成风格图比，误判。
+    _all = (calls or {}).get("refs") or list(refs or [])
+    _cr = (calls or {}).get("content_refs") or list(content_refs or [])
+    _crn = {os.path.normcase(os.path.abspath(x)) for x in _cr if x}
+    _style = [x for x in _all if os.path.normcase(os.path.abspath(x)) not in _crn]
     entry = {
         "rung": rung,
         "stage": stage,
@@ -291,8 +369,8 @@ def do_record(gen_dir, brief_path, outdir, refs, add=None, stage="sketch"):
                   if brief_path else None),
         "brief_chars": len(text.strip()),
         "outdir": str(Path(outdir).resolve()) if outdir else None,
-        "refs": (calls or {}).get("refs") or list(refs or []),
-        "content_refs": (calls or {}).get("content_refs") or [],
+        "refs": _style or _all,
+        "content_refs": _cr,
         "seeds": (calls or {}).get("seeds") or [],
         "inc_chars": len(inc),
         "add": rel_add,
@@ -313,6 +391,8 @@ def main():
     ap.add_argument("--brief", default=None, help="这一轮的简报 .md")
     ap.add_argument("--add", default=None, help="C 档：上一轮的错误清单 .md（登记时可给）")
     ap.add_argument("--ref", action="append", default=[], help="这一轮的风格参考图")
+    ap.add_argument("--content-ref", action="append", default=[],
+                    help="这一轮的构图依据；B/C 档必须给上一轮的图（L9）")
     ap.add_argument("--stage", choices=("sketch", "render"), default="sketch")
     ap.add_argument("--record", action="store_true", help="出图成功后登记这一段")
     ap.add_argument("--waive", default=None, help="确实要放行时的理由（会打印出来）")
@@ -326,14 +406,14 @@ def main():
     print("账本 : %s" % ledger_path(gen_dir))
 
     if a.record:
-        entry, p = do_record(gen_dir, a.brief, a.outdir, a.ref, a.add, a.stage)
+        entry, p = do_record(gen_dir, a.brief, a.outdir, a.ref, a.add, a.stage, a.content_ref)
         n = len(load_ledger(gen_dir)["rungs"])
         print("已登记第 %d 段：%s 档 | 简报 %d 字符 | 增量 %d 字符"
               % (n, entry["rung"], entry["brief_chars"], entry["inc_chars"]))
         print("账本 -> %s" % p)
         return 0
 
-    rung, v, w, idx = precheck(gen_dir, a.brief, a.outdir, a.ref, a.stage)
+    rung, v, w, idx = precheck(gen_dir, a.brief, a.outdir, a.ref, a.stage, a.content_ref)
     print("这一轮 : 第 %d 段 = %s 档%s" % (idx + 1, rung,
           "（A 档只作诊断，不许进交付链）" if rung == "A" else ""))
     for x in w:
@@ -347,8 +427,9 @@ def main():
         else:
             print("-" * 70)
             print("结论：阶梯不合规 —— 不许调生图接口。")
-            print("  阶梯：A（一句话 + 风格图，只作诊断）→ B（+ 面板序列 + 输出硬约束）"
-                  "→ C（只补上一轮真画错的）")
+            print("  阶梯：A（一句话，默认不带参考图，只作诊断）→ "
+                  "B（+ 风格图 + 面板序列 + 输出硬约束）→ "
+                  "C（**严格在上一张图上改**，只补上一轮真画错的）")
             if a.json:
                 Path(a.json).write_text(json.dumps(
                     {"gen_dir": str(gen_dir), "rung": rung, "index": idx,
