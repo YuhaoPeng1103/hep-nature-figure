@@ -396,6 +396,77 @@ def ir_contract(ir_path):
     else:
         w.append(("--ir", ir_path, "OK",
                   "style_preferences %d 条（第 2 层，可被更美观的画法替换）" % len(sp)))
+    # ── 投影类型 / 右手定则 / z=束流（作者 2026-10-14：「严格检查 3 轴物理：z 轴一般是
+    #    束流方向，xyz 之间满足右手定则和斜二测、正等测」）—— 就地判，不 import axis_gate
+    #    （它 import 时会重绑 sys.stdout）。axis_gate.py --selftest 有这同一组判据的标定。
+    _pr = comp.get("projection") if isinstance(comp.get("projection"), dict) else {}
+    _ty = _pr.get("类型") or _pr.get("type") or _pr.get("投影")
+    if not _ty:
+        v.append(("--ir", ir_path, "NO_PROJECTION",
+                  "IR 没写 composition.projection.类型 —— 写「斜二测 / 斜投影 / 等轴测 / 正等测」"
+                  "之一（作者 2026-10-14：xyz 之间满足右手定则和斜二测、正等测）"))
+    elif ("透视" in str(_ty)) or ("perspective" in str(_ty).lower()):
+        v.append(("--ir", ir_path, "PERSPECTIVE",
+                  "composition.projection.类型 = %r —— 示意图必须平行投影，不许透视" % (_ty,)))
+    else:
+        w.append(("--ir", ir_path, "OK", "投影类型 = %s" % _ty))
+    _raw = io.open(ir_path, encoding="utf-8", errors="replace").read()
+    if "左手" in _raw:
+        v.append(("--ir", ir_path, "LEFT_HANDED", "IR 里出现「左手系」—— 三轴必须右手系"))
+    elif ("右手" in _raw) or ("right-hand" in _raw.lower()):
+        w.append(("--ir", ir_path, "OK", "已声明右手系"))
+    else:
+        w.append(("--ir", ir_path, "NO_HANDEDNESS",
+                  "IR 没书面声明手性 —— 加 composition.坐标约定.手性: 右手。手性在平行投影里"
+                  "**不可观测**（镜像一张轴测图还是轴测图），所以只能靠「声明 + 图上三轴 == "
+                  "IR 的 轴方向_deg」来核（axis_gate 的 X7 / X7b）"))
+    _beam = None
+    for _k in ("坐标约定", "coordinate_convention", "convention", "projection"):
+        _blk = comp.get(_k) if isinstance(comp.get(_k), dict) else {}
+        for _bk in ("束流轴", "beam_axis"):
+            if _blk.get(_bk):
+                _vs = str(_blk[_bk])
+                if any(x in _vs for x in ("无", "不适用", "没有", "none", "None", "N/A")):
+                    _beam = "none"
+                else:
+                    _m = _re.search(r"[xyzXYZ]", _vs)
+                    _beam = _m.group(0).lower() if _m else None
+                break
+        if _beam:
+            break
+    if _beam is None:
+        _hits = set()
+        for _m in _re.finditer(r"(?<![A-Za-z])([xyz])\s*(?:轴)?\s*[=＝:：]\s*[^。；\n]{0,8}?束流", _raw):
+            _hits.add(_m.group(1).lower())
+        for _m in _re.finditer(r"束流(?:方向|轴)?\s*[为是]?\s*(?<![A-Za-z])([xyz])(?![A-Za-z0-9])", _raw):
+            _hits.add(_m.group(1).lower())
+        if len(_hits) == 1:
+            _beam = _hits.pop()
+    if _beam is None:
+        v.append(("--ir", ir_path, "NO_BEAM_AXIS",
+                  "IR 里读不出束流轴 —— 加 composition.坐标约定.束流轴: z（默认约定 = z，"
+                  "作者 2026-10-14：「z 轴一般是束流方向」）；**本图确实没有束流的写 "
+                  "`束流轴: 无`**"))
+    elif _beam == "none":
+        w.append(("--ir", ir_path, "OK", "已声明「无束流」"))
+    elif _beam == "z":
+        w.append(("--ir", ir_path, "OK", "束流轴 = z（默认）"))
+    else:
+        _why = ""
+        for _k in ("坐标约定", "coordinate_convention", "projection"):
+            _blk = comp.get(_k) if isinstance(comp.get(_k), dict) else {}
+            for _bk in ("束流轴理由", "理由", "beam_axis_reason"):
+                if _blk.get(_bk) and len(str(_blk[_bk]).strip()) >= 6:
+                    _why = str(_blk[_bk]).strip()
+                    break
+            if _why:
+                break
+        if _why:
+            w.append(("--ir", ir_path, "OK", "束流轴 = %s（理由：%s）" % (_beam, _why)))
+        else:
+            v.append(("--ir", ir_path, "BEAM_NOT_Z",
+                      "束流轴 = %s，不是默认的 z —— 必须给 composition.坐标约定.束流轴理由: "
+                      "<一句话>" % _beam))
     return v, w
 
 

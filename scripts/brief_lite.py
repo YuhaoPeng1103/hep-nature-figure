@@ -31,7 +31,13 @@
 ★ v4.14 起编译出的简报固定带两句（作者 2026-10-14）：
   ① 有 --add（C 档）时自动加「只改物理 / 几何，材质保持不变（以给的那张图为准）」—— 形状是
      物理、材质是观感（`ladder_gate` 的 L11 会查，漏写即硬伤；点名具体材质只出软警）；
-  ② tier >= 1（B/C 档）时自动加「上一版画得好的部分保留、只在此基础上改得更好看」（L12）。
+  ② tier >= 1 时自动加「上一版画得好的部分保留、只在此基础上改得更好看」。
+★ v4.15 起四档阶梯（A → B → C → D，见 ladder_gate.py）。这个编译器负责的是草图简报：
+  · `--tier 0` ≈ **B 档**（一句话 + 画布/面板序列 + 输出硬约束，+ --ref 风格图，不给 --content-ref）；
+  · `--tier 1` ≈ **D 档**的底稿（再叠五条 3D 空间线索 + 各面板形态）；
+  · `--swap-from-a "核子=核子球团"` ≈ **C 档**（把 A 档画得好的元素搬进来、替换 B 档里对应的
+    那一处；`ladder_gate` 的 L12 会查这一句）。C 档要同时给 A 与 B 两张 --content-ref（L9）。
+  · `--add <上一轮画错.md>` ≈ **D 档**的增量（+ 材质保持不变那句，L11/L4）。
 """
 
 import argparse
@@ -200,7 +206,7 @@ def parse_size(text):
     return int(m.group(1)), int(m.group(2))
 
 
-def build(doc, tier, wh, added=None, sents=1):
+def build(doc, tier, wh, added=None, sents=1, swap_from_a=None):
     w, h = wh
     fig = doc.get("figure") or {}
     ol = one_liner(doc, sents)
@@ -244,6 +250,17 @@ def build(doc, tier, wh, added=None, sents=1):
                  "让所有高光与接触阴影朝同一个方向。")
         L.append("- 上一版（已给的 --content-ref 那张图）里**画得好的部分保留** —— 物体的形状 /"
                  "布局 / 配色 —— 只在此基础上改得更好看，不要把已经画对的东西推倒重画。")
+    if swap_from_a:
+        # ★ v4.15（作者 2026-10-14）：新的 C 档 = 元素替换档 —— 把 A 档画得好的东西搬进来，
+        #   替换 B 档里对应的那一处。ladder_gate 的 L12 查这一句（缺了就是硬伤）。
+        L.append("")
+        L.append("════ 把上一档（A）画得好的元素搬进来（C 档：元素替换，作者 2026-10-14）════")
+        for _x in swap_from_a:
+            L.append("- 把 A 档画得好的【%s】搬进来，**替换 B 档里对应的那一处**" % _x)
+        L.append("- 只做**元素级替换**：A 画得好的部分要留着（形状 / 质感 / 配色照 A），"
+                 "B 里对应的那个东西才被换掉；其余照 B 档，不要整张重画。")
+        L.append("- 元素是物理（该换对），材质是观感：**材质保持不变** —— 以给的那张图为准，"
+                 "不要替模型指定具体材质。")
     if added:
         L.append("")
         L.append("════ 上一轮画错的地方（这一轮必须改对）════")
@@ -265,6 +282,8 @@ def main():
                     help="figure 里没写 one_liner 时，退回 physics_claim 的前 N 句")
     ap.add_argument("--add", action="append", default=[],
                     help="追加的增量约束文件（上一轮画错的点），可多次给")
+    ap.add_argument("--swap-from-a", action="append", default=[],
+                    help="C 档：把 A 档画得好的 <元素> 搬进来、替换 B 档里对应的那一处（可多次给）")
     ap.add_argument("-o", "--out", default=None, help="输出 .md；不给就打到 stdout")
     a = ap.parse_args()
 
@@ -275,7 +294,7 @@ def main():
             sys.exit("找不到增量约束文件：%s" % p)
         with io.open(p, encoding="utf-8") as f:
             added += ("\n" if added else "") + f.read().strip()
-    text = build(doc, a.tier, parse_size(a.size), added, a.sents)
+    text = build(doc, a.tier, parse_size(a.size), added, a.sents, a.swap_from_a)
 
     if a.out:
         d = os.path.dirname(os.path.abspath(a.out))

@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""axis_gate -- 三轴物理闸门（作者 2026-10-04 要求；v4.1 起随 skill 发布，脚本在 scripts/）
+"""axis_gate -- 三轴物理闸门（本工作区规则，作者 2026-10-04 要求）
 
 作者原话：
     「你要确保以后每次生成的图三轴物理不会错」
@@ -20,6 +20,22 @@
         **同一根轴杆的两端**（杆端各在 tol 内）—— 这一条把「两根不同的轴共用一个名字」抓出来。
     X4  三个轴名对应的轴杆方向两两相差 > 15 度（防「三轴画成两组」）。
     X5  同一张图不许同时出现「第四个单字母轴名」（除白名单外）。
+    X7  右手定则（作者 2026-10-14）：① IR 必须书面声明右手系（composition.坐标约定.手性: 右手）
+        —— 声明「左手」直接硬伤，**没声明只出软警**（--strict-handedness 才硬判）；
+        ② **图上三根轴杆的方向必须与 IR 声明的 `轴方向_deg` 一一对上**（每根 <= --axis-tol 度）。
+        ★ 为什么 ② 才是可核对的形式：手性在平行投影里**本身不可观测** —— 把一张轴测图镜像
+        过去还是同样合法的轴测图，光看图判不出左右手。能查的是「画出来的那套三轴 == 声明的
+        那套（声明里写着右手系）」。只给 --png（草图档）时 ② 降级为软警。
+    X8  投影类型（作者 2026-10-14：「xyz 之间满足右手定则和斜二测、正等测」）：
+        ① `composition.projection.类型` 必须声明，且不许是「透视 / perspective」（硬伤）；
+        ② 几何自洽（给了 轴方向_deg + 前缩 时硬判）——
+           · 正交 / 轴测（正等测、等轴测、正交相机）：Σ f²·e^{2iθ} ≈ 0（<=0.05）；
+           · 斜二测 / 斜投影：存在一对面内轴（屏幕夹角 ≈ 90°、前缩相等且最大），
+             第三根（法线 / 深度轴）前缩更小、与最近的面内轴夹角落在 15°–75°。
+    X9  束流方向（作者 2026-10-14：「z 轴一般是束流方向」）：IR 必须能读出束流轴
+        （composition.坐标约定.束流轴: z，或文本里「z=束流方向 / 沿束流轴 z」）—— 读不出
+        = 硬伤（--allow-missing-beam 降级为软警）；读出来**不是 z** 时必须给 `束流轴理由:`。
+        图上读数：最长的一根轴杆应当是束流轴（软警）。
 
 输入
     --svg  交付/重建后的 SVG（有真 <text data-plain>）—— 权威读数
@@ -30,16 +46,21 @@
     --json 报告；--annot 标注图（人 5 秒能判）
 
 用法
-    python scripts/axis_gate.py --svg <fig.svg> --png <fig.png> --ir <ir.yaml> --json <rep.json> --annot <a.png>
-    python scripts/axis_gate.py --png <草图.png> --ir <ir.yaml>        # 草图/仅位图模式
+    python tools\axis_gate.py --svg <fig.svg> --png <fig.png> --ir <ir.yaml> --json <rep.json> --annot <a.png>
+    python tools\axis_gate.py --png <草图.png> --ir <ir.yaml>        # 草图/仅位图模式
         -> X1/X2/X5 仍是硬判据；X3b/X4（轴杆几何）降级为读数 + 软警
            （草图上的轴杆检测不稳，误杀不起 —— 矢量交付时必须给 --svg）
     --allow-missing-axis：X2「缺轴名」降级为软警 —— 只在该图**有意不画轴字母**时用
            （如只标 beam），理由必须写进交付说明
+    --allow-missing-projection / --allow-missing-beam：X8 缺投影声明 / X9 读不出束流轴
+           降级为软警（默认都是硬伤）；--strict-handedness：X7 没声明右手系也判硬伤
+    --selftest：跑 X7 / X8 / X9 标定（写临时 IR，不碰真图）
 
-回归标定（改过这里就要重跑；本仓库只带 T3 正样本）
-    PASS  fig_upc_3d/out/upc_3d.svg
-    FAIL  fig_upc_3d/trace/upc_trace_prelabel.svg
+回归标定（改过这里就要重跑）
+    PASS  fig_upc_3d/out/upc_3d.svg --png fig_upc_3d/gen/chosen.png --ir fig_upc_3d/ir/upc_single_3d.ir.yaml
+          （X3 ok / X4 ok / X7b 三根轴杆全部对上 / X9b 最长杆 = 束流轴 z，差 9.7 度）
+    FAIL  fig_upc_3d/trace/upc_trace_prelabel.svg（同上参数）—— X3 抓出 y 的两端不在同一根杆上
+    python3 scripts/axis_gate.py --selftest      # X7 / X8 / X9 标定（15 条，写临时 IR）
 """
 from __future__ import annotations
 
@@ -130,6 +151,185 @@ def ir_axes_multiset(ir_path):
     return None
 
 
+# ── IR：投影 / 手性 / 束流轴（作者 2026-10-14：「严格检查 3 轴物理：z 轴一般是束流方向，
+#    xyz 之间满足右手定则和斜二测、正等测」）─────────────────────────────────
+def _ir_text(ir_path):
+    try:
+        return io.open(ir_path, encoding="utf-8", errors="replace").read()
+    except Exception:
+        return ""
+
+
+def _ir_doc(ir_path):
+    try:
+        import yaml
+        return yaml.safe_load(_ir_text(ir_path))
+    except Exception:
+        return None
+
+
+def _axes_for_word(txt, words):
+    """从 IR 文本里取「哪些轴被说成 <words>」。只认两种明确写法：
+
+        `z = 束流方向`（轴名在前，带 = / : 分隔）与 `沿束流轴 z`（词在前、轴名紧跟其后）
+
+    —— 刻意不认「…束流方向，y = 碰撞参数方向…」这种在同一句里顺带出现的**别的**轴名
+    （实测会把 y 误当成束流轴；这种误判比漏判更坏）。"""
+    found = set()
+    for w in words:
+        for m in re.finditer(r"(?<![A-Za-z])([xyz])\s*(?:轴)?\s*[=＝:：]\s*[^。；\n]{0,8}?" + w, txt):
+            found.add(m.group(1).lower())
+        for m in re.finditer(w + r"(?:方向|轴)?\s*[为是]?\s*(?<![A-Za-z])([xyz])(?![A-Za-z0-9])", txt):
+            found.add(m.group(1).lower())
+    return found
+
+
+def ir_projection(ir_path):
+    """读 composition.projection（退路：坐标约定.投影）。返回 dict，读不到给空 dict。"""
+    out = {"type": None, "angles": {}, "foreshort": {}, "view": None, "src": None}
+    doc = _ir_doc(ir_path)
+    if not isinstance(doc, dict):
+        return out
+    comp = doc.get("composition") if isinstance(doc.get("composition"), dict) else {}
+    pr = comp.get("projection") if isinstance(comp.get("projection"), dict) else {}
+    if pr:
+        out["type"] = pr.get("类型") or pr.get("type")
+        for k in ("轴方向_deg", "axis_angles_deg", "轴方向"):
+            blk = pr.get(k)
+            if isinstance(blk, dict):
+                for aa, vv in blk.items():
+                    try:
+                        out["angles"][str(aa).lower()] = float(vv)
+                    except Exception:
+                        pass
+        for k in ("前缩", "foreshorten", "缩放"):
+            blk = pr.get(k)
+            if isinstance(blk, dict):
+                for aa, vv in blk.items():
+                    try:
+                        out["foreshort"][str(aa).lower()] = float(vv)
+                    except Exception:
+                        pass
+        out["view"] = pr.get("视角") or pr.get("view")
+        out["src"] = "composition.projection"
+    if not out["type"]:
+        cc = comp.get("坐标约定") if isinstance(comp.get("坐标约定"), dict) else {}
+        if cc:
+            out["type"] = cc.get("投影") or cc.get("投影类型") or cc.get("projection")
+            if out["type"] and not out["src"]:
+                out["src"] = "composition.坐标约定"
+    return out
+
+
+def ir_handedness(ir_path):
+    """返回 (手性, 出处)：手性 ∈ {\"right\", \"left\", None}。"""
+    doc = _ir_doc(ir_path)
+    if isinstance(doc, dict):
+        comp = doc.get("composition") if isinstance(doc.get("composition"), dict) else {}
+        for key in ("坐标约定", "coordinate_convention", "convention"):
+            blk = comp.get(key)
+            if isinstance(blk, dict):
+                h = blk.get("手性") or blk.get("handedness") or blk.get("坐标手性")
+                if h:
+                    hs = str(h)
+                    if "左" in hs or "left" in hs.lower():
+                        return "left", "composition.%s.手性" % key
+                    if "右" in hs or "right" in hs.lower():
+                        return "right", "composition.%s.手性" % key
+    t = _ir_text(ir_path)
+    tl = t.lower()
+    if ("左手" in t) or ("left-hand" in tl) or ("left hand" in tl):
+        return "left", "IR 文本里的「左手」"
+    if ("右手" in t) or ("right-hand" in tl) or ("right hand" in tl):
+        return "right", "IR 文本里的「右手」"
+    return None, "没找到"
+
+
+def ir_beam_axis(ir_path):
+    """返回 (束流轴, 出处)；默认约定是 z（作者 2026-10-14）。读不到给 (None, 原因)。"""
+    doc = _ir_doc(ir_path)
+    if isinstance(doc, dict):
+        comp = doc.get("composition") if isinstance(doc.get("composition"), dict) else {}
+        for key in ("坐标约定", "coordinate_convention", "convention", "projection"):
+            blk = comp.get(key)
+            if isinstance(blk, dict):
+                for k in ("束流轴", "beam_axis", "束流方向"):
+                    v = blk.get(k)
+                    if not v:
+                        continue
+                    vs = str(v)
+                    if any(x in vs for x in ("无", "不适用", "没有", "none", "None", "N/A")):
+                        return "none", "composition.%s.%s = %s" % (key, k, vs.strip())
+                    m = re.search(r"[xyzXYZ]", vs)
+                    if m:
+                        return m.group(0).lower(), "composition.%s.%s" % (key, k)
+    hits = _axes_for_word(_ir_text(ir_path), ("束流方向", "束流轴", "束流"))
+    if len(hits) == 1:
+        return hits.pop(), "IR 文本（束流 → 轴）"
+    if len(hits) > 1:
+        return None, "束流相关的轴名有多个 %s，说不清是哪一个" % sorted(hits)
+    return None, "没找到"
+
+
+def ir_beam_reason(ir_path):
+    """束流轴不是 z 时的理由字段。"""
+    doc = _ir_doc(ir_path)
+    if isinstance(doc, dict):
+        comp = doc.get("composition") if isinstance(doc.get("composition"), dict) else {}
+        for key in ("坐标约定", "projection", "coordinate_convention"):
+            blk = comp.get(key)
+            if isinstance(blk, dict):
+                for k in ("束流轴理由", "理由", "beam_axis_reason"):
+                    v = blk.get(k)
+                    if v and len(str(v).strip()) >= 6:
+                        return str(v).strip()
+    return None
+
+
+def _proj_family(angs, fs):
+    """从「轴方向_deg + 前缩」判这套三轴投影属于哪一族。
+
+    自洽返回 (族名, 说明)；不自洽返回 (None, 原因)。
+      · 正交 / 轴测（等轴测、正等测、正交相机）：Σ f²·e^{2iθ} = 0 —— 轴测正投影的充要条件
+        （2×3 投影矩阵两行正交、等长者）。★ 它与手性无关：镜像后的轴测图同样满足。
+      · 斜二测 / 斜投影：存在一对面内轴（屏幕夹角 ≈ 90°、前缩相等且最大），
+        第三根（法线 / 深度轴）前缩更小、与最近的面内轴夹角落在 15°–75°。
+    """
+    axes = ("x", "y", "z")
+    th = {k: math.radians(angs[k]) for k in axes}
+    f = {k: float(fs[k]) for k in axes}
+    sx = sum(f[k] ** 2 * math.cos(2 * th[k]) for k in axes)
+    sy = sum(f[k] ** 2 * math.sin(2 * th[k]) for k in axes)
+    norm = sum(f[k] ** 2 for k in axes) or 1.0
+    resid = math.hypot(sx, sy) / norm
+    detail = "Σf²e^{2iθ} 残差 %.3f（<=0.05 = 正交/轴测）" % resid
+    if resid <= 0.05:
+        return "orthographic", detail
+    for i in range(3):
+        for j in range(i + 1, 3):
+            aa, bb = axes[i], axes[j]
+            d = abs(math.degrees(th[aa] - th[bb])) % 180.0
+            d = min(d, 180.0 - d)
+            if d < 60.0 or d > 120.0:
+                continue
+            if abs(f[aa] - f[bb]) / max(f[aa], f[bb], 1e-9) > 0.20:
+                continue
+            oth = [k for k in axes if k not in (aa, bb)][0]
+            if f[oth] > max(f[aa], f[bb]) + 0.05:
+                continue
+            dd = []
+            for k in (aa, bb):
+                e = abs(math.degrees(th[oth] - th[k])) % 180.0
+                dd.append(min(e, 180.0 - e))
+            if 15.0 <= min(dd) and max(dd) <= 75.0:
+                return "oblique", ("斜二测：面内 %s/%s 夹角 %.1f 度（≈90）、前缩 %.2f/%.2f 相等，"
+                                   "法线轴 %s 前缩 %.2f 更小、与最近面内轴夹角 %.0f 度"
+                                   % (aa, bb, d, f[aa], f[bb], oth, f[oth], min(dd)))
+    return None, ("不自洽：%s；既不是正交/轴测（残差 %.3f > 0.05），也不是斜二测（找不到屏幕"
+                  "夹角≈90°、前缩相等的面内轴对）—— 检查 composition.projection 的 "
+                  "轴方向_deg / 前缩" % (detail, resid))
+
+
 # ── SVG 文字层 ─────────────────────────────────────────────────────────────
 def svg_labels(path):
     s = io.open(path, encoding="utf-8", errors="replace").read()
@@ -137,6 +337,7 @@ def svg_labels(path):
     m2 = re.search(r"<svg[^>]*\bheight\s*=\s*.([0-9.]+).", s)
     W = float(m.group(1)) if m else None
     H = float(m2.group(1)) if m2 else None
+    gmarks = [(m.start(), m.group(1)) for m in re.finditer(r'<g id="([^"]+)"', s)]
     out = []
     for mm in re.finditer(r"<text\b([^>]*)>(.*?)</text>", s, re.S):
         at, inner = mm.group(1), mm.group(2)
@@ -148,9 +349,17 @@ def svg_labels(path):
             continue
         txt = pl.group(1) if pl else re.sub(r"<[^>]+>", "", inner)
         f = float(fs.group(1)) if fs else 20.0
+        gid = None                      # 最近的前置 <g id=...>
+        for _st, _g in gmarks:
+            if _st < mm.start():
+                gid = _g
+            else:
+                break
+        panel = gid[:-5] if (gid and gid.endswith("-text")) else None
         out.append({"t": txt.strip(),
                     "x": float(xs.group(1)) + 0.30 * f,   # 大致取字形中心
                     "y": float(ys.group(1)) - 0.35 * f,
+                    "panel": panel,
                     "src": "svg"})
     return W, H, out
 
@@ -332,7 +541,7 @@ def plane_dirs(path, min_area=0.02):
     if lines is None:
         return surf, None, frac
     bins = {}
-    for l in lines[:, 0]:
+    for l in lines.reshape(-1, 4):
         x1, y1, x2, y2 = map(float, l)
         Ln = math.hypot(x2 - x1, y2 - y1)
         if Ln < 0.05 * W:
@@ -369,7 +578,7 @@ def detect_rods(path, thr=0.55, sm=40, minlen=0.045, gap=4):
     if lines is None:
         return [], W, H
     segs = []
-    for l in lines[:, 0]:
+    for l in lines.reshape(-1, 4):
         x1, y1, x2, y2 = map(float, l)
         Ln = math.hypot(x2 - x1, y2 - y1)
         ang = math.degrees(math.atan2(-(y2 - y1), x2 - x1)) % 180.0
@@ -430,6 +639,188 @@ def _dist_t(R, px, py):
     return abs(-dx * math.sin(th) - dy * math.cos(th)), dx * math.cos(th) - dy * math.sin(th)
 
 
+def check_axis_physics_ir(ir_path, strict_handedness=False, allow_missing_projection=False,
+                          allow_missing_beam=False, rep=None):
+    """X7 / X8 / X9 的 **IR 层**判据（不碰位图）。
+
+    返回 [(ok, label, detail, hard), ...]；rep 给了就把读数塞进去。
+
+      X8① 投影类型必须声明、且 ∈ {斜二测, 斜投影, 等轴测, 正等测}（不许透视）
+      X8② 轴方向_deg + 前缩 必须自洽（斜二测 或 正交轴测）
+      X7   右手定则：IR 必须书面声明右手系（没声明 = 软警，--strict-handedness 才硬判）
+      X9   z 一般是束流方向：IR 必须能读出束流轴（读不出 = 硬伤，--allow-missing-beam 降级）；
+           不是 z 时必须给 `束流轴理由:`
+    """
+    rows = []
+    if not ir_path:
+        return [(False, "X8 投影类型已声明",
+                 "没给 --ir —— 无法核对投影类型（要斜二测 / 等轴测，不许透视）", False),
+                (False, "X7 右手定则（声明）", "没给 --ir", False),
+                (False, "X9 束流轴已声明", "没给 --ir", False)]
+    proj = ir_projection(ir_path)
+    hand, hand_src = ir_handedness(ir_path)
+    beam, beam_src = ir_beam_axis(ir_path)
+
+    # X8① 类型
+    if not proj.get("type"):
+        rows.append((False, "X8 投影类型已声明",
+                     "IR 没写 composition.projection.类型 —— 写「斜二测 / 斜投影 / 等轴测 / 正等测」"
+                     "之一（作者 2026-10-14：「xyz 之间满足右手定则和斜二测、正等测」）",
+                     not allow_missing_projection))
+    else:
+        ty = str(proj["type"])
+        persp = ("透视" in ty) or ("perspective" in ty.lower())
+        rows.append((not persp, "X8 投影类型 ∈ {斜二测, 斜投影, 等轴测, 正等测}",
+                     "类型 = %r（出处 %s）%s"
+                     % (ty, proj.get("src"), "  <- 示意图必须平行投影，不许透视" if persp else ""),
+                     not allow_missing_projection))
+    # X8② 几何自洽
+    angs, fs = proj.get("angles") or {}, proj.get("foreshort") or {}
+    if angs and fs:
+        if all(k in angs for k in ("x", "y", "z")) and all(k in fs for k in ("x", "y", "z")):
+            fam, why = _proj_family(angs, fs)
+            rows.append((fam is not None, "X8 三轴方向 / 前缩自洽（斜二测 或 正交轴测）", why, True))
+            if rep is not None:
+                rep["readings"]["projection_family"] = fam
+                rep["readings"]["axis_angles_deg"] = angs
+                rep["readings"]["foreshort"] = fs
+        else:
+            rows.append((False, "X8 三轴方向 / 前缩自洽（斜二测 或 正交轴测）",
+                         "轴方向_deg / 前缩 没把 x、y、z 三根都写全", True))
+    else:
+        rows.append((False, "X8 三轴方向 / 前缩自洽（斜二测 或 正交轴测）",
+                     "没给 轴方向_deg / 前缩 —— 只判了类型，没判几何自洽", False))
+    # X7 手性声明
+    if hand == "left":
+        rows.append((False, "X7 右手定则（声明）",
+                     "IR 声明的是**左手系**（%s）—— 三轴必须右手系" % hand_src, True))
+    elif hand == "right":
+        rows.append((True, "X7 右手定则（声明）", "IR 已声明右手系（%s）" % hand_src, True))
+    else:
+        rows.append((False, "X7 右手定则（声明）",
+                     "IR 没声明手性 —— 加 composition.坐标约定.手性: 右手。★ 手性在平行投影里"
+                     "**本身不可观测**（把一张轴测图镜像过去还是合法的轴测图），所以闸门判两件事："
+                     "① IR 书面声明右手系；② 图上画出来的三轴 == IR 声明的 轴方向_deg（X7b）。",
+                     strict_handedness))
+    # X9 束流轴
+    if beam == "none":
+        rows.append((True, "X9 本图声明了「无束流」", "出处：%s" % beam_src, True))
+    elif beam is None:
+        rows.append((False, "X9 束流轴已声明",
+                     "IR 里读不出束流轴（%s）—— 加 composition.坐标约定.束流轴: z（默认约定 = z，"
+                     "作者 2026-10-14：「z 轴一般是束流方向」）；**本图确实没有束流的写 "
+                     "`束流轴: 无`**" % beam_src, not allow_missing_beam))
+    elif beam == "z":
+        rows.append((True, "X9 束流轴 = z（默认）", "出处：%s" % beam_src, True))
+    else:
+        why = ir_beam_reason(ir_path)
+        rows.append((bool(why), "X9 束流轴 = %s（不是 z，必须给理由）" % beam,
+                     ("理由：%s" % why) if why else
+                     "束流轴不是 z —— 默认约定是 z（作者 2026-10-14：「z 轴一般是束流方向」），"
+                     "改轴必须写明理由：composition.坐标约定.束流轴理由: <一句话>",
+                     not allow_missing_beam))
+    return rows
+
+
+def selftest():
+    """X7 / X8 / X9 标定（作者 2026-10-14）—— 写临时 IR，逐个判据对答案。
+
+        python3 scripts/axis_gate.py --selftest
+
+    只标定 IR 层（X7 声明 / X8 类型 + 几何自洽 / X9 束流轴）；X7b / X9b（图上轴杆）
+    用真图回归：`fig_upc_3d/out/upc_3d.svg` PASS、`fig_upc_3d/trace/upc_trace_prelabel.svg` FAIL。
+    """
+    import tempfile
+    from pathlib import Path as _P
+    g = _P(tempfile.mkdtemp(prefix="axis_selftest_"))
+    tail = '  hard_physics: [{id: HP6, claim: "z=束流方向、y=碰撞参数、x=反应平面法线", measure: "看轴名与轴杆"}]\n'
+
+    def mk(name, ty=None, angs="x: 141.3, y: -90.0, z: 12.7",
+           fs="x: 0.60, y: 0.906, z: 0.906", beam_field=None, beam_reason=None, hand=None,
+           tail_=tail):
+        L = ["composition:", "  projection:"]
+        if ty is not None:
+            L.append("    类型: %s" % ty)
+        L.append("    轴方向_deg: {%s}" % angs)
+        L.append("    前缩: {%s}" % fs)
+        L.append("  坐标约定:")
+        L.append("    面内: [y, z]")
+        L.append("    法线: x")
+        if beam_field:
+            L.append("    束流轴: %s" % beam_field)
+        if beam_reason:
+            L.append("    束流轴理由: %s" % beam_reason)
+        if hand:
+            L.append("    手性: %s" % hand)
+        L += ["style:", "  mode: render3d", "  conventions: [3D 明暗, 高光, 阴影]"]
+        if tail_:
+            L.append(tail_.rstrip("\n"))
+        f = g / (name + ".ir.yaml")
+        f.write_text("\n".join(L) + "\n", encoding="utf-8")
+        return str(f)
+
+    good = mk("good", "斜投影（正交相机）")
+    persp = mk("persp", "两点透视")
+    noty = mk("noty", None)
+    badgeo = mk("badgeo", "斜投影", angs="x: 0, y: 0, z: 0", fs="x: 1, y: 1, z: 1")
+    cabinet = mk("cabinet", "斜二测", angs="x: 180, y: 90, z: 45", fs="x: 1, y: 1, z: 0.5", beam_field="z")
+    beamy = mk("beamy", "斜投影（正交相机）", beam_field="y")
+    beamy_ok = mk("beamy_ok", "斜投影（正交相机）", beam_field="y",
+                  beam_reason="本图按惯例把束流画在 y 上，反应平面是 x-z 平面")
+    left = mk("left", "斜投影（正交相机）", hand="左手")
+    right = mk("right", "斜投影（正交相机）", hand="右手")
+
+    def rows_of(path, **kw):
+        return check_axis_physics_ir(path, **kw)
+
+    def pick(rows, pre):
+        return [r for r in rows if r[1].startswith(pre)]
+
+    cases = [
+        ("X8  正常（斜投影 + 正交自洽）", good, {}, "X8 投影类型", False),
+        ("X8  透视（该硬伤）", persp, {}, "X8 投影类型", True),
+        ("X8  没写类型（该硬伤）", noty, {}, "X8 投影类型", True),
+        ("X8  没写类型 + --allow-missing-projection（软警）", noty,
+         {"allow_missing_projection": True}, "X8 投影类型", False),
+        ("X8  三轴全是 0 度（几何不自洽，该硬伤）", badgeo, {}, "X8 三轴方向", True),
+        ("X8  斜二测（面内 90 度 + 前缩 0.5）", cabinet, {}, "X8 三轴方向", False),
+        ("X9  束流轴 = z（文本里读出）", good, {}, "X9 ", False),
+        ("X9  束流轴 = y 没给理由（该硬伤）", beamy, {}, "X9 ", True),
+        ("X9  束流轴 = y + 理由", beamy_ok, {}, "X9 ", None),
+        ("X9  本图无束流（声明「无」）", mk("nobeam", "斜投影（正交相机）", beam_field="无"),
+         {}, "X9 ", False),
+        ("X9  读不出束流轴（该硬伤）",
+         mk("nobeam2", "斜投影（正交相机）", beam_field=None, tail_=""), {}, "X9 ", True),
+        ("X7  手性 = 左手（该硬伤）", left, {}, "X7 ", True),
+        ("X7  手性 = 右手", right, {}, "X7 ", False),
+        ("X7  没写手性（默认软警）", good, {}, "X7 ", False),
+        ("X7  没写手性 + --strict-handedness（硬伤）", good,
+         {"strict_handedness": True}, "X7 ", True),
+    ]
+    bad = 0
+    print("=" * 74)
+    print("axis_gate 自检 —— X7 / X8 / X9 标定（作者 2026-10-14）")
+    print("=" * 74)
+    for nm, path, kw, pre, want in cases:
+        rows = pick(rows_of(path, **kw), pre)
+        fails = [r for r in rows if (not r[0]) and r[3]]
+        hard = bool(fails)
+        if want is None:
+            ok = bool(rows) and not hard
+        else:
+            ok = (hard == want)
+        bad += 0 if ok else 1
+        print("%-46s 期望 %-9s 实得 %-9s %s"
+              % (nm, ("FAIL" if want else "PASS") if want is not None else "PASS(有软警)",
+                 "FAIL" if hard else "PASS", "\u2713" if ok else "\u2717 不符"))
+        if not ok:
+            for r in rows:
+                print("      | ok=%s hard=%s %s | %s" % (r[0], r[3], r[1], r[2][:110]))
+    print("-" * 74)
+    print("全部符合期望" if not bad else "有 %d 项不符" % bad)
+    return 1 if bad else 0
+
+
 def main():
     ap = argparse.ArgumentParser(formatter_class=argparse.RawDescriptionHelpFormatter,
                                  description="三轴物理闸门（见文件头）")
@@ -449,7 +840,19 @@ def main():
     ap.add_argument("--allow-missing-axis", action="store_true",
                     help="X2「缺轴名」降级为软警 —— 只在该图有意不画轴字母时用（如只标 beam），"
                          "交付说明里必须写明理由")
+    ap.add_argument("--axis-tol", type=float, default=20.0,
+                    help="X7b：图上轴杆方向与 IR `轴方向_deg` 的容许差（度）")
+    ap.add_argument("--allow-missing-projection", action="store_true",
+                    help="X8 缺投影类型声明降级为软警（默认硬伤）")
+    ap.add_argument("--allow-missing-beam", action="store_true",
+                    help="X9 读不出束流轴降级为软警（默认硬伤）")
+    ap.add_argument("--strict-handedness", action="store_true",
+                    help="X7 IR 没声明右手系也判硬伤（默认只软警）")
+    ap.add_argument("--selftest", action="store_true",
+                    help="跑 X7 / X8 / X9 标定（写临时 IR，直接判），不碰真图")
     a = ap.parse_args()
+    if a.selftest:
+        return selftest()
 
     rep = {"checks": [], "fails": [], "warns": [], "readings": {}}
 
@@ -557,6 +960,44 @@ def main():
     else:
         ck(True, "X5 无第四个轴名", "只有 x / y / z")
 
+    # ── X7/X8/X9 投影类型 / 右手定则 / 束流方向（作者 2026-10-14）──
+    print("\nX7/X8/X9 投影类型 / 右手定则 / 束流方向")
+    proj = ir_projection(a.ir) if a.ir else {"type": None, "angles": {}, "foreshort": {}, "src": None}
+    beam, _beam_src = (ir_beam_axis(a.ir) if a.ir else (None, ""))
+    for ok_, lab_, det_, hard_ in check_axis_physics_ir(
+            a.ir, strict_handedness=a.strict_handedness,
+            allow_missing_projection=a.allow_missing_projection,
+            allow_missing_beam=a.allow_missing_beam, rep=rep):
+        ck(ok_, lab_, det_, hard=hard_)
+
+    # X7b/X9b ── 图上轴杆（只在给了 --png 时）
+    def _x7b_x9b():
+        if proj.get("angles") and assoc:
+            bad, n_ok = [], 0
+            for nm_, ang_ in sorted(assoc.items()):
+                if ang_ is None or nm_ not in proj["angles"]:
+                    continue
+                want = (-float(proj["angles"][nm_])) % 180.0     # IR 是屏幕 y 向下；轴杆角 y 向上
+                dd = abs(ang_ - want) % 180.0
+                dd = min(dd, 180.0 - dd)
+                n_ok += 1
+                if dd > a.axis_tol:
+                    bad.append("%s 实测 %.1f 期望 %.1f（差 %.1f）" % (nm_, ang_, want, dd))
+            if n_ok:
+                ck(not bad, "X7b 图上三轴方向 == IR 声明的 轴方向_deg",
+                   "；".join(bad) if bad else "%d 根轴杆全部对上（容许 %.0f 度）" % (n_ok, a.axis_tol),
+                   hard=geom_hard)
+            else:
+                ck(False, "X7b 图上三轴方向 == IR 声明的 轴方向_deg",
+                   "轴标注没贴到任何轴杆上（无法核对）", hard=False)
+        if beam and beam in ("x", "y", "z") and rods and assoc.get(beam) is not None:
+            longest = max(rods, key=lambda R: R["tot"])
+            dd = abs(longest["a"] - assoc[beam]) % 180.0
+            dd = min(dd, 180.0 - dd)
+            ck(dd <= 12.0, "X9b 最长的一根轴杆就是束流轴 %s" % beam,
+               "最长杆 dir %.1f，束流轴 %s dir %.1f（差 %.1f 度）"
+               % (longest["a"], beam, assoc[beam], dd), hard=False)
+
     # ── X3b/X4 几何：轴杆 ──
     # 草图/仅位图模式（没给 --svg）：位图上的轴杆检测不稳，X3b/X4 只作读数 + 软警
     geom_hard = bool(a.svg)
@@ -579,6 +1020,30 @@ def main():
         for nm, lst in sorted(by_name.items()):
             if len(lst) == 2:
                 (l1, l2) = lst
+                # 多面板图（如 a/b 两面板）：同一轴名每个面板各标一次，两次**不可能**在同一根杆上。
+                # 这时正确的判据是「两次各自贴着自己的杆，且两根杆同向（同一个轴）」。
+                # 只有面板信息读得到（SVG 里 <g id="?-text">）才走这条，免得放松掉单面板的 X3。
+                if l1.get("panel") and l2.get("panel") and l1["panel"] != l2["panel"]:
+                    _dirs = []
+                    for _l in lst:
+                        _b = None
+                        for _i, _R in enumerate(rods):
+                            _d, _t = _dist_t(_R, _l["x"], _l["y"])
+                            if abs(_t) <= _R["halflen"] + 0.03 * Wc and (_b is None or _d < _b[0]):
+                                _b = (_d, _i)
+                        _dirs.append(rods[_b[1]]["a"] if (_b and _b[0] <= tol) else None)
+                    if all(_d is not None for _d in _dirs):
+                        _dd = abs(_dirs[0] - _dirs[1]) % 180.0
+                        _dd = min(_dd, 180.0 - _dd)
+                        _ok = _dd <= 12.0
+                        _det = ("panel %s dir %.1f / panel %s dir %.1f（差 %.1f 度，容许 12）"
+                                % (l1["panel"], _dirs[0], l2["panel"], _dirs[1], _dd))
+                    else:
+                        _ok, _det = False, "有一侧的标注没贴到任何轴杆上"
+                    assoc[nm] = _dirs[0] if _ok else None
+                    ck(_ok, "X3 %s 多面板：每面板各标一次、各自贴着轴杆、两杆同向" % nm, _det,
+                       hard=geom_hard)
+                    continue
                 best = None
                 for i, R in enumerate(rods):
                     d1 = math.hypot(l1["x"] - R["end1"][0], l1["y"] - R["end1"][1])
@@ -652,6 +1117,8 @@ def main():
                     print("         warn: %s" % why)
             rep["readings"]["plane"] = {"frac": round(pfrac, 3),
                                         "edges": [round(d, 1) for d in pd]}
+
+        _x7b_x9b()
 
         rep["readings"]["rods"] = [{"dir": round(R["a"], 1),
                                     "centre": [round(R["c"][0]), round(R["c"][1])],
