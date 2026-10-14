@@ -58,6 +58,19 @@ C 档（+ 物理增量）按需往上加，加什么由上一轮真画错的地�
         ★ **B 档不判这条**（作者 2026-10-13：「B 不就一轮吗，怎么还有挑着保留这一说」）：
         B 只跑一轮，简报就是「A 的内容 + 面板序列 + 输出硬约束」= v4.12 的 B 档；
         "该保留什么"由 L9 把上一张图交给它、模型自己看着办，不写成硬措辞。
+    L11 **C 档改「形状 / 几何」时不许改「材质 / 质感」**（作者 2026-10-14：
+        「对 C 档修改物理几何的地方不修改材质……我建议说'不要修改材质'」）：
+        形状 / 几何是**物理**（该改），材质 / 质感是**观感**（不该顺手换）。C 档增量块
+        只要命中形状 / 几何类词（形状 / 几何 / 压扁 / 尺寸 / 位置 / 朝向…），简报里
+        就必须写明**材质保持不变**，否则硬伤。★ 写法是「材质保持不变（以给的那张图 ——
+        上一版的材质为准）」，**不要替模型指定具体材质**（作者 2026-10-14：「不要写材质
+        保持光滑啊，应该是材质保持不变」）；点名了具体材质只出软警。实测：C 档只让把圆球
+        压成扁球，模型把上一版的光滑球面一起重画成了粗糙石块（keep_gate 漂移 0.881）。
+    L12 **B 档必须写明「保留上一档（A）画得好的元素，可在其基础上更美观」**（作者
+        2026-10-14：「B 保留 A 好看的元素，比如如果 A 画的核子好看就保留核子，甚至可以
+        在此基础上更美观」）：B 是 A 的续 —— A 画对的形状 / 物体 / 布局要留着、只在此基础上
+        做得更好看，不许推倒重画。缺这句 = 硬伤。★ 与 L10 不冲突：L10 只判 **C 档**的
+        「严格…不许变」措辞；B 档不判严格措辞，但判这条「继承优点」。
 
 ## 用法
 
@@ -70,6 +83,10 @@ C 档（+ 物理增量）按需往上加，加什么由上一轮真画错的地�
     python3 scripts/ladder_gate.py --gen-dir <fig>/gen --stage render
 
 `--waive "理由"` 可放行（理由会被打印出来，交付说明里必须照抄）。
+
+自检（L11 / L12 标定；改了判据就跑一次）：
+
+    python3 scripts/ladder_gate.py --selftest
 """
 
 import argparse
@@ -94,6 +111,29 @@ INC_SEPS = ("上一轮画错", "上一轮真画错", "上一版画错", "上一�
 # L10：C 档"严格在上一张图上改"（★ B 档不判 —— B 只跑一轮，见文件头 L10）
 STRICT_KEEP_MARKERS = ("严格", "原样保留", "不许重画", "不许换", "不许换材质", "不许删",
                        "不许加", "不许变", "完全一致", "一模一样", "只改下面")
+
+# L11：C 档改「形状 / 几何」时不许改「材质 / 质感」（作者 2026-10-14）
+#   形状 / 几何 = 物理（该改）；材质 / 质感 = 观感（不该顺手换）。两者分开判。
+MATERIAL_KEEP_MARKERS = ("不要修改材质", "不修改材质", "不要改材质", "不改材质",
+                         "不要修改质感", "不修改质感", "不要换材质", "不许换材质",
+                         "不换材质", "材质保持不变", "材质保持", "材质不变", "质感不变",
+                         "材质/质感保持", "材质、质感保持", "材质与质感保持", "材质和质感保持",
+                         "材质 / 质感 / 配色", "材质一律保持", "材质原样", "质感原样",
+                         "只改形状", "只改几何", "不改质感", "材质照着上一版")
+GEOM_CHANGE_MARKERS = ("形状", "几何", "压扁", "拉长", "尺寸", "位置", "朝向", "长短",
+                       "高瘦", "扁球", "改成", "角度", "间距", "重叠", "变大", "变小",
+                       "轮廓", "剖面")
+
+# L12：B 档必须写明「保留上一档（A）画得好的元素，可在其基础上更美观」（作者 2026-10-14）
+B_INHERIT_MARKERS = ("保留上一档", "保留上一版", "保留上一张", "保留 A 档", "保留A档",
+                     "保留 A 版", "保留A版", "上一档好看", "上一版好看", "保留好看",
+                     "保留画得好", "保留满意", "保留其中好", "保留好的", "保留好的元素",
+                     "好的元素保留", "好看的元素保留", "好看的部分保留", "继承上一档",
+                     "继承上一版", "延续上一档", "延续上一版", "在此基础上更美观",
+                     "在此基础上再美观", "在此基础上做得更好看")
+
+# 简报里**替模型指定材质**的词（写「材质保持光滑」这类是错的）—— 只出软警。
+MATERIAL_WORD_HINTS = ("光滑", "粗糙", "哑光", "磨砂", "金属", "镜面", "高光", "磨砂感")
 
 
 def _read(p):
@@ -172,6 +212,56 @@ def extract_increment(text):
         if i > best:
             best = i
     return text[best:].strip() if best >= 0 else ""
+
+
+def _squash(s):
+    """去掉空白与常见分隔符再比，避免「材质 / 质感」这类空格把标记切碎。"""
+    for ch in (" ", "\u3000", "\t", "/", "、", "，", ",", "与", "和", "＋", "+", "·"):
+        s = s.replace(ch, "")
+    return s
+
+
+def has_material_keep(text):
+    """简报里有没有写明「不要修改材质 / 质感（保持上一版）」。"""
+    if not text:
+        return False
+    t = _squash(text)
+    if any(_squash(k) in t for k in MATERIAL_KEEP_MARKERS):
+        return True
+    has_mat = ("材质" in t) or ("质感" in t)
+    has_keep = any(k in t for k in ("保持", "不变", "不改", "不要改", "不许改", "别动",
+                                    "照旧", "沿用", "原样"))
+    return has_mat and has_keep
+
+
+def has_inherit_clause(text):
+    """B 档有没有写明「保留上一档画得好的元素，可在其基础上更美观」。"""
+    if not text:
+        return False
+    t = _squash(text)
+    if any(_squash(k) in t for k in B_INHERIT_MARKERS):
+        return True
+    has_keep = any(k in t for k in ("保留", "继承", "延续", "不推倒", "沿用"))
+    has_good = any(k in t for k in ("上一档", "上一版", "上一张", "A档", "A版", "好看",
+                                    "优点", "满意", "好的", "画得好", "更好看", "更美观"))
+    return has_keep and has_good
+
+
+def material_prescribe_hint(text):
+    """简报是不是在**替模型指定材质**（「材质保持光滑」这类）。
+
+    正确写法是「材质保持不变（以给的那张图为准）」—— 不点名具体材质。命中返回该词。
+    """
+    if not text:
+        return None
+    for w in MATERIAL_WORD_HINTS:
+        i = text.find(w)
+        while i >= 0:
+            near = text[max(0, i - 24): i + 24]
+            if ("材质" in near) or ("质感" in near):
+                return w
+            i = text.find(w, i + 1)
+    return None
 
 
 def brief_shape(rung, text, refs, prev_text):
@@ -307,6 +397,36 @@ def precheck(gen_dir, brief_path, outdir, refs, stage, content_refs=None):
                      "「只有 C 档时严格在上一张图片上改」）—— 只改下面列出的那几条，"
                      "其余连形状 / 质感 / 配色 / 光源 / 视角 / 位置都不许变，不许重画、"
                      "不许换材质、不许加也不许删。现在只命中 %s。" % (_hits or "0 个严格措辞"))
+    # L11 C 档改「形状 / 几何」时不许改「材质 / 质感」（作者 2026-10-14）
+    if stage == "sketch" and rung == "C" and text:
+        inc = extract_increment(text)
+        _geo = [k for k in GEOM_CHANGE_MARKERS if k in inc]
+        if _geo and not has_material_keep(text):
+            v.append("L11 C 档要改【形状 / 几何】（命中 %s），但简报里没写明**不要修改材质 / "
+                     "质感**（作者 2026-10-14：「对 C 档修改物理几何的地方不修改材质……"
+                     "我建议说'不要修改材质'」）—— 形状 / 几何是物理（该改），材质 / 质感是"
+                     "观感（不该顺手换），两者要分开。做法：在增量块里加一句「不要修改材质"
+                     "」—— 准确写法是「**材质保持不变**（以给的那张图 —— 上一版的材质为准，"
+                     "不要改）」。★ 不要替模型指定具体材质（写「材质保持光滑」这类是错的）。"
+                     "实测：C 档只让把圆球压成扁球，模型却把上一版的光滑球面一起重画成了粗糙石块"
+                     "（keep_gate 质感漂移 0.881）。"
+                     % (_geo[:3],))
+        elif not _geo:
+            w.append("L11 这一轮 C 档没看出要改形状 / 几何；确认不动材质 —— 建议仍写一句"
+                     "「材质保持不变（以给的那张图为准）」，免得模型顺手换材质"
+                     "（形状是物理，材质是观感）。")
+        _mh = material_prescribe_hint(text)
+        if _mh:
+            w.append("L11 简报里点名了具体材质「%s」—— 应该写「材质保持不变」（以给的那张图的"
+                     "材质为准），**不要替模型指定材质**（作者 2026-10-14：「不要写材质保持光滑啊，"
+                     "应该是材质保持不变」）。" % _mh)
+    # L12 B 档必须写明「保留上一档（A）画得好的元素，可在其基础上更美观」（作者 2026-10-14）
+    if stage == "sketch" and rung == "B" and text and not has_inherit_clause(text):
+        v.append("L12 B 档必须写明**保留上一档（A）画得好的元素**，甚至在其基础上更美观"
+                 "（作者 2026-10-14：「B 保留 A 好看的元素，比如如果 A 画的核子好看就保留核子，"
+                 "甚至可以在此基础上更美观」）—— B 是 A 的续，不是另起一张。做法：加一句"
+                 "「上一档画得好的部分（形状 / 物体 / 布局 / 配色）保留，并在此基础上做得更好看；"
+                 "除下面要改的，其余原样保留」。")
     bv, bw = brief_shape(rung, text, refs, prev_text)
     v += bv
     w += bw
@@ -382,6 +502,75 @@ def do_record(gen_dir, brief_path, outdir, refs, add=None, stage="sketch", conte
     return entry, p
 
 
+def selftest():
+    """L11 / L12 标定（作者 2026-10-14）：造最小账本 + 简报，直接调 precheck 看判据对不对。
+
+        python ladder_gate.py --selftest
+
+    返回 0 = 全部符合期望；1 = 有不符合（改了 L11 / L12 判据就跑一次）。
+    """
+    import tempfile
+    g = Path(tempfile.mkdtemp(prefix="ladder_selftest_"))
+    style = "_selftest_style.png"          # 只比 basename，不需要真文件
+    a_dir, b_dir = str(g / "A"), str(g / "B")
+    b_core = ("画成 3D 科研示意图；面板序列：从左到右 a/b/c；"
+              "图上只许出现这些标签：beam。")
+    inc = ("\n════ 上一轮画错的地方（这一轮必须改对）════\n"
+           "严格在上一张图上改：其余原样保留，不许重画/删/加。\n"
+           "[HP3] 每核沿水平束流压扁成高瘦扁球，改成高瘦扁球，不是圆球。\n")
+    mat = "核的材质、质感、配色一律保持上一版，不要修改材质。\n"
+    (g / "a.md").write_text("一句话。", encoding="utf-8")
+    (g / "b_no.md").write_text(b_core, encoding="utf-8")
+    (g / "b_ok.md").write_text(b_core + "上一档画得好的元素保留、并在此基础上更美观。",
+                               encoding="utf-8")
+    (g / "c_geo.md").write_text(b_core + inc, encoding="utf-8")
+    (g / "c_ok.md").write_text(b_core + inc + mat, encoding="utf-8")
+    (g / "c_smooth.md").write_text(
+        b_core + inc + "核的材质保持光滑，不要改。", encoding="utf-8")
+
+    def rung(nm, od, refs, bc):
+        return {"rung": nm, "stage": "sketch", "brief": None, "brief_chars": bc,
+                "outdir": od, "refs": refs, "content_refs": [], "seeds": [1]}
+
+    ab = [rung("A", a_dir, [], 10), rung("B", b_dir, [style], len(b_core))]
+
+    def run(ledger, brief, od, refs, cr):
+        (g / "ladder.json").write_text(json.dumps(
+            {"version": 1, "gen_dir": str(g), "rungs": ledger}, ensure_ascii=False),
+            encoding="utf-8")
+        _r, v, w, _i = precheck(str(g), brief, od, refs, "sketch", cr)
+        return v, w
+
+    cases = [
+        ("L12  B 档缺「保留上一档好的元素」", ab[:1], "b_no.md", "Bt1", True, False),
+        ("L12  B 档写了继承句", ab[:1], "b_ok.md", "Bt2", False, False),
+        ("L11  C 档改几何、没写材质", ab, "c_geo.md", "Ct1", True, False),
+        ("L11  C 档写「材质保持不变」", ab, "c_ok.md", "Ct2", False, False),
+        ("L11  C 档写「材质保持光滑」（该软警）", ab, "c_smooth.md", "Ct3", False, True),
+    ]
+    bad = 0
+    print("=" * 70)
+    print("ladder_gate 自检 —— L11 / L12 标定（作者 2026-10-14）")
+    print("=" * 70)
+    for nm, ledger, brief, od, want_fail, want_warn in cases:
+        v, w = run(ledger, str(g / brief), str(g / od), [style],
+                   [os.path.join(a_dir if od.startswith("Bt") else b_dir, "x.png")])
+        hit = any(x.startswith(("L11", "L12")) for x in v)
+        warned = any("点名了具体材质" in x for x in w)
+        ok = (hit == want_fail) and (warned == want_warn)
+        bad += 0 if ok else 1
+        print("%-40s 期望 %-4s%s 实得 %-4s%s  %s"
+              % (nm, "FAIL" if want_fail else "PASS", " +软警" if want_warn else "",
+                 "FAIL" if hit else "PASS", " +软警" if warned else "",
+                 "\u2713" if ok else "\u2717 不符"))
+        if not ok:
+            for x in v + w:
+                print("      | %s" % x)
+    print("-" * 70)
+    print("全部符合期望" if not bad else "有 %d 项不符" % bad)
+    return 1 if bad else 0
+
+
 def main():
     ap = argparse.ArgumentParser(
         description="提示词阶梯闸门 A → B → C（见文件头）",
@@ -397,7 +586,12 @@ def main():
     ap.add_argument("--record", action="store_true", help="出图成功后登记这一段")
     ap.add_argument("--waive", default=None, help="确实要放行时的理由（会打印出来）")
     ap.add_argument("--json", default=None)
+    ap.add_argument("--selftest", action="store_true",
+                    help="跑 L11 / L12 标定（造最小账本 + 简报，直接判），不碰真账本")
     a = ap.parse_args()
+
+    if a.selftest:
+        return selftest()
 
     gen_dir = find_gen_dir(a.outdir or ".", a.gen_dir)
     print("=" * 70)
