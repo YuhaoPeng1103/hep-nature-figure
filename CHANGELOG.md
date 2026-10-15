@@ -1,5 +1,85 @@
 # 变更记录
 
+## v4.20 — 2026-10-15
+
+**位图 → 分层 SVG 的「同台对手线」三家真跑对账 —— 结论：它们都不给「物理结构」**
+
+作者原话：「按『位图→分层 SVG』这条线（和本 skill 同台的真正对手）：**核心不是 SAM**。
+代表是 LIVE（CVPR22）、Layered Image Vectorization via Semantic Simplification（CVPR25）、
+LayerPeeler（2025）、LayerVec、Image Vectorization with Depth（SIAM）、AmodalSVG。
+核心思路是『逐步剥离图层 + 可微矢量拟合』，分割只是其中一环。这些工具的办法**再试一下**
+位图到矢量图的过程，我很想要能完美分割物理结构的工具」
+
+### 1. 真跑了哪几家（本机 CPU-only：无 GPU、无 nvcc）
+
+| 工具 | 能不能在本机跑 | 依据 |
+|---|---|---|
+| **LIVE**（CVPR22，`Picsart-AI-Research/LIVE-Layerwise-Image-Vectorization`） | **跑通了**（自己编 CPU 版 diffvg） | 见 §2 的编译坑 |
+| **Image Vectorization with Depth / IVYSO**（SIAM，`marklaw1006/Image-Vectorization-with-Depth`） | **跑起来了**（纯 numpy/numba，无需 GPU） | `IVYSO/lib/` 里就是这条线的三件套：`shape_layer_ordering.py`（深度序）、`shape_layer_PCI.py`（曲率补全）、`shape_layer_bezier_fitter.py`（贝塞尔拟合） |
+| **LayerPeeler**（SIGGRAPH Asia 2025，`kingnobro/LayerPeeler`） | **跑不了** | `inference/inference.py:45` = `FluxPipeline.from_pretrained(...).to("cuda")`；`inference/utils/vlm_util.py:323` = `os.getenv("GEMINI_API_KEY")`；`requirements.txt` 要 `bitsandbytes` / `peft` / `diffusers` —— 需要 GPU + Gemini key + Flux 权重 |
+| Layered Image Vectorization via Semantic Simplification（CVPR25）/ LayerVec / AmodalSVG | **没有公开代码** | GitHub 搜索 API 三个查询（含论文全名）命中 0 |
+
+### 2. ★ LIVE 在本机跑通踩的坑（照抄可复现）
+
+1. `git clone` + `git submodule update --init`（pybind11 / thrust 其实是仓库里自带的）。
+2. `cmake -S DiffVG -B build -G "MinGW Makefiles" -DDIFFVG_CUDA=OFF`（**CPU 版**；GCC 12.2、
+   cmake 3.31、Python 3.10）。MSVC 生成器报「could not find any instance of Visual Studio」。
+3. **坑 A**：CMake 的 `find_package(Python 3.6 COMPONENTS Development)` 会自己找到
+   `C:\Python311`，于是产物**链接成 `python311.dll`**，在 3.10 里 `import diffvg` 直接
+   `ImportError: DLL load failed`。`-DPython_EXECUTABLE` / `-DPython_ROOT_DIR` 都压不住它。
+   解法：**等长替换**产物里的 `python311.dll` → `python310.dll`（13 字节，`objdump -p` 可核对）。
+4. **坑 B**：还要把 MinGW 的 `libstdc++-6.dll` / `libgcc_s_seh-1.dll` / `libwinpthread-1.dll`
+   放到模块旁边。
+5. 缺的纯 Python 依赖（本机 pip 的 TLS 是坏的，走 urllib 下 wheel + `pip install --no-index
+   --no-deps`）：`svgpathtools svgwrite cssutils(1.0.2，2.15 拉了 encutils) more_itertools tqdm
+   easydict scikit-fmm scikit-image(0.25.2，最新版没有 cp310 wheel) networkx(3.2.1) imageio
+   tifffile lazy-loader packaging`。
+6. `main.py:371` 是 `pydiffvg.set_use_gpu(torch.cuda.is_available())` —— **CPU 是它自己支持的**，
+   不需要改代码。
+
+### 3. 读数：UPC 位图降到 512×279（**同尺寸**对账，CPU，16 条 path / 每轮 200 iter ≈ 1 h）
+
+| 路线 | MAE | >8 | >32 | 「层」是什么 | 物理结构对不对得上 |
+|---|---|---|---|---|---|
+| **本 skill**（IR 引导可见像素划分 + 临摹） | **4.935** | 15.65% | **3.70%** | 10 个物理元素各 1 层 | **与 IR 参考逐像素完全相同（0 个不同像素）** |
+| **LIVE**（16 path） | 24.520 | 43.19% | 29.84% | **一条闭合贝塞尔路径**（不是物体） | 见下 |
+
+LIVE 的逐元素对账（用 IR 的 elmap 当基准）：
+
+- **path 0 一条就覆盖 40.18% 画布** —— 一条"层"吞掉背景 + 半个场景；
+- **反应平面 S1（占画布 24%，全图最大的物理元素）**：6 条 path 才覆盖它 **35.2%**，
+  要「16 条全上」才到 90%；
+- **两个核 N1 / N2**：**0 条** path 的 >50% 像素落在它们身上 —— 压根没被单独分出来；
+- 16 条 path 里 12 条"只落在一个物理元素上"（平均纯度 0.723）—— 看着不差，但那是因为
+  剩下的 4 条里有一条吃掉了 40% 画布。
+
+### 4. 为什么会这样（机理，不是感觉）
+
+这条线的「层」是**优化单元**，不是物理对象：
+- LIVE 的 README 写的是「recursively learns the visual concepts by **adding new optimizable
+  closed bezier paths**」—— 分层的目的是**让拟合更容易**（先粗后细、逐步加 path），
+  不是为了让「点一下 = 一个物理结构」。
+- IVYSO 那一支的"层"是**多相分割的相位**（K-means 颜色 → 多相 level set），
+  它的"深度序"是**凸化之后的遮挡顺序**，同样不带物理身份。
+- LayerPeeler 最接近：它用 VLM 找「topmost visual elements」再让扩散模型把它们抠掉
+  —— 但那是**通用视觉物体**（"the cat"），不是「反应平面 / 入射核 / 光子交换线」，
+  而且它需要 GPU + Gemini key。
+
+⇒ **要"完美分割物理结构"，缺的不是更强的分割器，而是「语义从哪来」。** 实测同一个模型
+（SAM）在同一张图上给两个物理同类的核 88% / 1%（v4.16 §2.5）；LIVE 给反应平面 35%；
+本 skill 的语义来自 **IR 里人工声明的物理角色 + 可见像素掩膜**，所以是 10/10 且可审计。
+
+### 5. 本次产物落在哪
+
+| 路径 | 是什么 |
+|---|---|
+| `_vec_cmp/upc_512.png`、`upc_512_lab.npy` | 512×279 的源位图 + IR 元素标签 |
+| `_vec_cmp/upc_512_skill.svg` | 本 skill 在同尺寸的临摹（27621 path） |
+| `_vec_cmp/out_skill/`、`out_live_p16/` | 两边的回渲染 + 逐元素对账 `report.json` |
+| `_vec_cmp/score.py` | **对账脚本**（逐 path 单独渲染 → 纯度 / 覆盖 / 「要几条到 90%」） |
+| `_vec_cmp/LIVE/`、`_vec_cmp/Image-Vectorization-with-Depth/`、`_vec_cmp/LayerPeeler/` | 三家代码（**没有进 skill 仓库**，只在工作区） |
+
+
 ## v4.19 — 2026-10-15
 
 **① 出草图前：IR 的**元素清单**必须先给客户过目 / 加项，客户点头才开跑 —— 新硬闸门**

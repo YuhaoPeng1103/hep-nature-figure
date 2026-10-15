@@ -512,6 +512,42 @@ axes                9487      9430 0.960    0.046   0.046   0.00      1.00
 同一张图只换一组阈值，核 N1 的最大块就从 1% 跳到 90%。
 所以「它们靠模型推断」这句话，问题不只是「不可审计」，而是**在同一张图上就不稳定**。
 
+★★ 2026-10-15 再补一档：**「位图 → 分层 SVG」这条线（同台的真正对手）**真跑对账。
+作者原话：「核心不是 SAM。代表是 LIVE（CVPR22）、Layered Image Vectorization via Semantic
+Simplification（CVPR25）、LayerPeeler（2025）、LayerVec、Image Vectorization with Depth（SIAM）、
+AmodalSVG。核心思路是『逐步剥离图层 + 可微矢量拟合』，分割只是其中一环。」
+
+| 工具 | 机制（读代码/README 得到） | 本机（CPU-only）能跑吗 |
+|---|---|---|
+| **LIVE** CVPR22 | 递归地**加可优化的闭合贝塞尔路径**并联合优化；"层" = **一条路径** | ✅ 自己编 CPU 版 diffvg 后跑通 |
+| **IVYSO** SIAM（Image Vectorization with Depth） | K-means 颜色 → **多相 level set** → 形状层**深度序** → **曲率补全**（PCI）→ 贝塞尔拟合 | ✅ 纯 numpy/numba |
+| **LayerPeeler** SIGGRAPH Asia 2025 | **VLM** 找 topmost visual elements → 微调扩散模型把元素**抠掉**得到干净背景 → 逐层矢量化（autoregressive peeling） | ❌ `FluxPipeline...to("cuda")` + `GEMINI_API_KEY` + bitsandbytes |
+| CVPR25 semantic simplification / LayerVec / AmodalSVG | 语义简化后分层 / 逐层拟合 | ❌ GitHub 搜索 0 命中（无公开代码） |
+
+读数（UPC 位图降到 **512×279，同尺寸**对账；LIVE = 16 条 path、每轮 200 iter、CPU ≈1 h）：
+
+| 路线 | MAE | >8 | >32 | 「层」= 什么 |
+|---|---|---|---|---|
+| **本 skill** | **4.935** | 15.65% | **3.70%** | 10 个物理元素各 1 层（与 IR 参考逐像素完全相同） |
+| **LIVE** | 24.520 | 43.19% | 29.84% | 一条闭合贝塞尔路径 |
+
+LIVE 的逐元素对账（基准 = IR 的 elmap）：
+
+- **path 0 一条覆盖 40.18% 画布**（背景 + 半个场景）；
+- **反应平面 S1（占画布 24%，全图最大物理元素）**：6 条 path 才覆盖 **35.2%**，
+  要「16 条全上」才到 90%；
+- **两个核 N1 / N2**：**0 条** path 的 >50% 像素落在它们身上 —— 没被单独分出来。
+
+⇒ **机理结论**：这条线的"层"是**优化单元**，不是物理对象 —— LIVE 分层的目的是让拟合更容易
+（先粗后细），IVYSO 的"层"是多相分割的相位 + 凸化后的遮挡顺序。所以「要能完美分割物理结构，
+缺的不是更强的分割器，而是**语义从哪来**」：它们的语义要么没有、要么是通用视觉物体
+（LayerPeeler 的 VLM 找的是 "the cat"，不是「反应平面 / 入射核 / 光子交换线」）。
+
+对账脚本（可复跑）：`_vec_cmp/score.py` —— 把每条路径**单独渲染**，算「纯度（落在同一元素上的
+最大占比）/ 每个物理元素要几条才到 90% 覆盖」；编译 LIVE 的 CPU diffvg 的两个坑写在
+CHANGELOG v4.20 §2。
+
+
 ---
 
 ## 9. 逐字可跑（以喷注淬火图为例）
