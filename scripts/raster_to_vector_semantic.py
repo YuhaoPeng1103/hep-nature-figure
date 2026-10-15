@@ -69,6 +69,11 @@ def to_argv(a):
         argv += ["--elmap", str(a.elmap)]
     if a.el_txt:
         argv += ["--el_txt", str(a.el_txt)]
+    # v4.16：语义层可以由外部（IR 引导的 ir_contour_seg.py）提供 —— 逐像素 elmap + 元素名
+    if getattr(a, "elmap_in", ""):
+        argv += ["--elmap-in", str(a.elmap_in), "--el-names", str(a.el_names or "")]
+    if getattr(a, "elmap_out", ""):
+        argv += ["--elmap-out", str(a.elmap_out)]
     return argv
 
 
@@ -121,7 +126,8 @@ def main():
     ap.add_argument("--shade", default="",
                     help="元素级「基色+明度层」重写：k:levels（如 3:16，auto:16 = 自适应基色数）；"
                          "把一个物理元素压成 k 个基色块 + 若干条 fill-opacity 明暗层，做到整体改色")
-    ap.add_argument("--W", type=int, default=1200, help="工作分辨率宽度（默认 1200）")
+    ap.add_argument("--W", type=int, default=0,
+                    help="工作分辨率宽度（默认 0 = 与源位图同宽，即 1:1。\n                          ★ 千万别随手给个小值：传得比源位图窄 = 先把图降采样再临摹，\n                          细节就永久丢了。实测 UPC（源 2324x1268）：--W1664 回渲染 MAE 2.99，\n                          --W2324 MAE 1.95、>32 的像素 0.67%% vs 1.98%%）")
     ap.add_argument("--R", type=float, default=16.0,
                     help="四叉树色差阈值：小=更准更大，大=更小更粗（默认 16）")
     ap.add_argument("--K", type=int, default=7, help="最粗边长 2^K（默认 7=128px）")
@@ -135,6 +141,10 @@ def main():
     ap.add_argument("--legend", default="", help="输出可读图层清单 .md")
     ap.add_argument("--manifest", default="", help="输出图层清单 .json（默认跟 -o 同名）")
     ap.add_argument("--elmap", default="", help="输出元素划分自检图 .png")
+    ap.add_argument("--elmap-in", default="",
+                    help="★ 外部元素划分 .npy（IR 引导的 ir_contour_seg.py 产物）：语义层不再靠手写框+颜色条件")
+    ap.add_argument("--el-names", default="", help="--elmap-in 的名字表（逗号分隔，按 npy 里的整数值 0,1,2...）")
+    ap.add_argument("--elmap-out", default="", help="把最终元素划分存成 .npy（+.ids.txt），用于跟别的路线逐像素对账")
     ap.add_argument("--el_txt", default="", help="元素划分明细 .txt")
     ap.add_argument("--check", action="store_true", help="回渲染自检（推荐每次都开）")
     a = ap.parse_args()
@@ -145,6 +155,19 @@ def main():
     src = Path(a.image)
     if not src.exists():
         sys.exit("找不到 %s" % src)
+    # ★ v4.19：--W 不给就取「源位图宽」，工作分辨率与源图 1:1 ——
+    # 以前默认写死 1200，源图比 1200 宽时会被静默降采样，矢量比源图还糊（作者 2026-10-15 追问）。
+    try:
+        from PIL import Image as _PILImage
+        _sw = _PILImage.open(src).size[0]
+    except Exception:
+        _sw = 0
+    if not a.W:
+        a.W = _sw or 1200
+        print("工作分辨率 --W 未给 -> 取源位图宽 %d（1:1）" % a.W)
+    elif _sw and a.W < _sw * 0.995:   # 差 0.5% 以内当 1:1，不啰嗦
+        print("!! --W=%d < 源位图宽 %d —— 矢量会比源位图更糊（先把图降采样再临摹，细节永久丢失）。"
+              "\n   要 1:1 就传 --W %d（或更大）；确实要小图请把理由写进交付说明。" % (a.W, _sw, _sw))
     words_given = bool(a.words) and Path(a.words).exists() and not a.no_text
     if a.words and not Path(a.words).exists():
         print("!! 词表 %s 不存在 —— 按 --no-text 处理" % a.words)

@@ -515,6 +515,10 @@ def main():
     ap.add_argument("--no-ir-check", action="store_true", help="跳过 IR 版式检查")
     ap.add_argument("--choice", default=None, help="客户挑草图的回执 choice.json")
     ap.add_argument("--handoff", default=None, help="handoff 目录（自动找 <dir>/choice.json）")
+    ap.add_argument("--no-element-check", action="store_true",
+                    help="跳过「IR 的元素清单有没有给客户过目点头」的检查（只在确有理由时才用）")
+    ap.add_argument("--element-dir", default=None,
+                    help="元素清单/回执所在目录（缺省 = IR 同目录）")
     ap.add_argument("--no-choice-check", action="store_true",
                     help="跳过「客户有没有挑过草图」的检查（只在确有理由时才用）")
     ap.add_argument("--allow-flat", default=None,
@@ -580,6 +584,25 @@ def main():
                 print("[FAIL] IR 契约 %-24s %s" % (k_, y_))
                 v = v + [(r_, p_, k_, y_)]
 
+    # ── 出草图之前：IR 的**元素清单**必须先给客户过目/加项、他点头了才开跑（作者 2026-10-15） ──
+    if (stage or "sketch") == "sketch" and ir and not a.no_element_check:
+        eg = Path(__file__).resolve().parent / "element_list.py"
+        if eg.exists():
+            cmd = [sys.executable, str(eg), "--ir", ir, "--check"]
+            if getattr(a, "element_dir", None):
+                cmd += ["--outdir", a.element_dir]
+            r = subprocess.run(cmd, capture_output=True, text=True, encoding="utf-8")
+            sys.stdout.write(r.stdout or "")
+            if r.returncode != 0:
+                v = v + [("--ir", ir, "NO_ELEMENT_ACK",
+                          "IR 的元素清单还没给**客户**过目/点头 —— 不许出草图"
+                          "（作者 2026-10-15：清单 5–10 行先过目加项，点头才开跑）")]
+            else:
+                w = w + [("--ir", ir, "OK", "元素清单已过目并点头")]
+        else:
+            w = w + [("--ir", ir, "NO_ELEMENT_TOOL",
+                      "没找到 element_list.py，跳过元素清单闸门")]
+
     # ── render 之前必须有**客户**挑草图的回执 ──
     if (stage or "sketch") == "render" and not a.no_choice_check:
         cg = Path(__file__).resolve().parent / "choice_gate.py"
@@ -643,7 +666,11 @@ def main():
              "ok": not v}, ensure_ascii=False, indent=2), encoding="utf-8")
 
     if v:
-        print("\n结论：不许出图。先把参考图的角色改对，再调 API。")
+        # 硬伤种类现在不只有「参考图角色」：还有 IR 契约 / 元素清单点头 /
+        # 客户挑草图回执 / 提示词阶梯。把真实原因列出来，别让人去猜。
+        kinds = "、".join(sorted({k for _r, _p, k, _y in v}))
+        print("\n结论：不许出图（%d 条硬伤：%s）。先把上面列出的问题改对，再调 API。"
+              % (len(v), kinds))
         return 1
 
     if a.run:

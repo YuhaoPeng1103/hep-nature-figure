@@ -39,6 +39,11 @@ _FAM = [(0, 16, "red"), (16, 45, "orange"), (45, 70, "yellow"), (70, 165, "green
         (165, 200, "cyan"), (200, 262, "blue"), (262, 300, "purple"),
         (300, 345, "magenta"), (345, 361, "red")]
 
+# 外部（IR 引导）元素划分：--elmap-in <elmap.npy> + --el-names id0,id1,...
+# 语义层交给 IR，装配器只负责把四叉树叶块按它归组（v4.16）
+_EXT = {"elmap": None, "names": []}
+
+
 
 def cname(r, g, b):
     """RGB -> 人读颜色族名（用于图层命名）"""
@@ -156,6 +161,12 @@ def main():
         spec.loader.exec_module(mod)
         globals()["P"] = mod
         print("  版式表: %s" % pmod)
+
+    elin = opt("--elmap-in", "")
+    if elin:
+        _EXT["elmap"] = np.load(elin)
+        _EXT["names"] = [x for x in opt("--el-names", "").split(",") if x]
+        print("  外部元素划分: %s（名字 %d 个）" % (elin, len(_EXT["names"])))
 
     im = Image.open(src).convert("RGB"); OW, OH = im.size
     im = im.resize((W, int(round(im.height * W / im.width))), Image.LANCZOS)
@@ -328,7 +339,7 @@ def main():
         a = V.inpaint(a, mm, sig=3.0)
         print("  已擦除原字笔画 %.2f%%（补背景后重建色块）" % (100 * mm.mean()))
     if "--elmap" in av:
-        dump_elements(a, R, K, opt("--elmap", "_elem_overlay.png"))
+        dump_elements(a, R, K, opt("--elmap", "_elem_overlay.png"), opt("--elmap-out", ""))
         return
     if "--npz" in av:
         p = opt("--npz", "_prep.npz")
@@ -352,6 +363,23 @@ def _name_pass(a, R, K):
     返回 (eid_full, flat)：eid_full[y,x] = flat 的下标；flat[i] = (cid, eid, label)。
     单独抽出来，是为了让 emit() 能在**画之前**按元素拿到像素掩膜（真渐变合并要用）。
     """
+    if _EXT["elmap"] is not None:
+        el = _EXT["elmap"]
+        H, W = a.shape[:2]
+        sh, sw = el.shape[:2]
+        if (sh, sw) != (H, W):
+            yi = (np.arange(H) * (sh / float(H))).astype(int).clip(0, sh - 1)
+            xi = (np.arange(W) * (sw / float(W))).astype(int).clip(0, sw - 1)
+            el = el[yi][:, xi]
+        cid = P.order()[0]
+        eid_full = np.full((H, W), -1, np.int32)
+        flat = []
+        for v in sorted(int(x) for x in np.unique(el) if int(x) >= 0):
+            nm = _EXT["names"][v] if v < len(_EXT["names"]) else "el%02d" % v
+            flat.append((cid, nm, nm))
+            eid_full[el == v] = len(flat) - 1
+        print("  外部元素划分（IR 引导）：%d 个元素 -> %s" % (len(flat), ", ".join(f[1] for f in flat)))
+        return eid_full, flat
     from . import elements as ELC
     ELC.P = P  # elements.py 自己 import 的是包内默认表；--panels 换表后必须同步，否则元素划分用错表 KeyError
     H, W = a.shape[:2]
@@ -433,7 +461,7 @@ def elem_bbox(per_cid_e):
     return (x0, y0, x1, y1)
 
 
-def dump_elements(a, R, K, out_png="_elem_overlay.png"):
+def dump_elements(a, R, K, out_png="_elem_overlay.png", npy_out=""):
     """元素归组自检图：每个物理元素一种颜色 + 名字（画的是最终 SVG 的元素划分）"""
     per, labels, nleaf = assign_elements(a, R, K)
     H, W = a.shape[:2]
@@ -462,6 +490,12 @@ def dump_elements(a, R, K, out_png="_elem_overlay.png"):
     im.save(out_png)
     # ★ 表跟着 out_png 走，不要写到 cwd：--elmap 是诊断子命令，
     #   实测（2026-09-27）把 _elem_table.txt 落在 cwd 会把别的图的同名文件覆掉。
+    if npy_out:
+        eid_full, flat = _name_pass(a, R, K)
+        np.save(npy_out, eid_full)
+        with open(npy_out + ".ids.txt", "w", encoding="utf-8") as fh:
+            fh.write("\n".join("%d\t%s\t%s" % (i, c, e) for i, (c, e, _l) in enumerate(flat)))
+        print("  元素划分 npy -> %s（+.ids.txt）" % npy_out)
     txt = os.path.join(os.path.dirname(out_png) or ".", "_elem_table.txt")
     open(txt, "w", encoding="utf-8").write("\n".join(rows))
     print("写出 %s / %s" % (out_png, txt))

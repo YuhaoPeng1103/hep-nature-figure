@@ -626,6 +626,44 @@ python3 scripts/repair_brief.py fig.svg --profile assets/style-profiles.json \
 而且无论用户提供什么，3d 感是首要」。「草图不用这么强调 IR 正确，主要位图要正确」。
 「草图不是完全不管物理啊，基本的三轴物理这样类似的要管」。
 
+#### 0 **出草图之前**：IR 的元素清单先给客户过目 / 加项，客户点头才开跑（v4.19，作者 2026-10-15）
+
+作者原话：「出草图前，我把 IR 的**元素清单**（中文 5–10 行）贴出来给你过目 / 加项，
+你点头我才开跑」。
+
+为什么必须卡在**出草图之前**：AGENTS.md §0.1 那条实测教训 —— 简报的「画面元素」与
+「标签白名单」是**闭集合**，会**静默删东西**（实测 `fig_jet_quench`：A 档两侧的入射核子簇
+整块消失，就因为「画面元素」没点它、「标签白名单」还禁了那个词）。等图出来才发现
+「少了个物体」，API 的钱已经烧掉了。所以把「这张图该有几个物体」挪到调生图接口**之前**，
+并且**明确要客户点头** —— 与 §0.2「选图权必须在客户手里」同一个道理。
+
+```bash
+# ① 编译并贴给客户（中文清单 5–10 行；默认写到 IR 同目录）
+python scripts/element_list.py --ir ir/xxx.ir.yaml
+#    贴进聊天窗口的就是 element_list.md 的内容；element_list.json 给机器读
+#    想连硬物理一起过目：--with-physics；只想写文件不打印：--quiet
+
+# ② 客户点头 / 加项后落盘回执（--by 只认客户本人）
+python scripts/element_list.py --ir ir/xxx.ir.yaml --record \
+       --reply "可以，另外把马赫锥加上" --by client --add "马赫锥 ×1"
+#    ★ --by 写 agent / auto / codex 一律判失败（与 choice_gate.py 同一张表）；
+#      客户明确说「你定」才用 --by manual
+
+# ③ 闸门自查（没清单 / 没回执 / by 不合法 = 非零退出）
+python scripts/element_list.py --ir ir/xxx.ir.yaml --check
+```
+
+- **闸门已挂进 `ref_guard.py`**：`--stage sketch` 且给了 `--ir` 时自动跑 `--check`，
+  没有客户回执 = 硬伤 **`NO_ELEMENT_ACK`**，**不许调 API**。绕开要显式写
+  `--no-element-check`，并把理由写进交付说明。
+- 每一行的形状 = `[zN] 名称 ×个数 · 形状 · 材质`（`--with-physics` 再加一句物理角色）。
+  `zN` 小的在后面、`zN` 大的在前面 —— 就是交付时该有的叠放序。
+- ★ **数量只从元素自己 `name` 里的 `×N`（或 `params.数量`）读**，绝不从 `physics_role` /
+  `primitive` 里猜 —— 那里的「两个核」「两组直线」是在描述**场景**，不是这个元素自己的个数。
+  实测（UPC）：读 `physics_role` 会把「反应平面」误判成 ×2、把另一个核误判成 ×1 ——
+  同类物体给出不同个数，清单就没法过目了（修法见 `element_list.py::_count_of` 的 docstring）。
+- 行数落在 **5–10 行**之外只 **warn**、不拦：行数是给人的阅读负担，不是物理判据。
+
 #### 1 入口固定 A 档：一句话（v4.13 起**默认不带参考图**；v4.15 起四档 A→B→C→D）
 
 | 档 | 简报 | 参考图 | 干什么 |
@@ -929,6 +967,19 @@ python3 scripts/raster_to_vector_semantic.py gen/render_s22_clean.png -o fig.svg
         --words words.txt --panels my_panels.py --W 1662 --R 5 --K 7 --q 0 \
         --legend fig_layers.md --el_txt fig_el_table.txt --check
 #    --legend 人读图层清单 / --el_txt 元素明细 / --check 回渲染自检（MAE/PSNR）
+#   ★ --W = ② 临摹的**工作分辨率宽度**（先源图缩到 --W 宽、再在缩放后的图上临摹）。
+#     默认 0 = 取源位图宽（即 1:1）。**传得比源位图窄 = 先把图降采样再临摹，细节永久丢。**
+#     实测 UPC（源 cand_s4192.png 2324x1268）：--W 1664 回渲染 MAE 3.022 / >32 1.98%；
+#     --W 2324 即 1:1 -> MAE 1.954 / >32 0.67% / PSNR 31.51 dB。
+#     ★ 别拿 SVG 的 width / viewBox 当分辨率 —— 那只是容器。判据是「源位图宽 x --W」。
+#       反例：fig_jet_3d/out/jet_q_final.svg 写着 4992x2727，但它的 3x 源 chosen_x3.png
+#       是 LANCZOS 放大 chosen.png 来的（MAE 0.000），信息量仍是 1664x909。
+#     详见 references/bitmap-to-vector.md §2.7
+#     ★★ 改 --W 的同时必须核对 panels 表的画布：CELLS / ELEMENTS[].boxes 写在
+#       「工作分辨率坐标」里，groupvec 不会替你缩放。实测（喷注淬火，源 1664x928，
+#       旧表画布 1200x669）：--W 1664 + 旧表 -> 图形只占左上 72%、MAE 7.217（比不改还糟）；
+#       把表按 x1.38667/ y1.38714 重标定 -> MAE 2.323 / >32 1.57%（旧交付 3.665 / 3.17%）。
+#       唯一天然免疫：语义层走 --elmap-in（表里只留 CELLS 面板框 + ELEMENTS 顺序）。
 #   ★ 要「整体改一个物理色块」（而不是按色素一条条改）就加 --shade：
 #     逐像素临摹结构上必然是「一种颜色一条 path」—— 实测形变核→火球：stage1-nucleus
 #     5162 条 path = 5162 种 fill，fireball 6696 = 6696（同色都并不起来）。图层按物理
