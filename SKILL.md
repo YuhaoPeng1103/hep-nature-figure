@@ -242,6 +242,42 @@ python3 scripts/raster_to_vector_semantic.py fig.png -o fig.svg --words words.tx
 > ⚠️ 两条路都**做不出真渐变网格**。原图的连续渐变在矢量里只能是色阶台阶
 > （调小 `--R` 变细，代价是路径数/体积）或真 `<gradient>`（要求图能拆成图元）。
 
+### ★ 台阶边界 -> 光滑样条：`--spline`（v4.22，纯 CPU）
+
+临摹层的几何是**可见像素轮廓**，边缘天然是 1 px 台阶。`svg_spline.py` 把「单连通大形体」
+的轮廓交给 vtracer 拟合成一条闭合 Bézier，**只改边界、不动明暗**（明暗仍是临摹层的四分块）。
+
+```bash
+# 交给 raster_to_vector_semantic 一步做完（默认关）
+python3 scripts/raster_to_vector_semantic.py fig.png -o fig.svg --no-text --spline
+# 或对已有成品做后处理
+python3 scripts/svg_spline.py --svg in.svg --png src.png --elmap elmap.npy         --el-names "S1,N1,N2" -o out.svg
+```
+
+- **只对曲面形体做**（核、球、火球这类）。箭头 / 弹簧 / 三轴 / 文字一律不碰 ——
+  它们的边界是「画出来的线」，光滑化只会把线变胖。
+- 三个闸门在写文件**之前**：`IoU ≥ --min-iou 0.95`（样条回渲染 vs 掩膜）、
+  掩膜最大连通块 ≥ 90%（否则是多连通，不做）、
+  **代价 `段数 × 该组 path 数 ≤ --max-cost 2e6`**（见下）。
+- UPC 实测（1664×909）：
+
+  | 元素 | 掩膜 px | 样条段数 | IoU | 结论 |
+  |---|---:|---:|---:|---|
+  | N1 蓝核 | 31108 | 63 | **0.9893** | 做 |
+  | N2 红核 | 31971 | 41 | **0.9923** | 做 |
+  | S1 板 | 424881 | 1002 | 0.9910 | **不做**（1002 段 × 8504 path） |
+
+  ★ 为什么板不做：cairosvg 会把 clip 路径写进**每一条被裁的 path**，S1 直接让 PDF 从
+  2.32 MB 涨到 **563 MB**、渲染 >12 min；而它对回渲染 MAE 的贡献是 **0.000**。
+- 代价：MAE 1.279 -> **1.287**（>32 1.07% -> 1.12%）。**这不是退步，是预期代价** ——
+  台阶版逐像素贴网格，样条把边界拉圆，边界那 1 px 必然有残差；换来曲面上没有锯齿
+  （8× 对比见 `fig_upc_3d/out/_boundary_cmp_v2.png`）。
+- 多面板图里同名元素会有多个 `<g data-element>`，样条会**明确跳过**（`multi-group`），
+  不猜该裁哪一个 —— 要做就按面板给各自的 elmap。
+- ★ 坑（踩过，别改回去）：vtracer 把图形**居中到原点**，真实位置在
+  `<path transform="translate(tx,ty)">` 里。只取 `d`、丢掉 transform，路径会整体错位并把
+  画布涂满（实测 MAE 11.6、核整块消失）。
+
 ### ★ 复现度不能只看「像不像」：`svg_repro_check.py`（v4.21）
 
 ```bash

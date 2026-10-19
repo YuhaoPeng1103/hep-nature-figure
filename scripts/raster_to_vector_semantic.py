@@ -114,6 +114,48 @@ def selfcheck(out, src, W, want_text):
     return not bad
 
 
+def spline_pass(a):
+    """v4.21：把大形体的可见像素轮廓换成光滑样条（只改边界，不动明暗）"""
+    try:
+        import svg_spline
+    except Exception as e:                                  # noqa: BLE001
+        print("!! --spline 不可用（%s）：先 pip install vtracer" % e)
+        return None
+    npy = a.elmap_out or (str(Path(a.out).with_suffix("")) + "_elmap.npy")
+    if not Path(npy).exists() and a.elmap_in and Path(a.elmap_in).exists():
+        npy = a.elmap_in
+    if not Path(npy).exists():
+        print("!! --spline 需要元素划分 .npy：加 --elmap-out <path.npy>（或给 --elmap-in）")
+        return None
+    if a.el_names:
+        mapping = {i: n for i, n in enumerate(x for x in a.el_names.split(",") if x)}
+    elif Path(str(npy) + ".ids.txt").exists():
+        mapping = svg_spline.read_ids(str(npy) + ".ids.txt")
+    else:
+        print("!! --spline 读不到元素名：给 --el-names，或让 groupvec 写出 <elmap>.ids.txt")
+        return None
+
+    import os
+    tmp = str(Path(a.out).with_suffix("")) + "_nospline.svg"
+    os.replace(a.out, tmp)
+    rows = svg_spline.run(tmp, a.image, npy, a.out, mapping,
+                          skip=[x for x in a.spline_skip.split(",") if x],
+                          min_px=a.spline_min_px, grow=a.spline_grow,
+                          inner=a.spline_inner, quant=a.spline_quant,
+                          min_iou=a.spline_min_iou)
+    try:
+        os.remove(tmp)
+    except OSError:
+        pass
+    rep = str(Path(a.out).with_suffix("")) + "_spline.json"
+    import json
+    with open(rep, "w", encoding="utf-8") as fh:
+        json.dump({"elmap": npy, "elements": rows}, fh, ensure_ascii=False, indent=1)
+    print("  样条：%d 个元素；读数 -> %s"
+          % (sum(1 for r in rows if r["status"] == "ok"), rep))
+    return rows
+
+
 def main():
     ap = argparse.ArgumentParser(
         description="位图 -> 语义分层的全矢量 SVG（先理解，再临摹）",
@@ -146,6 +188,18 @@ def main():
     ap.add_argument("--el-names", default="", help="--elmap-in 的名字表（逗号分隔，按 npy 里的整数值 0,1,2...）")
     ap.add_argument("--elmap-out", default="", help="把最终元素划分存成 .npy（+.ids.txt），用于跟别的路线逐像素对账")
     ap.add_argument("--el_txt", default="", help="元素划分明细 .txt")
+    # ★ v4.21：边界样条（vtracer，纯 CPU）。只把「大形体」的可见像素轮廓换成闭合 Bézier，
+    #   明暗仍是临摹层的四分块 —— 实测 UPC 两个核 IoU 0.9893/0.9923、1 条 path。
+    ap.add_argument("--spline", action="store_true",
+                    help="给大形体的元素边界加光滑样条（默认关；需要 vtracer，纯 CPU 不需要 GPU）")
+    ap.add_argument("--spline-min-px", type=int, default=5000,
+                    help="只处理掩膜像素数 >= 该值的元素（箭头/弹簧/三轴本来就不该做）")
+    ap.add_argument("--spline-grow", type=int, default=2, help="补色带向外扩多少像素")
+    ap.add_argument("--spline-inner", type=int, default=2, help="补色带向内扩多少像素")
+    ap.add_argument("--spline-quant", type=int, default=6, help="补色带颜色量化位数（bit/通道）")
+    ap.add_argument("--spline-min-iou", type=float, default=0.95,
+                    help="样条回渲染与掩膜的 IoU 低于此值就跳过该元素（宁可不光滑，也不写坏图）")
+    ap.add_argument("--spline-skip", default="", help="逗号分隔的元素名，不做样条")
     ap.add_argument("--check", action="store_true", help="回渲染自检（推荐每次都开）")
     a = ap.parse_args()
 
@@ -178,6 +232,9 @@ def main():
         groupvec.main()
     finally:
         sys.argv = old
+
+    if a.spline:
+        spline_pass(a)
 
     if a.check:
         if not Path(a.out).exists():
@@ -212,3 +269,5 @@ def main():
 
 if __name__ == "__main__":
     sys.exit(main())
+
+
