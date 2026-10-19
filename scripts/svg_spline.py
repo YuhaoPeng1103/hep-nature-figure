@@ -1,30 +1,28 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""svg_spline -- 把「单连通大形体」的元素边界从 1px 台阶换成光滑样条（纯 CPU，vtracer）
+"""svg_spline -- 把「单连通大形体」的元素边界从 1px 台阶换成光滑曲线（纯 CPU）
 
-为什么要这一步：
-    临摹层的几何是「可见像素轮廓」，边缘天然带 1px 台阶；v4.21 的 `_q32` 退路只是把
-    台阶变细，台阶还在。vtracer 的 spline 拟合能把同一块形体变成一条闭合 Bézier 曲线，
-    实测 UPC 两个核：1 条 path、面积 +1.0%/+0.8%、IoU 0.9893/0.9923。
-    它只改**边界**，不动明暗（明暗仍由临摹层的四分块负责）。
+两种方法（默认 subpixel）：
+  subpixel（v4.23，默认）—— 掩膜先高斯模糊成软场，取 **0.5 等值线**（亚像素，落在
+      抗锯齿过渡带的中点），再拟合成闭合三次 Bézier。
+      为什么更好：vtracer 是对**二值**掩膜拟合，边界落在台阶的外沿，面积系统性偏大约 1%；
+      等值线落在真实的 50% 边缘上，所以既更准（band MAE 15.5 vs 18.1）又更光滑。
+  vtracer（v4.22）—— 掩膜直接交给 vtracer(binary/spline)。
+      ★ 它的输出把图形居中到原点，真实位置在 <path transform="translate(tx,ty)"> 里；
+        只取 d、丢掉 transform，路径会整体错位并把画布涂满。
+
+两种方法都只改**边界**，不动明暗（明暗仍由临摹层的四分块负责）。
 
 用法：
-    # 直接命令行
     python tools/svg_spline.py --svg in.svg --png src.png --elmap elmap.npy \
-        --el-names S1,N1,N2,... -o out.svg [--min-px 5000] [--grow 2] [--skip S1]
+        --el-names S1,N1,N2 -o out.svg [--method subpixel|vtracer] [--step 8]
 
-    # 或给 groupvec 的 ids 表（一个元素对应多个整数值时用这个）
-    python tools/svg_spline.py --svg in.svg --png src.png --elmap elmap.npy \
-        --ids elmap.npy.ids.txt -o out.svg
-
-实现要点（踩过的坑，别改回去）：
-  1. vtracer 把图形**居中到原点**，真实位置写在 `<path transform="translate(tx,ty)">` 里。
-     只取 `d`、丢掉 transform，路径就会整体错位并把画布涂满 —— 这是第一版最严重的 bug。
-  2. 样条相对像素台阶会「鼓出去/缩进来」半像素，所以要在掩膜内外各留一条补色带
-     （外 grow px、内 inner px），颜色取**最近的元素自身像素**，画在该组最底层。
-  3. 写进 SVG 前先回渲染算 IoU，< --min-iou 就跳过该元素 —— 宁可不光滑，也不写出坏图。
-
-不碰：多连通元素（箭头/弹簧/三轴/文字）、小元素、文字层。
+写盘前的四道闸门（不过就跳过该元素，绝不写出坏图）：
+    ① 掩膜最大连通块 >= 90%（多连通不做）
+    ② 回渲染 IoU >= --min-iou（默认 0.95）
+    ③ 代价 = 段数 x 该组 path 数 <= --max-cost（默认 2e6）
+       —— cairosvg 会把 clip 路径摊进每一条被裁的 path，超了 PDF 会爆
+    ④ 图层组必须唯一（多面板同名元素明确跳过，不猜）
 """
 from __future__ import annotations
 import argparse, io, os, re, sys, tempfile
@@ -32,10 +30,6 @@ import numpy as np
 from PIL import Image
 from scipy import ndimage as ndi
 
-try:
-    import vtracer
-except ImportError:
-    vtracer = None
 try:
     import cairosvg
 except ImportError:
@@ -60,8 +54,41 @@ def run_rects(xs, ys, cols):
     return {c: "".join(v) for c, v in out.items()}
 
 
+# ---------------------------------------------------------------- 方法二：等值线
+def subpixel_path(mask, sigma=1.4, nseg=0, step=8.0, smin=64, smax=512):
+    """掩膜 -> 0.5 等值线（亚像素）-> 闭合三次 Bézier。返回 (d, 段数)"""
+    from scipy.interpolate import splprep, splev
+    from skimage import measure
+
+    f = ndi.gaussian_filter(mask.astype(np.float32), sigma)
+    cs = [c for c in measure.find_contours(f, 0.5) if len(c) > 32]
+    if not cs:
+        return "", 0
+    c = max(cs, key=len)                       # (row, col)
+    y, x = c[:, 0].astype(np.float64), c[:, 1].astype(np.float64)
+    if np.allclose([x[0], y[0]], [x[-1], y[-1]]):
+        x, y = x[:-1], y[:-1]
+    per = float(np.hypot(np.diff(np.r_[x, x[0]]), np.diff(np.r_[y, y[0]])).sum())
+    if not nseg:
+        nseg = int(np.clip(round(per / step), smin, smax))
+
+    tck, _u = splprep([x, y], s=0.0, per=True, k=3)
+    uu = np.linspace(0.0, 1.0, nseg + 1)
+    P = np.column_stack(splev(uu, tck)).astype(np.float64)
+    T = np.column_stack(splev(uu, tck, der=1)).astype(np.float64)
+    k = 3.0 * (len(P) - 1)
+    out = ["M%.2f %.2f" % (P[0, 0], P[0, 1])]
+    for i in range(len(P) - 1):
+        c1 = P[i] + T[i] / k
+        c2 = P[i + 1] - T[i + 1] / k
+        out.append("C%.2f %.2f %.2f %.2f %.2f %.2f"
+                   % (c1[0], c1[1], c2[0], c2[1], P[i + 1, 0], P[i + 1, 1]))
+    return "".join(out) + "Z", nseg
+
+
+# ---------------------------------------------------------------- 方法一：vtracer
 def vtracer_paths(mask, pad=4):
-    """返回 [(d, tx, ty)]，tx/ty 已是「裁切原点 + vtracer transform」的画布平移"""
+    import vtracer
     h, w = mask.shape
     ys, xs = np.nonzero(mask)
     y0, y1 = max(0, int(ys.min()) - pad), min(h, int(ys.max()) + 1 + pad)
@@ -95,13 +122,11 @@ def vtracer_paths(mask, pad=4):
     return out
 
 
-def clip_iou(paths, mask):
+def clip_iou(body, mask):
     """把路径回渲染一遍，与掩膜算 IoU（兜底：防止写出坏 clip）"""
     if cairosvg is None:
         return 1.0
     h, w = mask.shape[:2]
-    body = "".join('<path transform="translate(%.3f %.3f)" d="%s" fill="#000"/>' % (tx, ty, d)
-                   for d, tx, ty in paths)
     svg = ('<svg xmlns="http://www.w3.org/2000/svg" width="%d" height="%d" '
            'viewBox="0 0 %d %d"><rect width="%d" height="%d" fill="#fff"/>%s</svg>'
            % (w, h, w, h, w, h, body))
@@ -121,11 +146,9 @@ def read_ids(path):
     return out
 
 
-def run(svg, png, elmap, out, label_to_name, skip=(), min_px=5000, pad=4,
-        grow=2, inner=2, quant=6, min_iou=0.95, max_cost=2.0e6, quiet=False):
-    """给 svg 里的大形体元素加样条 clipPath + 补色带，写到 out。返回逐元素读数。"""
-    if vtracer is None:
-        raise RuntimeError("需要 vtracer：python -m pip install vtracer")
+def run(svg, png, elmap, out, label_to_name, skip=(), min_px=5000,
+        grow=2, inner=2, quant=6, min_iou=0.95, max_cost=2.0e6,
+        method="subpixel", sigma=1.4, nseg=0, step=8.0, quiet=False):
     s = io.open(svg, encoding="utf-8").read()
     img = np.asarray(Image.open(png).convert("RGB")).astype(np.int16)
     el = np.load(elmap)
@@ -151,40 +174,53 @@ def run(svg, png, elmap, out, label_to_name, skip=(), min_px=5000, pad=4,
             continue
         extra = mask & ~main_m
 
-        paths = vtracer_paths(main_m, pad)
-        if not paths:
-            rows.append(dict(eid=eid, status="no-path", px=int(mask.sum())))
+        # 组必须唯一
+        pat0 = r'<g\s[^>]*\bdata-element="%s"[^>]*>' % re.escape(eid)
+        hit0 = list(re.finditer(pat0, s))
+        if len(hit0) != 1:
+            rows.append(dict(eid=eid, status=("multi-group" if hit0 else "no-group"),
+                             px=int(mask.sum()), groups=len(hit0)))
             continue
-        iou = clip_iou(paths, main_m)
+
+        if method == "vtracer":
+            paths = vtracer_paths(main_m)
+            if not paths:
+                rows.append(dict(eid=eid, status="no-path", px=int(mask.sum())))
+                continue
+            body = "".join('<path transform="translate(%.3f %.3f)" d="%s" fill="#000"/>'
+                           % (tx, ty, d) for d, tx, ty in paths)
+            nseg_e = sum(d.count("C") for d, _tx, _ty in paths)
+            clip_inner = "".join('<path transform="translate(%.3f %.3f)" d="%s"/>' % (tx, ty, d)
+                                 for d, tx, ty in paths)
+        else:
+            d, nseg_e = subpixel_path(main_m, sigma=sigma, nseg=nseg, step=step)
+            if not d:
+                rows.append(dict(eid=eid, status="no-path", px=int(mask.sum())))
+                continue
+            body = '<path d="%s" fill="#000"/>' % d
+            clip_inner = '<path d="%s"/>' % d
+
+        iou = clip_iou(body, main_m)
         if iou < min_iou:
             rows.append(dict(eid=eid, status="low-iou", px=int(mask.sum()), iou=iou))
             continue
 
-        # ★ 代价闸门：cairosvg 会把 clip 路径写进每一条被裁的 path 里，
-        #   体积 ~ 段数 x 该组 path 数。实测 UPC 的板 S1（1002 段 x 8504 path）
-        #   PDF 563 MB / 渲染 >12 min，而对回渲染 MAE 的贡献是 0.000（1.287 vs 1.287）。
-        pat0 = r'<g\s[^>]*\bdata-element="%s"[^>]*>' % re.escape(eid)
-        hit0 = list(re.finditer(pat0, s))
-        n_paths = s.count("<path", hit0[0].end(), s.find("</g>", hit0[0].end())) if hit0 else 0
-        seg = sum(d.count("C") for d, _tx, _ty in paths)
-        cost = float(seg) * max(n_paths, 1)
+        # ★ 代价闸门：cairosvg 把 clip 摊进每条被裁的 path，体积 ~ 段数 x path 数
+        n_paths = s.count("<path", hit0[0].end(), s.find("</g>", hit0[0].end()))
+        cost = float(nseg_e) * max(n_paths, 1)
         if cost > max_cost:
             rows.append(dict(eid=eid, status="too-costly", px=int(mask.sum()),
-                             seg=seg, paths=n_paths, cost=cost))
+                             seg=nseg_e, paths=n_paths, cost=cost))
             continue
 
         frag = ""
         if extra.any():
             ey, ex = np.nonzero(extra)
-            frag = "".join("M%d %dh1v1h-1z" % (x, y) for y, x in zip(ey.tolist(), ex.tolist()))
+            frag = '<path d="%s"/>' % "".join("M%d %dh1v1h-1z" % (x, y)
+                                              for y, x in zip(ey.tolist(), ex.tolist()))
 
-        clip = ['<clipPath id="spl-%s" clipPathUnits="userSpaceOnUse">' % eid]
-        for d, tx, ty in paths:
-            clip.append('<path transform="translate(%.3f %.3f)" d="%s"/>' % (tx, ty, d))
-        if frag:
-            clip.append('<path d="%s"/>' % frag)
-        clip.append("</clipPath>")
-        defs.append("".join(clip))
+        defs.append('<clipPath id="spl-%s" clipPathUnits="userSpaceOnUse">%s%s</clipPath>'
+                    % (eid, clip_inner, frag))
 
         band = (ndi.binary_dilation(mask, iterations=grow)
                 & ~ndi.binary_erosion(mask, iterations=inner + grow))
@@ -195,14 +231,8 @@ def run(svg, png, elmap, out, label_to_name, skip=(), min_px=5000, pad=4,
                         'stroke-linejoin="round" d="%s"/>' % (c, c, dd)
                         for c, dd in run_rects(bx, by, cols).items())
 
-        pat = r'<g\s[^>]*\bdata-element="%s"[^>]*>' % re.escape(eid)
-        hits = list(re.finditer(pat, s))
-        if len(hits) != 1:
-            rows.append(dict(eid=eid, status=("multi-group" if hits else "no-group"),
-                             px=int(mask.sum()), groups=len(hits)))
-            continue
-        i0, j0 = hits[0].start(), hits[0].end()
-        head = hits[0].group(0)
+        i0, j0 = hit0[0].start(), hit0[0].end()
+        head = hit0[0].group(0)
         if "clip-path=" in head:
             rows.append(dict(eid=eid, status="has-clip", px=int(mask.sum())))
             continue
@@ -211,24 +241,27 @@ def run(svg, png, elmap, out, label_to_name, skip=(), min_px=5000, pad=4,
         s = s[:i1] + pbody + s[i1:]
         rows.append(dict(eid=eid, status="ok", px=int(mask.sum()), iou=iou,
                          frags=int(extra.sum()), band=int(len(cols)),
-                         paths=len(paths), spline_paths=len(paths)))
+                         seg=nseg_e, paths=n_paths))
 
     if defs:
         k = s.find("</desc>") + len("</desc>")
         s = s[:k] + "\n<defs>\n" + "\n".join(defs) + "\n</defs>" + s[k:]
     io.open(out, "w", encoding="utf-8").write(s)
+
     if not quiet:
         for r in rows:
             if r["status"] == "ok":
-                print("  spline %-4s mask=%-6d IoU=%.4f frags=%-5d band-px=%-6d"
-                      % (r["eid"], r["px"], r["iou"], r["frags"], r["band"]))
-            elif r["status"] == "multi":
-                print("  skip   %-4s 多连通（最大块只占 %.1f%%）" % (r["eid"], 100 * r["frac"]))
+                print("  spline %-4s mask=%-6d IoU=%.4f seg=%-4d frags=%-5d band-px=%-6d"
+                      % (r["eid"], r["px"], r["iou"], r["seg"], r["frags"], r["band"]))
             elif r["status"] == "too-costly":
                 print("  skip   %-4s 代价过高（%d 段 x %d path = %.1e > %.1e）"
                       % (r["eid"], r["seg"], r["paths"], r["cost"], max_cost))
+            elif r["status"] == "multi":
+                print("  skip   %-4s 多连通（最大块只占 %.1f%%）" % (r["eid"], 100 * r["frac"]))
+            elif r["status"] == "multi-group":
+                print("  skip   %-4s 同名图层组 %d 个（多面板，不猜）" % (r["eid"], r["groups"]))
             elif r["status"] == "low-iou":
-                print("  skip   %-4s spline IoU=%.4f < %.2f" % (r["eid"], r["iou"], min_iou))
+                print("  skip   %-4s IoU=%.4f < %.2f" % (r["eid"], r["iou"], min_iou))
             else:
                 print("  skip   %-4s %s" % (r["eid"], r["status"]))
     return rows
@@ -242,8 +275,11 @@ def main():
     ap.add_argument("--el-names", default="", help="逗号分隔，按 npy 里的整数值 0,1,2...")
     ap.add_argument("--ids", default="", help="groupvec 的 <elmap>.ids.txt（一个元素多个 label 时用）")
     ap.add_argument("-o", "--out", required=True)
+    ap.add_argument("--method", choices=["subpixel", "vtracer"], default="subpixel")
+    ap.add_argument("--sigma", type=float, default=1.4, help="subpixel：软化半径（px）")
+    ap.add_argument("--step", type=float, default=8.0, help="subpixel：每段弧长（px），决定段数")
+    ap.add_argument("--nseg", type=int, default=0, help="subpixel：直接指定段数（0=按 step 自适应）")
     ap.add_argument("--min-px", type=int, default=5000)
-    ap.add_argument("--pad", type=int, default=4)
     ap.add_argument("--grow", type=int, default=2, help="补色带向外扩多少像素")
     ap.add_argument("--inner", type=int, default=2, help="补色带向内扩多少像素")
     ap.add_argument("--quant", type=int, default=6, help="补色带颜色量化位数（bit/通道）")
@@ -262,8 +298,9 @@ def main():
 
     rows = run(a.svg, a.png, a.elmap, a.out, mapping,
                skip=[x for x in a.skip.split(",") if x],
-               min_px=a.min_px, pad=a.pad, grow=a.grow, inner=a.inner,
-               quant=a.quant, min_iou=a.min_iou, max_cost=a.max_cost)
+               min_px=a.min_px, grow=a.grow, inner=a.inner, quant=a.quant,
+               min_iou=a.min_iou, max_cost=a.max_cost, method=a.method,
+               sigma=a.sigma, nseg=a.nseg, step=a.step)
     print("-> %s（%d 个元素加样条）" % (a.out, sum(1 for r in rows if r["status"] == "ok")))
 
 

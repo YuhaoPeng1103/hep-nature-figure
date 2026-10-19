@@ -142,7 +142,8 @@ def spline_pass(a):
                           skip=[x for x in a.spline_skip.split(",") if x],
                           min_px=a.spline_min_px, grow=a.spline_grow,
                           inner=a.spline_inner, quant=a.spline_quant,
-                          min_iou=a.spline_min_iou)
+                          min_iou=a.spline_min_iou, method=a.spline_method,
+                          sigma=a.spline_sigma, step=a.spline_step)
     try:
         os.remove(tmp)
     except OSError:
@@ -200,6 +201,10 @@ def main():
     ap.add_argument("--spline-min-iou", type=float, default=0.95,
                     help="样条回渲染与掩膜的 IoU 低于此值就跳过该元素（宁可不光滑，也不写坏图）")
     ap.add_argument("--spline-skip", default="", help="逗号分隔的元素名，不做样条")
+    ap.add_argument("--spline-method", choices=["subpixel", "vtracer"], default="subpixel",
+                    help="subpixel（默认，亚像素等值线，实测更准）/ vtracer（二值掩膜拟合，对照用）")
+    ap.add_argument("--spline-sigma", type=float, default=1.4, help="subpixel：软化半径 px")
+    ap.add_argument("--spline-step", type=float, default=8.0, help="subpixel：每段弧长 px")
     ap.add_argument("--check", action="store_true", help="回渲染自检（推荐每次都开）")
     a = ap.parse_args()
 
