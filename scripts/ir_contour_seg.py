@@ -72,12 +72,13 @@ from scipy import ndimage as ndi
 FAMILY_KEYS = [
     ("axes",    ("坐标三轴", "三轴", "坐标轴")),
     ("arc",     ("同心弧", "弧线", "马赫", "尾迹", "激波")),
-    ("blob",    ("火球", "团块", "介质", "等离子体", "发光体")),
+    ("jet",     ("喷注", "射流")),
+    ("blob",    ("火球", "团块", "介质", "等离子体", "发光体", "QGP")),
     ("dim",     ("双向", "尺寸", "参考线", "虚线")),
     ("glow",    ("发光球", "星芒")),
     ("plane",   ("薄板", "网格板", "板面", "平面", "平行四边形")),
     ("cluster", ("球团", "椭球", "扁球", "球簇", "核子")),
-    ("stroke",  ("波浪", "弹簧")),
+    ("stroke",  ("波浪", "弹簧", "螺旋", "辐射线")),
     ("arrow",   ("箭头",)),
     ("text",    ("文字", "标注")),
 ]
@@ -88,7 +89,13 @@ EID = re.compile(r"\b([A-Z]\d{1,2})\b")
 
 
 def family_of(elem):
-    s = "%s %s" % (elem.get("primitive") or "", elem.get("name") or "")
+    # ★ 先看【元素名】，再看 primitive：G1「胶子辐射线」的 primitive 里写着「从淬火喷注
+    #   侧向分出」—— 混在一起判就会被 jet 抢走（实测 G1 与 J2 拿到同一块 33423 px）。
+    nm = elem.get("name") or ""
+    for fam, keys in FAMILY_KEYS:
+        if any(k in nm for k in keys):
+            return fam
+    s = "%s %s" % (elem.get("primitive") or "", nm)
     for fam, keys in FAMILY_KEYS:
         if any(k in s for k in keys):
             return fam
@@ -184,6 +191,118 @@ def _thick(mask, rad):
     return ndi.binary_dilation(d > rad, iterations=int(rad)) & mask
 
 
+def _plane_para(S, seed):
+    """把「板」拟合成【平行四边形】：两组平行边各取最外一条，四条线交点 = 4 角。
+
+    ★ 为什么不用可见像素的凸包：板会被介质挡住一角（喷注淬火：QGP 压住板的后左角）。
+      凸包只能沿着可见边界走，必然缺角；平行四边形是板的真实几何约束，能把被挡的那一角
+      补回来（amodal completion），而且顺带把“亮角”（近白、被当成背景）一起补上。
+    ★ 四道闸门，任一不过就返回 None（退回旧的 _quad）：
+      ① 两个方向的平行边族都要有 >=2 条（长边族 / 短边族）；
+      ② 4 个交点都在画布内；
+      ③ 与种子掩膜（凸包）的 IoU >= 0.45；
+      ④ 面积在种子掩膜的 0.5–2 倍之间。
+    """
+    try:
+        import cv2
+    except Exception:
+        return None
+    L, sat = S["L"], S["sat"]
+    H, W = L.shape
+    bh = ndi.grey_closing(L, size=(11, 11)) - L
+    g = (bh > 0.05) & (sat < 0.22) & (L > 0.45) & (L < 0.99)
+    g &= ndi.binary_dilation(ndi.binary_fill_holes(seed), iterations=150)
+    g = ndi.binary_opening(g, np.ones((2, 2)))
+    if g.sum() < 500:
+        return None
+    edges = cv2.Canny((np.clip(L, 0, 1) * 255).astype(np.uint8), 30, 90)
+    edges = edges & ndi.binary_dilation(g, iterations=6).astype(np.uint8)
+    segs = cv2.HoughLinesP(edges, 1, np.pi / 360, threshold=40,
+                           minLineLength=70, maxLineGap=14)
+    if segs is None:
+        return None
+    seg = segs.reshape(-1, 4)
+    ang = np.degrees(np.arctan2(seg[:, 3] - seg[:, 1], seg[:, 2] - seg[:, 0])) % 180
+    ln = np.hypot(seg[:, 2] - seg[:, 0], seg[:, 3] - seg[:, 1])
+    h, be = np.histogram(ang, bins=36, range=(0, 180), weights=ln)
+    order = list(np.argsort(h)[::-1])
+    a1 = (be[order[0]] + be[order[0] + 1]) / 2.0
+    a2 = None
+    for k in order[1:]:
+        a = (be[k] + be[k + 1]) / 2.0
+        d = abs(a - a1)
+        d = min(d, 180 - d)
+        if 25 <= d <= 155 and h[k] >= 0.25 * h[order[0]]:
+            a2 = a
+            break
+    if a2 is None:
+        return None
+
+    def fam(a, tol=12.0):
+        d = np.abs(ang - a)
+        return seg[np.minimum(d, 180 - d) < tol]
+
+    f1, f2 = fam(a1), fam(a2)
+    if len(f1) < 2 or len(f2) < 2:
+        return None
+    # 四条极值线：方向取 Hough 的两个主族；偏移取「线段端点 + 板证据像素」的极值。
+    # ★ 只用 Hough 线段会漏掉「近白的板边」（白对白没有 Canny 边），板的厚度侧壁就补不上；
+    #   只用证据像素又会被断线带偏。两者合并，取 1%/99% 分位抗离群。
+    ys, xs = np.nonzero(seed)
+    P = np.stack([xs, ys], 1).astype(np.float64)
+
+    def extremes(a, sel):
+        # ★ 偏移只用【证据像素】的分位数：Hough 线段的端点会顺着延长线跑到板外
+        #   （实测 y 轴箭头那条线把角点推到 x=-37 / x=1193）。
+        n = np.array([-np.sin(np.radians(a)), np.cos(np.radians(a))])
+        rv = P @ n
+        return (n, float(np.percentile(rv, 1))), (n, float(np.percentile(rv, 99)))
+
+    l1a, l1b = extremes(a1, f1)
+    l2a, l2b = extremes(a2, f2)
+
+    def cross(p, q):
+        M_ = np.array([p[0], q[0]])
+        if abs(np.linalg.det(M_)) < 1e-6:
+            return None
+        return np.linalg.solve(M_, np.array([p[1], q[1]]))
+
+    cs = [cross(l1a, l2a), cross(l1a, l2b), cross(l1b, l2b), cross(l1b, l2a)]
+    if any(c is None for c in cs):
+        return None
+    cs = np.array(cs, np.float64)
+    if (cs[:, 0].min() < -5 or cs[:, 0].max() > W + 5
+            or cs[:, 1].min() < -5 or cs[:, 1].max() > H + 5):
+        return None
+    out = np.zeros((H, W), np.uint8)
+    cv2.fillPoly(out, [cs.astype(np.int32)], 1)
+    q = out.astype(bool)
+    # ③ 检出的灰必须几乎全在拟合四边形里（seed 是「可见证据」，不是「完整面积」——
+    #    用 IoU 会误杀：证据只覆盖板的可见部分，拟合要补的是被挡住/近白的那部分）。
+    sv = float(seed.sum())
+    if sv <= 0 or float((q & seed).sum()) / sv < 0.80:
+        return None
+    # ④ 面积不许离证据太远（1.2x–6x；实测喷注淬火 42.4k -> 167k = 3.9x）
+    if not (1.2 * sv <= float(q.sum()) <= 6.0 * sv):
+        return None
+
+    # ⑤ ★ 外接平行四边形的「空角」要裁掉（v4.21）。平行四边形是**外接**拟合：
+    #   证据少一个角（被别的物体挡住）时，两条边的延长线会在空处相交，整块背景
+    #   被算成板 —— 实测喷注淬火图右后角被推到 (1131,595)，那里是纯背景，
+    #   S1 的 bbox 因此比真板宽 100 px，SLIC 边界吸附又把这 100 px 撑成台阶。
+    #   裁法：只保留「离可见证据 <= tol」的部分（被 QGP 挡住的那一角本来也归 QGP 的
+    #   z 序，裁掉不丢可见像素）；保住直边的形状，不做任何重拟合。
+    tol = int(max(24.0, 0.030 * min(H, W)))
+    qq = q & ndi.binary_dilation(seed, iterations=tol)
+    if float(qq.sum()) < 1.05 * sv:     # 裁过头（板只有几块可见碎片）就别用平行四边形
+        return None
+    if float(q.sum() - qq.sum()) > 0.02 * float(q.sum()):
+        # 真被裁过：裁出来的边界是「膨胀 27 px」的锯齿边，再收一次成 4 角直线边
+        #（不这么做，边界吸附会沿锯齿长出台阶 —— 实测 S1 右缘全是 30 px 的台阶）
+        qq = _quad(ndi.binary_fill_holes(qq))
+    return qq
+
+
 def _quad(mask):
     """把一个平面块的凸包简化成 4 个角（板是斜的平行四边形）"""
     try:
@@ -207,6 +326,62 @@ def _quad(mask):
 
 
 # ── 地标发现：**只按形态**，不看 IR（IR 在下一步才来认领） ────────────────
+def _ellipsoids(S, minpx=4000, maxfrac=0.10):
+    """单色椭球团块（核子）：只按【形状】认，与颜色无关。
+
+    ★ 为什么需要（v4.21 实测，UPC）：① 的球团判据是「红蓝两色在同一半径内共现」，
+      只适用于「一撮核子球」画法的核；UPC 那种整块椭球核压根不触发，于是两个核
+      落进 ③「深 + 饱和 + 够大」的实心箭头里 —— 实测蓝核 73.8% / 红核 46.1%
+      被 A1 拿走，剩下的才轮到板（26.2% / 10.8%）。
+    判据（全部与色相无关）：对【整块】拟合椭圆、长宽比 1.5–3.6、椭圆填充率
+      >=0.80、凸性 >=0.85、bbox 短边 >=45、面积 4000..10% 画布。
+    标定：UPC 命中 2 个（29296 / 31442 px，bbox 139x272 / 156x253）；
+      喷注淬火 QGP 长宽比 1.26 -> 0 命中（seg_v18 与 seg_v17b 逐元素 px 完全一致）。
+    """
+    try:
+        import cv2
+    except Exception:
+        return []
+    mx, sat = S["mx"], S["sat"]
+    H, W = mx.shape
+    # ★ 只用饱和度、不压亮度上限：红核的高光面 mx 可到 230+，旧判据 mx<210
+    #   把核切掉一半，拟合出的椭圆只剩暗侧（UPC 实测 N2 7668 px / A1 抢走 14897 px）。
+    m = ((sat > 0.18) & (mx < 248)).astype(np.uint8)
+    m = cv2.morphologyEx(m, cv2.MORPH_CLOSE, np.ones((7, 7), np.uint8))
+    m = cv2.morphologyEx(m, cv2.MORPH_OPEN, np.ones((5, 5), np.uint8))
+    n, lb, st, _ = cv2.connectedComponentsWithStats(m, 8)
+    out = []
+    for i in range(1, n):
+        a = int(st[i, cv2.CC_STAT_AREA])
+        if a < minpx or a > maxfrac * H * W:
+            continue
+        w, h = int(st[i, cv2.CC_STAT_WIDTH]), int(st[i, cv2.CC_STAT_HEIGHT])
+        if min(w, h) < 45 or max(w, h) < 90:
+            continue
+        comp = (lb == i)
+        # ★ v4.21c：对【整块】拟合。上面 (sat>0.18)&(mx<248) 的掩膜已经把中性灰
+        #   速度箭头排除在外（UPC 实测两块 bbox 139x272 / 156x253，正好是核本身），
+        #   所以不需要再用「厚核」缩小范围 —— 用厚核拟合会把椭圆缩到 74x198，
+        #   只剩核的暗侧，反而让 A1 的 z 序把另一半抢走。
+        cnts = cv2.findContours(comp.astype(np.uint8), cv2.RETR_EXTERNAL,
+                                cv2.CHAIN_APPROX_NONE)[0]
+        if not cnts:
+            continue
+        c = max(cnts, key=cv2.contourArea)
+        if len(c) < 5:
+            continue
+        (cx, cy), (MA, ma), ang = cv2.fitEllipse(c)
+        ellA = np.pi * (MA / 2.0) * (ma / 2.0) + 1e-6
+        fillE = a / ellA
+        sol = a / (cv2.contourArea(cv2.convexHull(c)) + 1e-6)
+        asp = max(MA, ma) / max(1.0, min(MA, ma))
+        if 1.5 <= asp <= 3.6 and fillE >= 0.80 and sol >= 0.85:
+            ell = np.zeros(mx.shape, np.uint8)
+            cv2.ellipse(ell, ((cx, cy), (MA, ma), ang), 1, -1)
+            out.append(comp & ndi.binary_dilation(ell > 0, iterations=2))
+    return out
+
+
 def landmarks(S):
     """只按形态找地标（IR 在下一步才来认领）。顺序有依赖：球团/暖橙的掩膜后面要用。"""
     L, sat, ink = S["L"], S["sat"], S["ink"]
@@ -220,6 +395,12 @@ def landmarks(S):
     both = ndi.binary_fill_holes(ndi.binary_closing(both, np.ones((15, 15))))
     for m, px in _pieces(both, 40000):
         out["cluster"].append(_desc(S, m))
+
+    # ①b 单色椭球核（v4.21）：整块椭球的核不满足「红蓝共现」，会被 ③ 当成实心箭头
+    for m in _ellipsoids(S):
+        d = _desc(S, m)
+        d["src"] = "ellipse"
+        out["cluster"].append(d)
 
     # ② 暖橙：光子线 + 顶点 + 末态箭头在位图上连成一片，留给 split_warm 按 z 序剥。
     #   ★ 顶点的【白热核心是白色】（实测 RGB(246,224,204)、r-b=42 但 b=204>130），
@@ -239,8 +420,13 @@ def landmarks(S):
         if float(cg[k]) / max(1, (xs.max() - xs.min() + 1) * (ys.max() - ys.min() + 1)) >= 0.50:
             gcore = (lg == k)
             break
+    # ★ v4.21d：椭球核（尤其红核）本身落在暖橙色判据里，若不排除，split_warm()
+    #   会把红核左半当成「末态轻子对」的厚箭头抢走（UPC 实测 N2 左半 79% 归 P1）。
+    cl_seed = np.zeros(mx.shape, bool)
+    for d in out["cluster"]:
+        cl_seed |= d["mask"]
     wa_all = np.zeros(mx.shape, bool)
-    for m, px in _pieces(warm | gcore, 4000, close=7):
+    for m, px in _pieces((warm | gcore) & ~cl_seed, 4000, close=7):
         out["warm"].append(_desc(S, m))
         wa_all |= m
 
@@ -257,34 +443,59 @@ def landmarks(S):
         so_all |= d["mask"]
 
     # ④ 浅灰板面：低饱和的灰 -> 收成 4 角平行四边形。
-    #   ★ 判据不能卡 L>0.80：板的下半被压暗（实测 L≈0.69、RGB(175,179,177)），
-    #     旧判据把板漏掉两块共 139k px，于是成图上板的下半成了「谁都没认领」的黑洞。
-    #     但必须同时排掉白背景（背景 L≈0.99、sat≈0.008，一收进来板就变成整张画布）。
-    # ★ v4.17 修「板亮角缺失」：原 bg0=(L>0.965)&(sat<0.045) 把**被照亮的板角**
-    #   （实测 L≈0.965-0.985、sat≈0.008）与白背景（L≈0.995、sat≈0.004）一起排掉：
-    #   UPC 实测右上区域 S1 覆盖率只有 8.7%，未覆盖像素 60% 命中 bg0。
-    #   修法 ① bg0 收紧到 (L>0.9905)&(sat<0.035)；② 板域上界放宽到 L<0.9995；
-    #        ③ 板是凸的（斜置平行四边形）→ 用凸包把亮角补回来，再用四边形收边。
-    #   实测教训：**主判据不能一起放宽**（收紧 bg0 会把板外近白背景也收进来：
-    #   S1 从 20.3% 涨到 32.8%、bbox 顶到 y=68）。正确做法是主判据原样、只补凸包内的亮角。
+    #   ★ 两级判据（v4.19）：
+    #     ④a【严】sat<0.12 & 0.50<L<0.90 —— 真板的颜色。喷注淬火图里 QGP 的火光在
+    #        旧宽判据（sat<0.22）下会把板、QGP 外晕、网格线连成一整块（实测 708766 px，
+    #        bbox 1361x809 = 87% 画布高，QGP 被整块吞进板里）。严判据只留板。
+    #     ④b【宽】旧判据保留，供「板占画面大半 + 下半被压暗」的图（UPC）用。
+    #     两个候选都交给 assign()，由 _plane_ok() 用「几何 + 颜色纯度」选，不是谁大选谁。
     bg0 = (L > 0.965) & (sat < 0.045)
-    for m, px in _pieces((~bg0) & (sat < 0.22) & (L > 0.52) & (L < 0.995) & (ink > 6),
-                         60000, close=41):
-        # ★ v4.17c 用【板上的网格线】把凸包撑开：亮角在板主掩膜的凸包之外（凸包够不着），
-        #   而等距网格线横跨整块板（含亮角），比板面暗（L≈0.85-0.95）——
-        #   把「板掩膜 + 邻近网格线」一起求凸包，角点就能推到亮角外沿；
-        #   再用 bg_strict 把纯白背景（L>0.992）挡在外面，避免又吞背景。
-        bg_strict = (L > 0.992) & (sat < 0.03)
+    bg_strict = (L > 0.992) & (sat < 0.03)
+    Himg, Wimg = mx.shape
+
+    def _pl(m, src, seed=None):
+        # 用板上的网格线把凸包撑开（亮角在主掩膜凸包之外），再用四边形收边
         near = ndi.binary_dilation(ndi.binary_fill_holes(m), iterations=40)
         grid = near & (sat < 0.22) & (ink > 6) & (L > 0.50) & (L < 0.965) & (~bg_strict)
-        #   标定（2026-10-15，UPC/2324x1268）：iterations 40 + ink>6 = S1 708149 px、右上区覆盖 12.6%（最佳）；
-        #   iterations 80 + ink>2 = 624221 px、11.4%（更差：凸包变大后四边形收边反而变紧）；
         hull = _hull_mask(ndi.binary_fill_holes(m) | grid)
         bright = (~bg_strict) & (sat < 0.25) & (L > 0.45)
         m2 = ndi.binary_fill_holes(m | (hull & bright))
-        d = _desc(S, _quad(m2))
+        qp = _plane_para(S, seed if seed is not None else m)
+        d = _desc(S, qp if qp is not None else _quad(m2))
+        d["para"] = bool(qp is not None)
         d["px"] = int(m2.sum())
+        d["src"] = src
+        d["medsat"] = float(np.median(sat[d["mask"]]))
+        d["medL"] = float(np.median(L[d["mask"]]))
         out["plane"].append(d)
+
+    # ④a 严：真正的板是严格低饱和的灰；只要落在下半画布的连通块（上半的灰多是箭头）
+    gm = (~bg0) & (sat < 0.12) & (L > 0.50) & (L < 0.90) & (ink > 6)
+    labg, ng = ndi.label(ndi.binary_closing(gm, np.ones((15, 15))))
+    cg = np.bincount(labg.ravel(), minlength=ng + 1)
+    cand = np.zeros(mx.shape, bool)
+    for k in np.argsort(cg[1:])[::-1] + 1:
+        if cg[k] < 500:
+            break
+        ys, xs = np.nonzero(labg == k)
+        if (xs.max() - xs.min() + 1) < 50 or (ys.max() - ys.min() + 1) < 20:
+            continue
+        if (ys.min() + ys.max()) / 2.0 < 0.42 * Himg:
+            continue
+        cand |= (labg == k)
+    if cand.any():
+        # 最大那块 = 板本体；同色判据下的文字抗锯齿 / 轴杆只参与凸包，不参与平行四边形拟合
+        #（实测：把 [227,394] 的「gluon」字抗锯齿算进证据，拟合出的角会被推到板外）
+        labc, nc = ndi.label(ndi.binary_closing(cand, np.ones((15, 15))))
+        cc = np.bincount(labc.ravel(), minlength=nc + 1)
+        main = (labc == int(np.argmax(cc[1:])) + 1)
+        _pl(ndi.binary_fill_holes(ndi.binary_closing(cand, np.ones((15, 15)))), "strict",
+            seed=ndi.binary_fill_holes(ndi.binary_closing(main, np.ones((15, 15)))))
+
+    # ④b 宽：旧判据（板占画面大半、下半被压暗的图，如 UPC）
+    for m, px in _pieces((~bg0) & (sat < 0.22) & (L > 0.52) & (L < 0.995) & (ink > 6),
+                         60000, close=41):
+        _pl(m, "broad")
 
     # ⑤ ★ 把球团的【可见剪影】补全：种子的形态判据（两色共现半径 30 px）会在核的边缘
     #    切掉一圈暗边（实测左核左边被切掉一块 3017 px 的暗红 —— 那是核物质，不是背景）。
@@ -299,13 +510,25 @@ def landmarks(S):
     cdom = np.bincount(ld.ravel(), minlength=nd_ + 1)
     cl_all = np.zeros(mx.shape, bool)
     for d in out["cluster"]:
-        ids = np.unique(ld[_grow(d["mask"], 45) & dom])
-        ids = ids[ids > 0]
-        if len(ids):
-            m = ndi.binary_fill_holes(ld == ids[int(np.argmax(cdom[ids]))])
-            d["seed_px"] = d["px"]
-            d["seed_bbox"] = d["bbox"]
+        if d.get("src") == "ellipse":
+            # ★ 椭球种子已经是完整的可见剪影（含高光面），不能再走 ⑤ 的 dom：
+            #   dom 会排除「低饱和 + 亮」的像素，恰好把红核顶部的高光切掉
+            #   （UPC 实测 N2 只剩 75.7%，其余 24.2% 归了身后的板 S1）。
+            m = ndi.binary_fill_holes(d["mask"])
             d.update(_desc(S, m))
+            cl_all |= d["mask"]
+            continue
+        # 球团种子仍按旧逻辑补 45 px 暗边。
+        grow = _grow(d["mask"], 45) & dom
+        lbg, ng = ndi.label(grow)
+        if ng:
+            ov = np.bincount(lbg[d["mask"]].ravel(), minlength=ng + 1).astype(float)
+            ov[0] = 0
+            if ov.any():
+                m = ndi.binary_fill_holes(lbg == int(np.argmax(ov)))
+                d["seed_px"] = d["px"]
+                d["seed_bbox"] = d["bbox"]
+                d.update(_desc(S, m))
         cl_all |= d["mask"]
 
     # ⑥ 深色笔画（三轴图标 / 文字 / b 标注）
@@ -315,9 +538,16 @@ def landmarks(S):
     #     板的外接四边形覆盖整张画布，一算就把所有深色块都判成「在物体里」。
     obj = (ndi.binary_dilation(so_all | cl_all, iterations=5)
            | ndi.binary_dilation(wa_all, iterations=8))
+    # ★ v4.19：被暖色物体【整块包住】的暗块（介质表面的暗纹 / 网格）也算「在里面」。
+    #   旧判据只看「离物体 8 px 内的重叠 >= 60%」—— 介质里 190x135 的暗纹洞离边界 8 px
+    #   以上，判成「不在物体里」，于是被当成字形塞进文字层（实测 32.8k px 的 L1 里
+    #   有 21k px 是介质暗纹）。拓扑判据：落在 fill_holes(物体) 里面就是它的纹理。
+    wa_fill = ndi.binary_fill_holes(wa_all)
+    cl_fill = ndi.binary_fill_holes(cl_all)
     for m, px in _pieces((mn < 110) & ~so_all & ~wa_all, 120, close=3):
         d = _desc(S, m)
-        d["in_obj"] = float((d["mask"] & obj).sum()) / max(1, d["px"]) >= 0.60
+        d["in_obj"] = (float((d["mask"] & obj).sum()) / max(1, d["px"]) >= 0.60
+                       or float((d["mask"] & (wa_fill | cl_fill)).sum()) >= 0.90 * d["px"])
         out["dark"].append(d)
 
     # ⑦ ★ 落在物体里的深色像素 = 那个物体自己的暗面 / 描边（实体箭头的暗描边、末态箭头
@@ -329,14 +559,19 @@ def landmarks(S):
     for d in out["dark"]:
         if not d["in_obj"]:
             continue
-        best, bs = None, 0.0
+        best, bs, inside = None, 0.0, False
         for o in objs:
             v = float((d["mask"] & ndi.binary_dilation(o["mask"], iterations=8)).sum())
+            if float((d["mask"] & ndi.binary_fill_holes(o["mask"])).sum()) >= 0.90 * d["px"]:
+                v, inside = float(d["px"]), True       # 整块在物体外轮廓内部
             if v > bs:
-                best, bs = o, v
+                best, bs, ins = o, v, inside
         if best is None or bs < 0.30 * d["px"]:
             continue
-        add = d["mask"] & ndi.binary_dilation(best["mask"], iterations=14)
+        if ins:
+            add = d["mask"]                          # 内部纹理：整块都归它
+        else:
+            add = d["mask"] & ndi.binary_dilation(best["mask"], iterations=14)
         if add.sum() < 0.50 * d["px"]:
             continue
         best.update(_desc(S, best["mask"] | add))
@@ -405,6 +640,438 @@ def pick_dim(darks, used):
     return shaft, dashes
 
 
+def geometry_refine(ir, got, lms, S):
+    """v4.21f：同色深灰元素按【几何 + 核/顶点锚点】重判。
+
+    UPC 实测：速度箭头 A1、b、末态轻子对 P1、光子线 G1、三轴 T1 全是同一种深灰，
+    颜色上完全不可分。旧流程里 P1 拿到左下速度箭头、G1 拿到 b、B1 拿到右轻子箭头
+    + y 轴、T1 拿到左轻子箭头，A1 只剩 252 px。这里不再看颜色，改用：
+      - 核旁水平实体箭头 -> A1（每个核一支）
+      - 两核之间、竖直双向细箭头 -> B1
+      - 顶点两侧、近水平的实体箭头 -> P1（最多两支）
+      - 顶点上下、细而低填充的波形线 -> G1（两条）
+      - 其余右侧三杆 -> T1
+    只对名字里明确写了「速度 / 末态轻子 / 光子」的元素生效，别的图不会被误改。
+    """
+    H, W = S["L"].shape
+    dark = np.zeros((H, W), bool)
+    for d in lms.get("dark", []):
+        dark |= d["mask"]
+    nuc = [got[e["id"]] for e in ir
+           if e["family"] == "cluster" and e["id"] in got]
+    if len(nuc) < 2 or not dark.any():
+        return got, []
+    nuc_all = np.zeros((H, W), bool)
+    for d in nuc:
+        nuc_all |= d["mask"]
+
+    def met(c):
+        ys, xs = np.nonzero(c)
+        w = int(xs.max() - xs.min() + 1)
+        h = int(ys.max() - ys.min() + 1)
+        th = float(ndi.distance_transform_edt(c).max())
+        return (int(c.sum()), w, h, th, float(c.sum()) / max(1, w * h),
+                float(xs.min() + xs.max()) / 2.0, float(ys.min() + ys.max()) / 2.0)
+
+    # 顶点：V1 已经认出来就用它的中心；没有就用两核中心的中点
+    vx = vy = None
+    for e in ir:
+        if e["family"] == "glow" and e["id"] in got:
+            ys, xs = np.nonzero(got[e["id"]]["mask"])
+            if len(xs):
+                vx = float(xs.min() + xs.max()) / 2.0
+                vy = float(ys.min() + ys.max()) / 2.0
+            break
+    ncent = [((d["bbox"][0] + d["bbox"][2]) / 2.0,
+              (d["bbox"][1] + d["bbox"][3]) / 2.0) for d in nuc]
+    if vx is None:
+        vx = float(np.mean([c[0] for c in ncent]))
+        vy = float(np.mean([c[1] for c in ncent]))
+
+    e_speed = next((e for e in ir if e["family"] == "arrow" and e.get("n", 1) >= 2
+                    and ("速度" in str(e.get("name", ""))
+                         or "velocity" in str(e.get("name", "")).lower())), None)
+    e_dim = next((e for e in ir if e["family"] == "dim"), None)
+    e_lep = next((e for e in ir if e["family"] == "arrow" and e.get("n", 1) == 1
+                  and ("末态" in str(e.get("name", ""))
+                       or "轻子" in str(e.get("name", ""))
+                       or "lepton" in str(e.get("name", "")).lower())), None)
+    e_ph = next((e for e in ir if e["family"] == "stroke"
+                 and ("光子" in str(e.get("name", ""))
+                      or "photon" in str(e.get("name", "")).lower())), None)
+    e_ax = next((e for e in ir if e["family"] == "axes"), None)
+
+    # ① 速度箭头：核旁水平带状区域里，减去核本身后剩下的水平厚实体
+    speed = np.zeros((H, W), bool)
+    if e_speed is not None:
+        for d in nuc:
+            nm = d["mask"]
+            ys, xs = np.nonzero(nm)
+            cy = 0.5 * (ys.min() + ys.max())
+            hh = ys.max() - ys.min() + 1
+            band = np.zeros((H, W), bool)
+            band[max(0, int(cy - 0.55 * hh)):min(H, int(cy + 0.22 * hh)), :] = True
+            rem = dark & ~ndi.binary_dilation(nm, iterations=4) & band
+            lab, k = ndi.label(rem)
+            for i in range(1, k + 1):
+                c = (lab == i)
+                a, w, h, th, fill, cx, cyc = met(c)
+                if a >= 400 and w >= 80 and w / max(1, h) >= 2.0 and 4.0 <= th <= 45.0:
+                    speed |= c
+        if speed.any():
+            speed |= (ndi.binary_dilation(speed, iterations=1)
+                      & (S["L"] < 0.82) & ~ndi.binary_dilation(nuc_all, iterations=2))
+
+    # ② b：两核之间唯一一根竖直双向细箭头（离核最近的那根，不是右侧 y 轴）
+    bmask = np.zeros((H, W), bool)
+    if e_dim is not None:
+        rest = dark & ~speed & ~nuc_all
+        lab, k = ndi.label(rest)
+        cand = []
+        for i in range(1, k + 1):
+            c = (lab == i)
+            a, w, h, th, fill, cx, cyc = met(c)
+            if a < 300 or h / max(1, w) < 2.2 or h < 90 or th > 35 or fill > 0.75:
+                continue
+            dmin = min(abs(cx - nc[0]) for nc in ncent)
+            cand.append((dmin, -a, c))
+        if cand:
+            bmask = min(cand, key=lambda t: (t[0], t[1]))[2]
+            bmask |= (ndi.binary_dilation(bmask, iterations=1)
+                      & (S["L"] < 0.85) & ~ndi.binary_dilation(nuc_all, iterations=2))
+
+    # ③ 末态轻子对：顶点两侧、近水平的实体箭头（最多左右各一支）
+    lep = np.zeros((H, W), bool)
+    if e_lep is not None:
+        rest = dark & ~speed & ~bmask & ~nuc_all
+        lab, k = ndi.label(rest)
+        for i in range(1, k + 1):
+            c = (lab == i)
+            a, w, h, th, fill, cx, cyc = met(c)
+            if a < 400 or w / max(1, h) < 2.0 or w < 100 or th > 25 or fill > 0.80:
+                continue
+            if abs(cyc - vy) <= 0.12 * H and abs(cx - vx) <= 0.22 * W:
+                lep |= c
+        if lep.any():
+            lep |= (ndi.binary_dilation(lep, iterations=1)
+                    & (S["L"] < 0.85) & ~ndi.binary_dilation(nuc_all, iterations=2))
+
+    # ④ 光子交换线：顶点上下、细而低填充的波形线
+    ph = np.zeros((H, W), bool)
+    if e_ph is not None:
+        rest = dark & ~speed & ~bmask & ~lep & ~nuc_all
+        ny0 = min(d["bbox"][1] for d in nuc)
+        ny1 = max(d["bbox"][3] for d in nuc)
+        lab, k = ndi.label(rest)
+        for i in range(1, k + 1):
+            c = (lab == i)
+            a, w, h, th, fill, cx, cyc = met(c)
+            if a < 80 or th > 6 or fill > 0.45 or max(w, h) < 40:
+                continue
+            if abs(cx - vx) <= 0.06 * W and ny0 <= cyc <= ny1:
+                ph |= c
+        if ph.any():
+            ph |= (ndi.binary_dilation(ph, iterations=1)
+                   & (S["L"] < 0.92) & ~ndi.binary_dilation(nuc_all, iterations=2))
+
+    # ⑤ 三轴：当前 axes 掩膜里去掉轻子箭头 / b / 速度箭头
+    axes = np.zeros((H, W), bool)
+    if e_ax is not None and e_ax["id"] in got:
+        axes = got[e_ax["id"]]["mask"] & ~lep & ~bmask & ~speed
+    elif e_ax is not None:
+        # ★ 初始检测漏掉三轴时（UPC 实测：三根杆全压在板面上 -> in_obj；唯一在板外的
+        #   种子是那支标错的短箭头，删掉它就再也认不出三轴），改用专用中灰阈值
+        #   （杆身 mn≈120，板面 mn≈230）+ 右侧聚类重新组：
+        #   cx>=0.60W、足够长的笔画、不与文字层抢。字形（<80 px）与公式不会进来。
+        txt = np.zeros((H, W), bool)
+        for e2 in ir:
+            if e2["family"] == "text" and e2["id"] in got:
+                txt |= got[e2["id"]]["mask"]
+        axm = ((S["mn"] < 150) & ~speed & ~bmask & ~lep & ~ph & ~nuc_all
+               & ~ndi.binary_dilation(txt, iterations=2))
+        lab, k = ndi.label(ndi.binary_closing(axm, np.ones((3, 3))))
+        rods = []
+        for i in range(1, k + 1):
+            c = (lab == i)
+            a, w, h, th, fill, cx, cyc = met(c)
+            if a < 250 or max(w, h) < 80 or th > 30:
+                continue
+            if cx < 0.60 * W:
+                continue
+            if float((c & txt).sum()) > 0.30 * a:
+                continue
+            ys2, xs2 = np.nonzero(c)
+            q = np.stack([xs2 - xs2.mean(), ys2 - ys2.mean()], 1).astype(np.float64)
+            ev, evec = np.linalg.eigh(np.cov(q.T))
+            ang = float(np.degrees(np.arctan2(evec[1, -1], evec[0, -1]))) % 180.0
+            rods.append((a, ang, _bbox(c), c))
+        if len(rods) >= 2:
+            def _rgap(b1, b2):
+                dx = max(0, max(b1[0], b2[0]) - min(b1[2], b2[2]))
+                dy = max(0, max(b1[1], b2[1]) - min(b1[3], b2[3]))
+                return float(np.hypot(dx, dy))
+            pair = False
+            for i2 in range(len(rods)):
+                for j2 in range(i2 + 1, len(rods)):
+                    da = abs(rods[i2][1] - rods[j2][1])
+                    da = min(da, 180.0 - da)
+                    if da > 20.0 and _rgap(rods[i2][2], rods[j2][2]) <= 80.0:
+                        pair = True
+                        break
+                if pair:
+                    break
+            if pair:
+                axes = np.zeros((H, W), bool)
+                for r in rods:
+                    axes |= r[3]
+                for d in got.values():
+                    d["mask"] = d["mask"] & ~axes
+                    d["px"] = int(d["mask"].sum())
+                    d["bbox"] = _bbox(d["mask"])
+                got[e_ax["id"]] = _wrap("axes", axes, S)
+                print("   [三轴] 初始未找到 -> 几何重组 %d 根暗杆（%d px）"
+                      % (len(rods), int(axes.sum())))
+
+    rows = []
+    for e in ir:
+        eid = e["id"]
+        if eid not in got:
+            continue
+        if e is e_speed and speed.any():
+            got[eid] = _wrap("arrow", speed, S)
+            rows.append((eid, "几何重判：核旁水平实体箭头 ×2（%d px）" % int(speed.sum())))
+        elif e is e_dim and bmask.any():
+            got[eid] = _wrap("dim", bmask, S)
+            rows.append((eid, "几何重判：两核之间竖直双向箭头（%d px）" % int(bmask.sum())))
+        elif e is e_lep and lep.any():
+            got[eid] = _wrap("arrow", lep, S)
+            rows.append((eid, "几何重判：顶点两侧近水平实体箭头（%d px）" % int(lep.sum())))
+        elif e is e_ph and ph.any():
+            got[eid] = _wrap("stroke", ph, S)
+            rows.append((eid, "几何重判：顶点上下两条细波形线（%d px）" % int(ph.sum())))
+        elif e is e_ax and axes.any():
+            got[eid] = _wrap("axes", axes, S)
+            rows.append((eid, "几何重判：去掉轻子箭头后的三轴（%d px）" % int(axes.sum())))
+    return got, rows
+
+
+def _disk_mask(r):
+    yy, xx = np.mgrid[-r:r + 1, -r:r + 1]
+    return (xx * xx + yy * yy) <= r * r
+
+def _open_disk(mask, r):
+    """半径 r 的圆盘开运算。scipy 的大 footprint 侵蚀是 O(N·r²)：1.5 M 像素要 40 s；
+    cv2 的椭圆核是优化过的，同一张图 < 0.1 s。"""
+    try:
+        import cv2
+        k = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (2 * r + 1, 2 * r + 1))
+        return cv2.morphologyEx(mask.astype(np.uint8), cv2.MORPH_OPEN, k).astype(bool)
+    except Exception:
+        return ndi.binary_opening(mask, _disk_mask(r))
+
+
+def pick_blob(warm_list, S):
+    """从暖色连通块里取「大而厚」的介质主体：大半径圆盘开运算去掉细喷注/光丝。
+
+    返回 (主体掩膜, 全部暖色掩膜, 白热顶点核心掩膜)。
+    ★ 判据只有【厚度】：介质是唯一能容下 r≈3% 短边 圆盘的那一块；喷注是细锥/细线，
+      开运算后一定消失（实测喷注淬火：r=28 时 200602 -> 取最大块 184157，两条喷注
+      整体被剥掉；宽 20-40 px 的喷管容不下 57x57 的圆盘）。
+    ★ 开运算会削掉介质的【羽化外晕】一圈：外晕颜色仍是暖橙、又落在主体外轮廓凸包内
+      —— 按「凸包内 + 暖橙（g/r<=0.62）」并回来。亮黄喷注的 g/r 明显更高，不会被吞。
+    """
+    if not warm_list:
+        return None, None, None
+    warm = np.zeros(S["L"].shape, bool)
+    for d in warm_list:
+        warm |= d["mask"]
+    H, W = warm.shape
+    r = max(12, int(round(0.030 * min(H, W))))
+    op = _open_disk(warm, r)
+    lab, n = ndi.label(op, np.ones((3, 3)))
+    if n == 0:
+        return None, warm, None
+    cnt = np.bincount(lab.ravel(), minlength=n + 1)
+    k = int(np.argmax(cnt[1:])) + 1
+    if cnt[k] < 0.12 * warm.sum():                 # 没有明显更厚的块 = 这张图没有介质主体
+        return None, warm, None
+    q = ndi.binary_fill_holes(ndi.binary_closing(lab == k, np.ones((15, 15))))
+    hull = _hull_mask(q)
+    halo = warm & hull & ~q
+    if halo.any():
+        ly, nx = ndi.label(halo, np.ones((3, 3)))
+        add = np.zeros_like(q)
+        for kk in range(1, int(nx) + 1):
+            mm = ly == kk
+            if mm.sum() < 40:
+                continue
+            gr = float(S["g"][mm].mean()) / max(1.0, float(S["r"][mm].mean()))
+            if gr <= 0.62:
+                add |= mm
+        if add.any():
+            q = ndi.binary_fill_holes(q | add)
+    # 顶点留给 pick_jets：它要用「两条喷注轴线的延长线」来定，光看亮度会选错
+    return q, warm, None
+
+
+def medium_strokes(q, jets_mask, S):
+    """介质内部的【细亮笔画】（胶子轫致辐射线 / 分支线）。
+
+    ★ 白顶帽（L - grey_opening）能把「局部比背景亮」的线提出来，但介质边缘的高光带
+      比介质内部亮得多，也会被提出来。两条排除：
+      ① 离介质边界 > 20 px（高光带贴着轮廓）；
+      ② 笔画厚度 <= 5 px（高光带是 15-25 px 的厚带）。
+    产物是「介质自己的表面纹理 + 从顶点分出的细线」，不含边缘高光、不含喷注主锥。
+    """
+    L = S["L"]
+    th = L - ndi.grey_opening(L, size=(19, 19))
+    din = ndi.distance_transform_edt(q)
+    cand = (q & (th > 0.10) & (S["g"] > 0.35 * S["r"]) & (S["g"] < 0.78 * S["r"])
+            & (din > 20) & ~jets_mask)
+    thick = ndi.distance_transform_edt(cand)
+    m = cand & (thick <= 5.0)
+    lab, n = ndi.label(m, np.ones((3, 3)))
+    if n == 0:
+        return m
+    cnt = np.bincount(lab.ravel(), minlength=n + 1)
+    return np.isin(lab, [k for k in range(1, n + 1) if cnt[k] >= 40])
+
+
+def _pick_vertex(q, comps, S, anchor=None):
+    """顶点 = 介质内的【白热紧凑核】。选法按可靠性排序：
+
+    ① IR 给了 `params.锚点`（归一化）-> 在锚点附近取白热核（最可靠：IR 是语义来源）；
+    ② 否则退到「峰值最亮 + 离介质边界足够远」—— 只用亮度会选到介质边缘的白色高光点
+      （实测 V1 跑到 (540,640)，喷注的左右分割线随之全错）。
+    """
+    cc, nc = ndi.label(np.where(q, S["L"] >= 0.78, False))
+    if not nc:
+        return np.zeros_like(q)
+    cnt = np.bincount(cc.ravel(), minlength=nc + 1)
+    ok = [k for k in range(1, int(nc) + 1) if 30 <= cnt[k] <= 2000]
+    if not ok:
+        return np.zeros_like(q)
+    # 轴线 = 「入口（离介质最近的点） -> 远端（离入口最远的点）」
+    # ★ 不能用 PCA 主轴：宽扇形喷注（被淬火那条）的主轴会被宽度带成水平，
+    #   实测把 (540,640) 的白色高光点判成在轴线上（偏差 46 px < 50）。
+    qy, qx = np.nonzero(q)
+    qc = np.array([qx.mean(), qy.mean()]) if len(qx) else np.zeros(2)
+    lines = []
+    for m, cx, px in comps[:2]:
+        ys, xs = np.nonzero(m)
+        if len(xs) < 50:
+            continue
+        i0 = int(np.argmin((xs - qc[0]) ** 2 + (ys - qc[1]) ** 2))
+        e = np.array([xs[i0], ys[i0]], float)
+        j = int(np.argmax((xs - e[0]) ** 2 + (ys - e[1]) ** 2))
+        d = np.array([xs[j], ys[j]], float) - e
+        lines.append((e, d / max(1e-9, float(np.linalg.norm(d)))))
+    if not lines:
+        return np.zeros_like(q)
+    H, W = q.shape
+    vals = ndi.maximum(S["L"], cc, ok)
+    din = ndi.distance_transform_edt(q)
+    floor = 0.05 * min(H, W)
+    cand = []
+    for i, k in enumerate(ok):
+        ys, xs = np.nonzero(cc == k)
+        cand.append((float(vals[i]), k, np.array([xs.mean(), ys.mean()]),
+                     float(din[cc == k].max())))
+    if not cand:
+        return np.zeros_like(q)
+    # 物理闸门：顶点必须在介质【里面】，不能是贴着轮廓的高光（边界上 d_in≈0）
+    good = [t for t in cand if t[3] >= floor] or cand
+    if anchor is not None and len(anchor) == 2:
+        ax, ay = float(anchor[0]) * W, float(anchor[1]) * H
+        b = min(good, key=lambda t: (t[2][0] - ax) ** 2 + (t[2][1] - ay) ** 2)
+        return (cc == b[1])
+    return (cc == max(good, key=lambda t: t[0])[1])
+
+
+def pick_jets(warm, q, core, ir, S, anchor=None):
+    """把介质之外的暖色块按左右分给两条喷注；介质内部的亮黄段也按【顶点】左右分。
+
+    ★ 分割线取【顶点】的 x，不是介质几何中心的 x —— 顶点本来就偏在一侧，用介质中心
+      会把淬火喷注靠顶点的那一段分到对面去。
+    ★ 逐个连通域不行（顶点处喷注与介质粘连）：介质外的按左右分；介质内的按顶点分。
+    """
+    H, W = q.shape
+    rem = warm & ~ndi.binary_dilation(q, iterations=3)
+    lab, n = ndi.label(rem, np.ones((3, 3)))
+    comps = []
+    if n:
+        cnt = np.bincount(lab.ravel(), minlength=n + 1)
+        for k in np.argsort(cnt[1:])[::-1] + 1:
+            if cnt[k] < 300:
+                break
+            ys, xs = np.nonzero(lab == k)
+            comps.append([lab == k, (xs.min() + xs.max()) / 2.0, int(cnt[k])])
+    comps.sort(key=lambda t: -t[2])
+    if core is None or not core.any():
+        core = _pick_vertex(q, comps, S, anchor)
+    left = np.zeros_like(q)
+    right = np.zeros_like(q)
+    for m, cx, px in comps[:2]:
+        if cx < W / 2.0:
+            left |= m
+        else:
+            right |= m
+    # 邻近碎块并回同侧（喷注尾部的散点；离得远的不动，避免把别的东西吸进来）
+    nl = ndi.binary_dilation(left, iterations=30) if left.any() else left
+    nr = ndi.binary_dilation(right, iterations=30) if right.any() else right
+    for m, cx, px in comps[2:]:
+        if (m & nl).sum() >= 0.50 * px:
+            left |= m
+        elif (m & nr).sum() >= 0.50 * px:
+            right |= m
+    if core is not None and core.any():
+        cy_, cx_ = np.nonzero(core)
+        vx, vy = float(cx_.mean()), float(cy_.mean())
+    else:
+        cy_, cx_ = np.nonzero(q)
+        vx = float(cx_.mean()) if q.any() else W / 2.0
+        vy = float(cy_.mean()) if q.any() else q.shape[0] / 2.0
+    # ★ 介质内的喷注段不能用「颜色阈值」抓：介质边缘的高光带也是亮黄（实测把 QGP
+    #   右上缘 26k px 整条并进了逃逸喷注）。用几何：**顶点 -> 该侧外侧可见段质心** 的
+    #   锥形走廊（半角 13°），喷注必须在这条线上；介质高光带很快偏离这条线。
+    def _cone(m_out, half=5.0, rmax=0.020):
+        ys, xs = np.nonzero(m_out)
+        if len(xs) < 20:
+            return np.zeros_like(q)
+        ux, uy = xs.mean() - vx, ys.mean() - vy
+        n = float(np.hypot(ux, uy))
+        if n < 5:
+            return np.zeros_like(q)
+        ux, uy = ux / n, uy / n
+        yy, xx = np.nonzero(q)
+        px, py = xx - vx, yy - vy
+        proj = px * ux + py * uy
+        perp = np.abs(px * uy - py * ux)
+        # 里侧段只到「外侧可见段的起点」为止：再往外走就是介质的另一侧轮廓了
+        p_out = (xs - vx) * ux + (ys - vy) * uy
+        p_end = float(np.percentile(p_out, 2))
+        cap = max(10.0, rmax * W)
+        ok = ((proj > 0) & (proj <= p_end)
+              & (perp <= np.minimum(cap, np.maximum(6.0, np.tan(np.radians(half)) * proj))))
+        m = np.zeros_like(q)
+        m[yy[ok], xx[ok]] = True
+        return m
+    jetcol = (S["g"] > 0.65 * S["r"]) & (S["L"] > 0.55)
+    inner = ((_cone(left) | _cone(right)) & jetcol & q & ~core)
+    iy, ix = np.nonzero(inner)
+    left[iy[ix < vx], ix[ix < vx]] = True
+    right[iy[ix >= vx], ix[ix >= vx]] = True
+    out = {}
+    for e in ir:
+        if e["family"] != "jet":
+            continue
+        nm = e["name"] or ""
+        want_right = ("逃逸" in nm) or ("escape" in nm.lower()) or ("右" in nm)
+        m = right if want_right else left
+        out[e["id"]] = _wrap("jet", m, S) if m.any() else None
+    return out, comps, core
+
+
 def split_warm(blob, S, order):
     """把「橙色一大块」按 IR 的 z 序从前往后剥。
     ★ 三处实测标定（cand_s4192）：
@@ -466,7 +1133,7 @@ def _angle_split(ang, k=2):
     return lab, cen
 
 
-def arrow_dirs(mask, vertex=None):
+def arrow_dirs(mask, vertex=None, away=None):
     """量箭头的【有向】指向。
     · 从同一顶点发出来的几支（末态 e⁺e⁻）：**按相对顶点的方向角聚类**切开 ——
       用连通域不行（顶点处粘连，切开后只剩残段，主轴量出来是错的）。
@@ -480,9 +1147,12 @@ def arrow_dirs(mask, vertex=None):
         ang = np.degrees(np.arctan2(ys - vertex[1], xs - vertex[0])) % 360.0
         lab, cen = _angle_split(ang, 2)
         out = []
+        # ★ 从顶点分出来的两支本来就各占总像素的一半左右；UPC 的 P1 合计 4164 px，
+        #   按 3000 px 的硬阈值会把两支都丢掉（实测 ⑥ 里 P1 显示 "-"）。
+        need = max(600, int(0.12 * int(mask.sum())))
         for j in range(cen.size):
             sel = lab == j
-            if sel.sum() < 3000:
+            if sel.sum() < need:
                 continue
             qx = (xs[sel] - vertex[0]).astype(np.float64)
             qy = (ys[sel] - vertex[1]).astype(np.float64)
@@ -528,7 +1198,15 @@ def arrow_dirs(mask, vertex=None):
                 return 1e9
             pp = q[sel] @ perp
             return float(pp.max() - pp.min())
-        tip = u if wid(True) < wid(False) else -u
+        if away:
+            # ★ 速度箭头：箭头尖端一定指向【远离自己那个核】的一端。
+            #   宽度启发式会被「靠核那一端更宽」骗到（UPC 实测下箭头被量成 356°，
+            #   明明该是向左）。用核中心 -> 箭头质心的方向给 PCA 轴定符号。
+            nb = min(away, key=lambda p: (cx - p[0]) ** 2 + (cy - p[1]) ** 2)
+            v = np.array([cx - nb[0], cy - nb[1]], float)
+            tip = u if float(u @ v) >= 0 else -u
+        else:
+            tip = u if wid(True) < wid(False) else -u
         ang = float(np.degrees(np.arctan2(tip[1], tip[0]))) % 360.0
         elong = float(np.sqrt(max(w[-1], 1e-6) / max(w[0], 1e-6)))
         out.append(dict(px=int(cnt[k]), angle=round(ang, 1), elong=round(elong, 2),
@@ -1223,18 +1901,43 @@ def _why(fam, f):
 
 
 # ── 认领：IR 声明 -> 可见像素轮廓 ──────────────────────────────────────────
+def _plane_ok(d, S):
+    """板面候选的合理性检查。★ 不能「谁大选谁」：喷注淬火图的宽候选把 QGP 并进板里，
+    bbox 1361x809（87% 画布高、85% 宽）、中位饱和 0.192 —— 一条都能否掉它。"""
+    H, W = S["L"].shape
+    x0, y0, x1, y1 = d["bbox"]
+    area = float(d["mask"].sum())
+    if area < 0.005 * H * W or area > 0.55 * H * W:
+        return False
+    if (y1 - y0) > 0.80 * H and (x1 - x0) > 0.75 * W:   # 框住整张画布 = 吞了别的东西
+        return False
+    if d.get("medsat", 1.0) > 0.16:                     # 板必须是灰的
+        return False
+    if d.get("medL", 0.0) < 0.55:                       # 板必须是亮的
+        return False
+    return True
+
+
 def assign(ir, lms, S):
     got, notes, used = {}, [], {}
     byid = {e["id"]: e for e in ir}
 
-    # ① 板面
+    # ① 板面：候选必须过「几何 + 颜色纯度」检查（谁大选谁是错的 —— 喷注淬火图的
+    #    宽候选把 QGP 整块并进板里，bbox 覆盖 87% 画布高、中位饱和 0.192）。
     if lms["plane"]:
-        d = max(lms["plane"], key=lambda x: x["px"])
-        used[id(d)] = True
-        for e in ir:
-            if e["family"] == "plane":
-                got[e["id"]] = _wrap("plane", d["mask"], S)
-                notes.append((e["id"], "低饱和灰色大平面 -> 收成 4 角平行四边形"))
+        okp = [d for d in lms["plane"] if _plane_ok(d, S)]
+        if okp:
+            d = max(okp, key=lambda x: x["px"])
+            used[id(d)] = True
+            for e in ir:
+                if e["family"] == "plane":
+                    got[e["id"]] = _wrap("plane", d["mask"], S)
+                    notes.append((e["id"], "低饱和灰板面（%s 候选，中位饱和 %.2f / 亮度 %.2f）"
+                                           "-> 凸包补亮角 + 4 角平行四边形"
+                                  % (d.get("src", "?"), d.get("medsat", -1), d.get("medL", -1))))
+        else:
+            notes.append(("plane", "★ %d 个板面候选全部被合理性判据否掉（框住画布 / 中位饱和过高）"
+                          % len(lms["plane"])))
 
     # ② 核球团：按 IR 名里的「上核 / 下核」对上 y 中心
     cl = sorted([d for d in lms["cluster"] if not used.get(id(d))],
@@ -1245,8 +1948,10 @@ def assign(ir, lms, S):
         used[id(d)] = True
         got[e["id"]] = _wrap("cluster", d["mask"], S, seed_px=d.get("seed_px"),
                              seed_bbox=d.get("seed_bbox"))
-        notes.append((e["id"], "红蓝核子球团（同半径内两色共现）按「上/下核」对 y 中心；"
-                               "剪影 = 种子 + 45 px 内非背景/非板灰的连通域（补回核的暗边）"))
+        how = ("单色椭球核：整块拟合椭圆 / 长宽比 1.5–3.6 / 填充率 >=0.80 / 凸性 >=0.85"
+               if d.get("src") == "ellipse" else
+               "红蓝核子球团（同半径内两色共现）")
+        notes.append((e["id"], "%s，按「上/下核」对 y 中心认领（与色相无关，不吃 IR 配色）" % how))
 
     # ③ 实心实体箭头（×N）
     sol = sorted([d for d in lms["solid"] if not used.get(id(d))], key=lambda d: -d["px"])
@@ -1290,15 +1995,37 @@ def assign(ir, lms, S):
             continue
         used[id(d)] = True
         rem_dark = [x for x in rem_dark if x is not d]
-        got[e["id"]] = _wrap("axes", d["mask"], S)
+        m = d["mask"].copy()
+        extra = 0
+        # ★ 有的图画成【三根互不相连的箭头】（喷注淬火：z 在顶上、x/y 在板角）。
+        #   pick_axes 只返回一支；把其余「细长 + 有箭头宽度（maxthick>=5）+ 长度 60..420」
+        #   的暗笔画并进来。标注引线（maxthick~3.5）与字形（长度<40）不会进来。
+        for x in list(rem_dark):
+            if x["in_obj"] or x["maxthick"] < 5.0 or x["maxthick"] > 14:
+                continue
+            if x["fill"] > 0.40 or min(x["w"], x["h"]) > 60:
+                continue
+            if not (60 <= max(x["w"], x["h"]) <= 420):
+                continue
+            if (x["mask"] & ndi.binary_dilation(m, iterations=25)).sum() >= 0.30 * x["px"]:
+                continue
+            m |= x["mask"]
+            used[id(x)] = True
+            rem_dark[:] = [y for y in rem_dark if y is not x]   # dict 里含 ndarray，list.remove 会 ValueError
+            extra += 1
+        got[e["id"]] = _wrap("axes", m, S)
         notes.append((e["id"], "细笔画里 fill=%.2f / maxthick=%.1f（三杆交汇的图标）"
-                      % (d["fill"], d["maxthick"])))
+                               "%s" % (d["fill"], d["maxthick"],
+                                       "；另并入 %d 根独立的细轴杆" % extra if extra else "")))
 
     # ⑥ 文字：剩下所有深色小块（字形）
     for e in sorted([x for x in ir if x["family"] == "text"], key=lambda x: -x["z"]):
         if e["id"] in got:
             continue
-        glyph = [d for d in rem_dark if not d["in_obj"] and max(d["w"], d["h"]) <= 200]
+        # ★ 字形必须是【小 + 细】的：旧判据只卡 max(w,h)<=200，介质暗纹（190x135、
+        #   6-10k px、厚 20-30 px）被当成字形吞进文字层（实测 L1 里 21k px 是暗纹）。
+        glyph = [d for d in rem_dark if not d["in_obj"] and max(d["w"], d["h"]) <= 200
+                 and d["px"] <= 2500 and d["maxthick"] <= 14]
         m = np.zeros(S["L"].shape, bool)
         for d in glyph:
             m |= d["mask"]
@@ -1308,21 +2035,85 @@ def assign(ir, lms, S):
             got[e["id"]] = _wrap("text", m, S)
             notes.append((e["id"], "其余深色小块（字形）"))
 
-    # ⑦ 暖橙一整块：按 IR z 序（前 -> 后）剥离
-    vcore_holder = {}
+    # ⑦ 介质（blob）+ 喷注（jet）：先用【厚度】把介质大团块与细喷注拆开
+    blobs = sorted([x for x in ir if x["family"] == "blob"], key=lambda x: -x["z"])
+    jets = sorted([x for x in ir if x["family"] == "jet"], key=lambda x: -x["z"])
     wi = [d for d in lms["warm"] if not used.get(id(d))]
+    warm_all = np.zeros(S["L"].shape, bool)
+    for d in wi:
+        warm_all |= d["mask"]
+        used[id(d)] = True
+    qmask = np.zeros(S["L"].shape, bool)
+    jmask = np.zeros(S["L"].shape, bool)
+    vcore = None
+    if wi and (blobs or jets):
+        q, _, _ = pick_blob(wi, S)
+        if q is not None:
+            qmask = q
+            for e in blobs:
+                got[e["id"]] = _wrap("blob", q, S)
+                notes.append((e["id"],
+                              "暖色总掩膜做半径 %d px 圆盘开运算：只有介质主体容得下这个圆盘，"
+                              "细喷注/光丝被剥掉；闭运算+填洞补回表面暗纹；"
+                              "凸包内仍是暖橙的碎片并回本体（自己的羽化光晕）"
+                              % max(12, int(round(0.030 * min(q.shape))))))
+        if jets and q is not None:
+            vanc = None
+            for e in ir:
+                if e["family"] == "glow":
+                    vanc = (e.get("params") or {}).get("锚点")
+                    break
+            jm, jcomps, vcore = pick_jets(warm_all, qmask, None, ir, S, anchor=vanc)
+            for e in jets:
+                d = jm.get(e["id"])
+                if d is not None and d["px"] > 0:
+                    got[e["id"]] = d
+                    jmask |= d["mask"]
+                    notes.append((e["id"], "介质外的暖色块按【左右】分配 + 介质内亮黄段按【顶点】"
+                                           "左右分配；邻近 >300 px 碎块并回同侧（%d px）" % d["px"]))
+                else:
+                    notes.append((e["id"], "★ 没找到这条喷注的可见像素"))
+        strokes = [e for e in ir if e["family"] == "stroke" and e["id"] not in got]
+        if strokes and qmask.any():
+            sm = medium_strokes(qmask, jmask, S)
+            if sm.sum() >= 300:
+                for e in strokes:
+                    got[e["id"]] = _wrap("stroke", sm, S)
+                    notes.append((e["id"], "白顶帽（局部亮度 - 大尺度亮度）+ 离介质边界 >20 px "
+                                           "+ 笔画厚度 <=5 px：介质表面的细亮线（胶子辐射）"))
+                jmask = jmask | sm
+            else:
+                notes.append((strokes[0]["id"], "★ 介质内没找到足够细亮笔画（%d px）" % sm.sum()))
+        if vcore is not None and vcore.any():
+            for e in ir:
+                if e["family"] == "glow" and e["id"] not in got:
+                    Hh = max(8, int(round(0.010 * S["L"].shape[1])))
+                    m = vcore | (warm_all & ndi.binary_dilation(vcore, iterations=Hh)
+                                 & (S["L"] >= 0.72))
+                    got[e["id"]] = _wrap("glow", m, S, core_mask=vcore)
+                    notes.append((e["id"], "介质内部【白热核】= 最亮且紧凑的连通域（%d px）+ "
+                                           "%d px 亮晕；锚在核上，不会落到喷管上"
+                                  % (int(vcore.sum()), Hh)))
+
+    # ⑧ 暖橙剩下的部分：按 IR z 序（前 -> 后）剥离
+    vcore_holder = {}
     order = [(e, e["family"]) for e in sorted(
         [x for x in ir if x["family"] in ("arrow", "glow", "stroke") and x["id"] not in got],
         key=lambda x: -x["z"])]
-    if wi and order:
+    blob = warm_all & ~qmask & ~jmask
+    if (not order) and blob.any() and qmask.any():
+        # 没有待剥的暖色元素：剩下的暖色碎片是介质自己的羽化外晕 -> 并回介质
+        for e in blobs:
+            d = got[e["id"]]
+            d["mask"] = d["mask"] | blob
+            d["px"] = int(d["mask"].sum())
+            d["bbox"] = _bbox(d["mask"])
         blob = np.zeros(S["L"].shape, bool)
-        for d in wi:
-            blob |= d["mask"]
-            used[id(d)] = True
-        parts, rest, vcore = split_warm(blob, S, order)
+    if blob.any() and order:
+        parts, rest, vc2 = split_warm(blob, S, order)
         for e, m in parts:
             if e["family"] == "glow":
-                vcore_holder["m"] = vcore
+                vcore_holder["m"] = vc2
             if not m.any():
                 notes.append((e["id"], "★ 橙色块里没剥出这一层"))
                 continue
@@ -1438,6 +2229,76 @@ def route_compare(ir, got, A, skill, ncol=16):
     return dict(available=True, palette_size=npal, per_element=frag, shared_classes=share)
 
 
+# ── v4.21：边界吸附（SLIC 超像素 + 有界投票） ────────────────────────────────
+#   IR 分割给的是【物理归属】，边界是形态学算出来的 —— 它可能横穿一片平滑的颜色
+#   过渡（QGP 边缘的高光、板面的接触阴影）。装配器给每个色块加 0.5 px 同色描边来
+#   堵 PDF 接缝，边界一旦不在颜色边上，这 0.5 px 就把邻元素的颜色抹过去：实测
+#   喷注淬火图里 M1/S1 的复现误差 70% 集中在元素边界 1.5 px 内。
+#   超像素的边界天然贴着图像边，所以把「谁的边界」吸附到超像素边界上：
+#     ① 细结构（轴 / 字 / 胶子线 / 顶点）整块冻结 —— 吸附会把 1~2 px 的杆吃掉；
+#     ② 只有大块（blob / plane / jet）与背景参与重判；
+#     ③ 一个超像素只有在「可动像素的多数派占比 >= min_share」时才整块判给多数派，
+#        否决权仍归物理（判据不变，只是把边界挪到图像边上）。
+_REFINE_FAM = {"blob", "plane", "jet"}
+
+
+def refine_edges(lab, owner, S, A, n_segments=2500, compact=12.0,
+                 min_share=0.55, allow_bg=True, verbose=True):
+    """把元素边界吸附到真实图像边（SLIC 超像素 + 有界投票）。in-place 改 lab。"""
+    try:
+        from skimage.segmentation import slic
+    except Exception as e:                                    # 没装 scikit-image 就原样返回
+        if verbose:
+            print("   [边界吸附] 跳过：%s" % e)
+        return lab, []
+    H, W = lab.shape
+    n = int(max(600, min(6000, round(n_segments * (H * W) / (1664.0 * 928.0)))))
+    seg = slic(A.astype(np.float32) / 255.0, n_segments=n, compactness=compact,
+               start_label=0, sigma=1.0, enforce_connectivity=True, channel_axis=-1)
+    ns = int(seg.max()) + 1
+    K = len(owner) + 1                       # 标签 0 = 背景(-1)，i+1 = owner[i]
+
+    fixed = np.zeros((H, W), bool)
+    allowed = np.zeros(K, bool)
+    if allow_bg:
+        allowed[0] = True
+    for i, e in owner.items():
+        if e.get("family") in _REFINE_FAM:
+            allowed[i + 1] = True
+        else:
+            fixed |= (lab == i)
+
+    sid = seg.ravel().astype(np.int64)
+    lid = (lab.ravel().astype(np.int64) + 1)
+    valid = ~fixed.ravel()
+    hist = np.bincount(sid[valid] * K + lid[valid], minlength=ns * K).reshape(ns, K)
+    hist[:, ~allowed] = 0
+    tot = hist.sum(1)
+    cnt_l = np.bincount(sid, weights=S["L"].ravel(), minlength=ns)
+    cnt_s = np.bincount(sid, weights=S["sat"].ravel(), minlength=ns)
+    npx = np.maximum(np.bincount(sid, minlength=ns), 1)
+    meanL, meanS = cnt_l / npx, cnt_s / npx
+    best = hist.argmax(1)
+    share = hist.max(1) / np.maximum(tot, 1)
+
+    ok = (tot > 0) & (share >= min_share)
+    # 背景只有当这个超像素本身「又亮又灰」时才有资格赢（否则会把物体边缘啃掉）
+    bgwin = best == 0
+    ok &= ~(bgwin & ((meanL < 0.90) | (meanS > 0.10)))
+
+    new = lab.ravel().copy()
+    want = (best - 1)
+    chg = ok[sid] & valid & (new != want[sid])
+    new[chg] = want[sid][chg]
+    lab = new.reshape(H, W)
+
+    rows = [(e["id"], int((lab == i).sum())) for i, e in owner.items()]
+    if verbose:
+        print("   [边界吸附] SLIC %d 段 / compact %.1f -> 改动 %d px（冻结 %d px 细结构）"
+              % (ns, compact, int(chg.sum()), int(fixed.sum())))
+    return lab, rows
+
+
 def resolve_z(ir, got, S):
     """z 序前向解算：z 大 = 靠前先占。边界因此落在【前面那个物体的轮廓】上。"""
     lab = np.full(S["L"].shape, -1, np.int32)
@@ -1467,6 +2328,13 @@ def main():
     ap.add_argument("--sam", action="store_true", help="接上 MobileSAM 做边界细化（有界并集，只加不删）")
     ap.add_argument("--sam-repo", default=os.path.join("fig_upc_v415", "seg", "_sam", "MobileSAM"))
     ap.add_argument("--sam-ckpt", default=os.path.join("fig_upc_v415", "seg", "_sam", "mobile_sam.pt"))
+    ap.add_argument("--refine-edges", action="store_true",
+                    help="v4.21 实验项：SLIC 超像素把元素边界吸附到图像边上。默认关 —— "
+                         "实测会把边界吸附成 25 px 的块状台阶（喷注淬火 S1 右缘），"
+                         "位图回渲染 MAE 也变差，边界吸附要等「边感知」版本再默认开")
+    ap.add_argument("--slic-segments", type=int, default=2500, help="边界吸附的超像素数（按 1664x928 标定）")
+    ap.add_argument("--slic-compact", type=float, default=12.0, help="SLIC compactness：小=更贴边，大=更规整")
+    ap.add_argument("--slic-share", type=float, default=0.55, help="超像素整块改判所需的多数派占比")
     ap.add_argument("--sam-min-iou", type=float, default=0.25)
     ap.add_argument("--sam-grow", type=float, default=0.02,
                     help="有界并集的容许外扩量（×短边）")
@@ -1508,7 +2376,49 @@ def main():
     if a.sam:
         got, sam_rows = sam_refine(got, S, A, a.sam_repo, a.sam_ckpt, notes,
                                    grow=a.sam_grow, min_iou=a.sam_min_iou)
+    # ── 全覆盖：非背景像素必须有主 ──────────────────────────────────────────
+    #   ★ 装配器（groupvec 的 --elmap-in）遇到 -1 的叶块是 `continue` —— 直接不画。
+    #   于是「没人认领」的坐标轴金属杆、喷注末端的强子球、板的暗描边会在 SVG 里整块消失
+    #   （实测喷注淬火：轴与强子球全部丢失）。这里按【最近元素】兜底，只补不抢。
+    owned = np.zeros(S["L"].shape, bool)
+    for d in got.values():
+        owned |= d["mask"]
+    bgm = (S["L"] > 0.965) & (S["sat"] < 0.05)
+    todo = (~owned) & (~bgm)
+    cov = int(todo.sum())
+    if cov:
+        idx = np.full(S["L"].shape, -1, np.int32)
+        gl = list(got.values())
+        for k, d in enumerate(gl):
+            idx[d["mask"]] = k
+        _, (iy, ix) = ndi.distance_transform_edt(~owned, return_indices=True)
+        src = idx[iy, ix]
+        for k, d in enumerate(gl):
+            add = todo & (src == k)
+            if add.any():
+                d["mask"] = d["mask"] | add
+                d["px"] = int(d["mask"].sum())
+                d["bbox"] = _bbox(d["mask"])
+        notes.append(("__cov__", "未归属的非背景像素 %d 个（%.2f%% 画布）按最近元素兜底"
+                                 % (cov, 100.0 * cov / (A.shape[0] * A.shape[1]))))
+    else:
+        notes.append(("__cov__", "全覆盖：没有未归属的非背景像素"))
+
+    # ── v4.21f：同色深灰元素的几何重判（A1 / B1 / P1 / G1 / T1） ────────────
+    #   ★ 必须放在全覆盖之后：否则被移走的箭头像素会被「最近元素兜底」又塞回去。
+    got, geo_rows = geometry_refine(ir, got, lms, S)
+    notes.extend(geo_rows)
+
     lab, owner = resolve_z(ir, got, S)
+    if a.refine_edges:
+        lab, _ = refine_edges(lab, owner, S, A, n_segments=a.slic_segments,
+                              compact=a.slic_compact, min_share=a.slic_share)
+        for i, e in owner.items():
+            m = (lab == i)
+            if m.sum() >= 150:
+                got[e["id"]]["mask"] = m
+                got[e["id"]]["px"] = int(m.sum())
+                got[e["id"]]["bbox"] = _bbox(m)
     cons = consistency(ir, got, S)
     occ = occlusion_ledger(ir, got, comp)
     cmp_route = route_compare(ir, got, A, a.skill)
@@ -1574,6 +2484,11 @@ def main():
 
     print("\n⑥ 箭头方向物理读数（用分割出来的轮廓量，不用人眼看）")
     dirs = {}
+    away_pts = []
+    for ee in ir:
+        if ee["family"] == "cluster" and ee["id"] in got:
+            bb = got[ee["id"]]["bbox"]
+            away_pts.append(((bb[0] + bb[2]) / 2.0, (bb[1] + bb[3]) / 2.0))
     for e in ir:
         if e["id"] in got and got[e["id"]]["family"] in ("arrow", "dim"):
             vt = None
@@ -1588,7 +2503,8 @@ def main():
                 disk = ((yy - ys2.mean()) ** 2 + (xx - xs2.mean()) ** 2) <= R * R
                 if (got[e["id"]]["mask"] & ndi.binary_dilation(disk, iterations=25)).any():
                     vt = (float(xs2.mean()), float(ys2.mean()))
-            dd = arrow_dirs(got[e["id"]]["mask"], vt)
+            away = away_pts if (e["family"] == "arrow" and e.get("n", 1) >= 2) else None
+            dd = arrow_dirs(got[e["id"]]["mask"], vt, away=away)
             dirs[e["id"]] = dd
             parts2 = []
             for d in dd:
@@ -1665,6 +2581,21 @@ def main():
                      sum(1 for r in sam_rows if r["add_px"] == 0)))
 
     np.save(os.path.join(a.outdir, "elmap.npy"), lab)
+    # ★ v4.21e：resolve_z() 的 owner 下标是「从前到后」（idx 0 = z 最大、最靠前），
+    #   而 SVG 装配器按 elmap 下标升序绘制（后画的盖住先画的）—— 直接喂 elmap.npy
+    #   会把最靠后的 S1 画到 N2 上面（UPC 实测板边盖住红核顶部 1029 px）。
+    #   这里另存一份按【z 从小到大】重排的 elmap + 名字表，装配时直接用：
+    #     --elmap-in elmap_z.npy --el-names "$(cat el_names_z.txt)"
+    if owner:
+        n_own = len(owner)
+        zmap = np.full_like(lab, -1)
+        for i in owner:
+            zmap[lab == i] = n_own - 1 - i
+        np.save(os.path.join(a.outdir, "elmap_z.npy"), zmap)
+        names_z = [owner[i]["id"] for i in sorted(owner, reverse=True)]
+        with open(os.path.join(a.outdir, "el_names_z.txt"), "w", encoding="utf-8") as fh:
+            fh.write(",".join(names_z))
+        print("   绘制顺序（z 从后往前）-> elmap_z.npy / el_names_z.txt：%s" % ",".join(names_z))
     vis = np.clip(A, 0, 255).astype(np.uint8).copy()
     rng = np.random.RandomState(7)
     cols = rng.randint(60, 250, (len(owner) + 1, 3))

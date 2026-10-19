@@ -523,6 +523,38 @@ def _seam_attr(col, sw):
     return ' stroke="%s" stroke-width="%.2f" stroke-linejoin="round"' % (col, sw)
 
 
+def canvas_bg_color(a, ring=10, tol=4.0):
+    """画布底色 = 源图里「跟边框环初值足够接近的低饱和像素」的中位色（两遍）。
+
+    生图模型出的位图极少是纯白（喷注淬火图实测 #fdfcfd），而这里原来写死
+    #ffffff —— 没归进任何元素的背景像素于是整片偏 2~3 个色阶，回渲染时就是
+    一层均匀的 MAE（实测 +1.7）。
+
+    ★ 只取边框环会偏低：模型给的底色常带一圈 3~5 级的暗角（实测四角 243、
+      中间 252），直接拿环上中位色会把整张画布压暗一级。所以第一遍拿环上
+      初值，第二遍回到**全图**取「离初值 <= tol 的低饱和像素」再求中位 ——
+      这样暗角和贴边物体都进不来，剩下的就是真正的大片底色。
+    """
+    H, W = a.shape[:2]
+    r = int(max(1, min(ring, H // 4, W // 4)))
+    px = np.concatenate([a[:r].reshape(-1, 3), a[-r:].reshape(-1, 3),
+                         a[:, :r].reshape(-1, 3), a[:, -r:].reshape(-1, 3)])
+    mx = px.max(axis=1)
+    sat = (mx - px.min(axis=1)) / np.maximum(mx, 1.0)
+    light = px[(sat < 0.10) & (mx > 200.0)]
+    if len(light) < 64:
+        light = px
+    c0 = np.median(light, axis=0)
+
+    flat = a.reshape(-1, 3)
+    mx = flat.max(axis=1)
+    sat = (mx - flat.min(axis=1)) / np.maximum(mx, 1.0)
+    near = (np.abs(flat - c0).max(axis=1) <= tol) & (sat < 0.10)
+    if int(near.sum()) >= 5000:
+        c0 = np.median(flat[near], axis=0)
+    return tuple(int(round(v)) for v in c0)
+
+
 def emit(src, out, man, stats, a, H, Wd, kept, R, K, legend=None, rot=None, shade=""):
     rot = rot or []
     shade = shade or ""
@@ -660,7 +692,8 @@ def emit(src, out, man, stats, a, H, Wd, kept, R, K, legend=None, rot=None, shad
          '图层 = 面板(panel) -> 物理元素(element) -> path；'
          '每个面板另有 text 子层。元素命名见 panels.py 的 ELEMENTS 表。</desc>',
          '<g id="figure" data-role="figure" inkscape:groupmode="layer" inkscape:label="Figure">',
-         '<rect id="canvas-background" x="0" y="0" width="%d" height="%d" fill="#ffffff"/>' % (Wd, H)]
+         '<rect id="canvas-background" x="0" y="0" width="%d" height="%d" fill="%s"/>'
+         % (Wd, H, hexs(canvas_bg_color(a)))]
     manifest = {"source": os.path.basename(src), "canvas": [Wd, H], "panels": []}
     ntxt = 0
     md = ["# 图层清单 — %s" % os.path.basename(out), "",
