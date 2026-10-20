@@ -143,6 +143,51 @@ SN_MODEL_HINT = ("sensenova",)      # SenseNova / ShangTang RiRiXin (OpenAI imag
 
 
 # ────────────────────────────────────────────────────────── HTTP 小工具
+def _req_curl(url, key, payload=None, method=None, raw=None, ctype=None, timeout=180):
+    """curl.exe fallback for Windows hosts whose OpenSSL cannot handshake with the API."""
+    import subprocess, tempfile, shutil
+    exe = shutil.which("curl.exe") or shutil.which("curl") or "curl.exe"
+    cmd = [exe, "-sS", "--max-time", str(max(5, int(timeout))),
+           "-w", "\n%{http_code}", "-X",
+           method or ("POST" if (payload is not None or raw is not None) else "GET")]
+    tmp = None
+    try:
+        if key:
+            cmd += ["-H", "Authorization: Bearer " + key]
+        if payload is not None:
+            fd, tmp = tempfile.mkstemp(suffix=".json")
+            with os.fdopen(fd, "wb") as f:
+                f.write(json.dumps(payload).encode("utf-8"))
+            cmd += ["-H", "Content-Type: application/json", "--data-binary", "@" + tmp]
+        elif raw is not None:
+            fd, tmp = tempfile.mkstemp(suffix=".bin")
+            with os.fdopen(fd, "wb") as f:
+                f.write(raw)
+            cmd += ["-H", "Content-Type: " + (ctype or "application/octet-stream"),
+                    "--data-binary", "@" + tmp]
+        cmd.append(url)
+        out = subprocess.run(cmd, capture_output=True, timeout=timeout + 30)
+        body = out.stdout or b""
+        tail = body.rsplit(b"\n", 1)
+        if len(tail) == 2 and tail[1].strip().isdigit():
+            body, code = tail[0], int(tail[1].strip())
+        else:
+            code = 0
+        text = body.decode("utf-8", "replace")
+        try:
+            return code, json.loads(text)
+        except json.JSONDecodeError:
+            return code, text
+    except Exception as e:
+        return 0, "curl error: %s" % e
+    finally:
+        if tmp:
+            try:
+                os.unlink(tmp)
+            except OSError:
+                pass
+
+
 def _req(url, key, payload=None, method=None, raw=None, ctype=None, timeout=180):
     h = {}
     if key:
@@ -165,8 +210,11 @@ def _req(url, key, payload=None, method=None, raw=None, ctype=None, timeout=180)
                 return resp.status, body
     except urllib.error.HTTPError as e:
         return e.code, e.read().decode("utf-8", "replace")
-    except urllib.error.URLError as e:
-        return 0, "网络错误: %s" % e
+    except Exception as e:
+        code, body = _req_curl(url, key, payload, method, raw, ctype, timeout)
+        if code:
+            return code, body
+        return 0, "network error: %s" % e
 
 
 def _looks_rate_limited(note):
@@ -197,8 +245,18 @@ def ref_to_image_field(path):
 def download(url, dest):
     dest = pathlib.Path(dest)
     dest.parent.mkdir(parents=True, exist_ok=True)
-    urllib.request.urlretrieve(url, str(dest))
-    return dest
+    try:
+        urllib.request.urlretrieve(url, str(dest))
+        return dest
+    except Exception as e:
+        import subprocess, shutil
+        exe = shutil.which("curl.exe") or shutil.which("curl") or "curl.exe"
+        r = subprocess.run([exe, "-sS", "-L", "--max-time", "180", "-o", str(dest), url],
+                           capture_output=True)
+        if r.returncode != 0:
+            raise RuntimeError("download failed: %s / %s" % (
+                e, r.stderr.decode("utf-8", "replace")[:200]))
+        return dest
 
 
 def _degrade_to_layout(src, dst, width=160):

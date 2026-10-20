@@ -124,6 +124,9 @@ WHITELIST_MARKERS = ("只许出现这些标签", "只允许出现这些标签", 
 FAIL_MARKERS = ("错", "改成", "上一轮", "这一轮必须改对", "没做对", "改成什么")
 INC_SEPS = ("上一轮画错", "上一轮真画错", "上一版画错", "上一轮（", "上一轮(", "════", "====")
 
+# L14：用了整幅风格参考图，必须写「参考图自带、本图不要」黑名单（v4.25）
+LEAK_HEADERS = ("【参考图自带、本图不要】", "【参考图自带，本图不要】", "参考图自带、本图不要", "参考图自带，本图不要", "风格图自带、本图不要", "风格图自带，本图不要")
+
 # L10：C 档"严格在上一张图上改"（★ B 档不判 —— B 只跑一轮，见文件头 L10）
 STRICT_KEEP_MARKERS = ("严格", "原样保留", "不许重画", "不许换", "不许换材质", "不许删",
                        "不许加", "不许变", "完全一致", "一模一样", "只改下面")
@@ -355,6 +358,15 @@ def brief_shape(rung, text, refs, prev_text):
         if prev_text and prev_text.strip() and prev_text.strip() not in text:
             w.append("L4 这一轮简报不是累积稿（上一轮简报的内容不在里面）——"
                      "确认是有意重写，还是漏了。")
+    if refs and rung in ("B", "C", "D"):
+        if not any(k in text for k in LEAK_HEADERS):
+            if rung == "D":
+                v.append("L14 D 档用了整幅风格参考图，但简报没有【参考图自带、本图不要】黑名单："
+                         "风格图里的物理对象（如 QGP 火球 + 放射箭头）会被‘其余原样保留’保住；"
+                         "必须逐条点名，不能只写自己注意到的那几条。")
+            else:
+                w.append("L14 用了整幅风格参考图，建议加【参考图自带、本图不要】黑名单："
+                         "逐条点名风格图里的物理对象，免得被当风格抄进来。")
     return v, w
 
 
@@ -622,8 +634,11 @@ def selftest():
     g = Path(tempfile.mkdtemp(prefix="ladder_selftest_"))
     style = "_selftest_style.png"          # 只比 basename，不需要真文件
     a_dir, b_dir, c_dir, d_dir = (str(g / x) for x in "ABCD")
+    b_core_noleak = ("画成 3D 科研示意图；面板序列：从左到右 a/b/c；"
+                     "图上只许出现这些标签：beam。")
+    leak = "【参考图自带、本图不要】参考图里的 QGP 火球和放射箭头，本图不要；"
     b_core = ("画成 3D 科研示意图；面板序列：从左到右 a/b/c；"
-              "图上只许出现这些标签：beam。")
+              + leak + "图上只许出现这些标签：beam。")
     swap = ("把上一档（A）画得好的核子搬进来，替换 B 档里对应的那两个球；"
             "A 画得好的部分留着。\n")
     inc = ("\n════ 上一轮画错的地方（这一轮必须改对）════\n"
@@ -638,6 +653,7 @@ def selftest():
     (g / "d_geo.md").write_text(b_core + inc, encoding="utf-8")
     (g / "d_ok.md").write_text(b_core + inc + mat, encoding="utf-8")
     (g / "d_smooth.md").write_text(b_core + inc + "核的材质保持光滑，不要改。", encoding="utf-8")
+    (g / "d_noleak.md").write_text(b_core_noleak + inc + mat, encoding="utf-8")
     (g / "r_ok.md").write_text(rend_ok, encoding="utf-8")
     (g / "r_no.md").write_text("按 IR 画这张图，把物理错误改对。", encoding="utf-8")
 
@@ -673,6 +689,8 @@ def selftest():
          ("L10", "L11"), True, False),
         ("L10/L11  D 档写「材质保持不变」", abcd, "d_ok.md", "Dt2", [dp_], "sketch",
          ("L10", "L11"), False, False),
+        ("L14  D 档缺泄漏黑名单", abcd, "d_noleak.md", "Dt4", [dp_], "sketch",
+         ("L14",), True, False),
         ("L11  D 档写「材质保持光滑」（该软警）", abcd, "d_smooth.md", "Dt3", [dp_], "sketch",
          ("L10", "L11"), False, True),
         ("L13  render 简报没写「基础上改/别换掉」", abcd, "r_no.md", "Rt1", [dp_], "render",

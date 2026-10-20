@@ -439,6 +439,9 @@ python3 scripts/svg_repro_check.py --svg fig.svg --png fig.png \
 - **B 档**：A 的文字 + 面板序列 + 输出硬约束；**必须带 `--ref` 风格书**；**不给上一档的图**（L9）；不写“保留”措辞（B 只跑一轮）。
 - **C 档 = 元素替换档**：必须给 **A、B 两张图**；简报必须写“把 A 档画得好的元素搬进来、替换 B 里对应的那一处”（L12）。
 - **D 档 = 物理修正档**：必须给**紧邻上一档的图**；严格在上一张图上改，只补上一轮真画错的，**其余形状 / 质感 / 配色 / 视角都不许变**（L10/L11）。B 档不判 L10。
+- **D 档的“错”必须来自上一轮 `check_sketch` 人工项里所有答“否”的硬物理，不是只写自己注意到的那两条**（v4.25）。写 D 简报前先逐条过 HP1–HP6；漏一条，模型就会按“其余原样保留”把它保住。实测 UPC：D 档只写 beam/b，黄色 QGP 椭圆被完整保留；D2 点名删除后才消失。
+- **用了整幅风格参考图，就必须写泄漏黑名单**（v4.25）：B/C/D 简报里必须有 `【参考图自带、本图不要】` 一节，逐条点名风格图里的物理对象（如“参考图自带的黄色椭圆 QGP 火球 + 放射箭头，本图不要”）。只写“不要 QGP”不够——要点名它的形状/位置，否则模型会把它当风格抄进来。`ladder_gate.py` 的 **L14** 会硬判 D 档缺这一节。
+- **整幅风格图带错误物理时，允许用同一本风格书抽出的“材质卡”当 `--ref`**（v4.25）：材质卡只保留材质/光照/渲染语言；L7 会报“风格图不一致”，用 `--ladder-waive "ref_is_material_card_from_same_stylebook"` 放行，理由写进交付说明。
 - **L9**：B 给图 = 硬伤；C 缺 A 或 B = 硬伤；D 缺上一档 = 硬伤。**L7**：阶梯里第一个带 `refs` 的 rung 是风格锚点。
 - 机械闸门：`ref_guard.py --run -- ...`（先查后调，查不过不烧 API 钱）；账本 `ladder.json`；`ladder_gate.py --selftest` 标定 L9/L12/L13。
 - **3D 感是首要判据**；草图管“基础物理”（三轴一一对应、方向关系、b 横向错开），位图管“IR 齐全度 + 精修”。
@@ -451,11 +454,11 @@ python3 scripts/svg_repro_check.py --svg fig.svg --png fig.png \
 
 > **动手出图之前，先读 `references/generate-flow.md`。** 默认走这条路；本节只是 7 步骨架与硬约束，每一步的命令、参数、实测读数在下沉文件里。
 
-1. **IR → 简报**：`ir_to_genbrief.py --stage sketch`。默认先走 `brief_lite.py --tier 0`（一句话 + 面板序列 + 输出硬约束），看图后 `--tier 1 --add 上一轮画错.md` 只补错的那几条；完整规格书留给 A 类复现。
+1. **IR → 简报**：`ir_to_genbrief.py --stage sketch`。默认先走 `brief_lite.py --tier 0`（一句话 + 面板序列 + 输出硬约束），看图后 `--tier 1 --add 上一轮画错.md` 只补错的那几条（= 上一轮 `check_sketch` 人工项里所有答“否”的硬物理，不是只写注意到的）；完整规格书留给 A 类复现。
 2. **出草图**：`gen_figure.py --stage sketch --ref <风格书> --seeds ...`；产物 `sketch_sN.png` + `calls.jsonl`。模型稳定画 1–2 px 外框，**别求它去掉**，用 `trim_border.py` 确定性地裁（两层外框加 `--bg 0.975`）。
 3. **草图矢量化**：`sketch_to_vector.py ... --ocr`；每形体一个子层，人可直接改。
 4. **闸口①**：`check_sketch.py --ir ...`。过闸后 `sketch_handoff.py` 交候选 → `make_picker.py` → `choice_gate.py` 收回执；客户改完用 `sketch_ingest.py` 灌回，**强制重过闸口①**。
-5. **出成品位图**：`ir_to_genbrief.py --stage render` → `gen_figure.py --stage render --content-ref <构图依据> --ref <风格书>`。普通 render 的构图依据是选中的草图；**C 档给 A、B 两张，D 档给紧邻上一档一张**（L9）。草图**原样送**（`auto -> full`）；只有草图本身是扁平稿才加 `--content-ref-mode layout`。别把草图塞进 `--ref`。简报必须写「在上一张图的基础上改，别换掉画对的」；D 档只改列出的物理错误（L10/L13）。
+5. **出成品位图**：`ir_to_genbrief.py --stage render` → `gen_figure.py --stage render --content-ref <构图依据> --ref <风格书>`。普通 render 的构图依据是选中的草图；**C 档给 A、B 两张，D 档给紧邻上一档一张**（L9）。草图**原样送**（`auto -> full`）；只有草图本身是扁平稿才加 `--content-ref-mode layout`。别把草图塞进 `--ref`。简报必须写「在上一张图的基础上改，别换掉画对的」；D 档只改列出的物理错误（L10/L13）；列之前先逐条过 HP1–HP6，并把上一轮 `check_sketch` 里答“否”的项全部写进增量清单。
    - `--ref` 只收风格书（`assets/t3-exemplars/`、`_T3精选/`）；`--content-ref` 只收手绘输入或本阶梯已登记的 rung；`assets/demos/**` 任何阶段不许当参考；同一张图不许同时占两个角色。
 6. **闸口②**：`check_sketch.py --sketch <草图>` 再跑一次；再 `gate3d_rank.py --require-all`、`axis_gate.py`、`check_3d_generic.py`。
 7. **位图 → 矢量**：固定三步 —— ① 客户确认的位图；② `raster_to_vector_semantic.py` 逐像素**临摹**（`<g data-element>` 语义层）；③ `trace_rebuild.py` **从临摹层重建**。**几何只来自临摹层**，禁止再走“颜色阈值 ∩ 包围盒”重抠（v37 教训）。
