@@ -356,7 +356,7 @@ python3 scripts/demo_combined.py
 ```
 .
 ├── SKILL.md                     路由器：判任务 → 写 IR → 选后端 → 执行 → 验证
-├── CHANGELOG.md                 每个版本修了什么（每条都带实测对照）
+├── CHANGELOG.md                 最近三版（更早见 docs/changelog/；每条都带实测对照）
 ├── requirements.txt             依赖（numpy / scipy / Pillow / shapely / cairosvg / PyMuPDF …）
 ├── references/                  写作与排查时翻的规范（见下面「内置参考」）
 ├── scripts/
@@ -422,6 +422,9 @@ python3 scripts/demo_combined.py
 
 | 文件 | 什么时候看 |
 |---|---|
+| `references/routing.md` | 判任务 / 图型、写 IR、选后端、验证、走 A→B→C→D 之前 |
+| `references/generate-flow.md` | 走路线 B、出草图 / 位图、位图→矢量七步之前 |
+| `references/scripts.md` | 查完整脚本表 / 某个脚本干什么 |
 | `references/ir-spec.md` | 写 IR 之前 —— 六层规范（物理 / 元素 / 构图 / 风格 / 执行 / 验收） |
 | `references/tool-selection.md` | 不确定该用哪个后端时（内容轴 × 风格轴） |
 | `references/svg-cookbook.md` | 手写 SVG 时 —— 技法 + 7 个渲染陷阱 |
@@ -429,7 +432,7 @@ python3 scripts/demo_combined.py
 | `references/style-bench.md` | 要用风格指标做诊断时 —— 含 4 个测量陷阱 |
 | `references/gotchas.md` | 渲染"看着成功其实失败"时（静默失败详解） |
 | `evals/test_tools.py` | 改完任何工具之后 —— 跑一遍防"修一个坏一个" |
-| `CHANGELOG.md` | 想知道某个坑是什么时候、怎么修的（每条都带实测数字） |
+| `CHANGELOG.md` | 最近三版；更早的 v1.0–v4.21 与「踩过的坑」在 `docs/changelog/` |
 | `assets/demos/upc_semantic/`、`assets/demos/spin_semantic/`、`assets/demos/evo_semantic/` | 想照抄一个完整算例（词表 + 元素表 + 命令 + 实测数字） |
 | `assets/demos/evo_semantic/README.md` | 想知道「真 `<gradient>` 到底帮不帮忙」—— 那里有 5 档参数的 A/B 表 |
 | `assets/demos/evo3d_semantic/` | 想知道「参考图 = 风格书，不是内容模板」怎么落地：同一份 IR 换个风格档，火球从纯色圆盘变成 3D 渐变 |
