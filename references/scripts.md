@@ -55,3 +55,6 @@
 | `ir_canvas.py` | **内部：IR 画布的**唯一**读取口**（规范位置 `composition.canvas` 优先，旧写法 `figure.canvas` 兜底）。修的是：8 份 IR 有 6 份的画布被静默丢弃 —— 简报照默认 1400×560 走、`gen_figure` 又按 1664×928 出，同一张图三个比例；而旧探针塞在 `figure.canvas` 下，体检照样绿 |
 | `pick_best.py` | **★ 候选排序**：吃 `check_sketch.py --json` 的报告，按「硬伤 → 比例偏差 → 软警 → 构图保真」排序，只把人眼留给没有硬伤的。实测（UPC）：8 个 seed 只有 3 张合格 —— 以前那 5 张废图也要人眼看一遍 |
 | `_console.py` | **内部：控制台编码兜底**。把 stdout/stderr 切 UTF-8 —— 中文 Windows 上 stdout 一旦被管道/重定向（agent、CI、`> log.txt`）就是 gbk，报告里的 ✅/⚠️ 编不出来 → `UnicodeEncodeError` 把脚本打在打印中途。**不影响交互式手敲**，所以只在自动化里炸。拷脚本（扁平布局）时必须一起拷 |
+| `ir_scope_gate.py` | **★ IR 生效范围闸门（v4.26）**：`S0` 档位必须声明；`S1` A/B 档不许出现 IR 的规格书部件（色号 / conventions 整条 / 绝对版式词 / **形体与材质词** —— 竖立 / 斜置 / 网格 / 薄板 / 玻璃 / 半透明 / 冷灰 …）；`S2/S3` C 档每条改动必须追得到 `[HPn]` 或可量证据；`S4` IR 的画法专属词不许进「必须」块；`S5` 打印本闸门**明确不判**的东西。已接进 `ref_guard.py`（`IR_SCOPE`）。标定：v427 的 B = FAIL（竖立/网格/半透明），干净 B = PASS |
+| `preview.py` | **★ 取图预算（v4.26）**：把图片 / 目录批量缩成长边 ≤1800 的 JPEG q90 写到 `_preview/`，打印尺寸与合计体积。**模型只看预览，全尺寸只喂脚本**（描摹 / axis_gate / keep_gate / trace_rebuild）。413 的根因是历史里每张图每轮重新 base64，不是仓库体积 |
+| `init_workspace.py` | **★ 新工作区落地（v4.26）**：`--dir <ws>` 写一份 `AGENTS.md`（硬规则入口版）+ `tools/*.py` 转发脚本（`python tools/ref_guard.py` 照样可用）。规则与脚本只有 skill 这一份，工作区不复制、不漂移 |

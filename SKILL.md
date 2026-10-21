@@ -380,6 +380,41 @@ python3 scripts/svg_repro_check.py --svg fig.svg --png fig.png \
 ---
 
 
+## 硬规则（v4.26：已内置，不依赖工作区 `AGENTS.md`）
+
+> 完整版 + 每条标定：**`references/hard_rules.md`**。工作区的 `AGENTS.md` 只是副本/补充；
+> 两者冲突时**取更严的那条**。
+> 新工作区落地：`python scripts/init_workspace.py --dir <ws>` —— 写 `AGENTS.md`
+> + `tools/` 转发脚本（`python tools/ref_guard.py` 照样可用，脚本只有 skill 这一份）。
+
+规则不靠记性，靠闸门。下表是「规则 → 闸门 → 失败码」，全部由 `scripts/ref_guard.py`
+在调 API 之前串起来（直调 `gen_figure.py` 会被令牌拦住）：
+
+| # | 硬规则 | 闸门 | 失败码 |
+|---|---|---|---|
+| R0 | 取图预算：生产图全尺寸、模型只看 ≤1800px q90、单会话 ≤40 张 | `preview.py`（约定，非闸门） | — |
+| R1 | `--ref` 只收风格书；`--content-ref` 只收手绘 / 本阶梯已登记 rung；同一图不许兼两角色 | `ref_guard.py` | `SELF_OUTPUT` / `DEMO_REF` / `SAME_FILE` |
+| R2 | 一律 `render3d`；扁平只许出现在定量数据面板与纯抽象内容 | `ref_guard` IR 契约 + `check_3d_generic.py` | `NOT_3D` / `3D0–3D3` |
+| R3 | 三轴：X1–X5 轴名与轴杆一一对应、X7 右手系、X8 投影、X9 束流轴=z | `axis_gate.py` | `X1–X9` |
+| R4 | 出草图前 IR 元素清单给客户过目并点头 | `element_list.py --check` | `NO_ELEMENT_ACK` |
+| R5 | 出成品前客户挑草图、`--by client` 回执 | `choice_gate.py` | `NO_CLIENT_CHOICE` |
+| R6 | A→B→C→D：B 不带上一档图、C 给 A+B、D 给上一档、D 只改列出的错、泄漏黑名单 | `ladder_gate.py` | `L1–L14` |
+| **R6.1** | **B 档没有 IR：B 简报不许出现板/网格/玻璃/薄板/竖立/斜置/半透明/冷灰等 IR 形体与材质词** | **`ir_scope_gate.py`（已接进 `ref_guard`）** | **`IR_SCOPE` / `S1_IR_PROP_IN_BRIEF`** |
+| R7 | 草图管“对不对”，位图管“全不全、精不精” | `check_sketch.py` | 人工逐条答“否”就重出 |
+| R8 | 位图简报 = IR 全量 + 上一版错误清单；构图参考原样送 | `render_brief_gate.py` + 复检 | — |
+| R9 | 物理否决美观；美观否决画法；硬物理每条必须给 `measure` | `ir_scope_gate.py` S3/S4 + IR 契约 | `NO_HARD_PHYSICS` |
+| R10 | 位图 → 临摹 → 从临摹层重建；几何只来自临摹层 | `raster_to_vector_semantic.py` → `trace_rebuild.py` | — |
+
+**R6.1 是 v4.26 新增的硬闸门**（作者 2026-10-21：「B 档没有 IR 进去」）。
+它拦的是一次实测过的系统性 bug：A 档只写“两个核子堆成的重核”，B 档自己加了
+“竖立半透明网格板”，C/D 的“原样保留”把它冻结成竖玻璃板 + 冷灰石材质；
+而更早那版的 B 也带了“斜置浅灰网格薄板”，只是风格锚点恰好同族所以没人看出来。
+档位从 `--tier` / `--outdir` 的 rung 目录 / `brief_[ABCD].md` / `ladder.json` 推断；
+都推不出时**保守按 B 判**（C/D 档请显式写 `--tier`）。
+
+---
+
+
 ## 路由协议（速查；完整版见 `references/routing.md`）
 
 > **动手判定任务 / 写 IR / 选后端 / 跑验证 / 走 A→B→C→D 之前，先读 `references/routing.md`。**
@@ -437,15 +472,25 @@ python3 scripts/svg_repro_check.py --svg fig.svg --png fig.png \
 - **A 档**：一句话（≤80 字符），**默认不带 `--ref`**；只作诊断，**不进交付链**。
 - **出草图前**：把 IR 的**元素清单**（中文 5–10 行）贴给客户过目 / 加项，**客户点头才开跑**（v4.19）。
 - **B 档**：A 的文字 + 面板序列 + 输出硬约束；**必须带 `--ref` 风格书**；**不给上一档的图**（L9）；不写“保留”措辞（B 只跑一轮）。
+- **B 档简报里不许出现 IR 的元素**（v4.26，硬闸门）：只许写 A 的文字 + 面板序列 + 标签白名单 / 不要图例这类输出硬约束；**不许写板 / 网格 / 玻璃 / 薄板 / 竖立 / 斜置 / 半透明 / 冷灰等形体与材质词**。它们属于 IR 的 elements，第一次可以出现是在 C 档。`ir_scope_gate.py --tier B` 会把这类词判硬伤（`S1_IR_PROP_IN_BRIEF`）。实测 v427：A 只说“两个核子堆成的重核”，B 自己加了“竖立半透明网格板（不是地面）”，整条阶梯从 B 起就被竖板与灰石材质锁死。
 - **C 档 = 元素替换档**：必须给 **A、B 两张图**；简报必须写“把 A 档画得好的元素搬进来、替换 B 里对应的那一处”（L12）。
 - **D 档 = 物理修正档**：必须给**紧邻上一档的图**；严格在上一张图上改，只补上一轮真画错的，**其余形状 / 质感 / 配色 / 视角都不许变**（L10/L11）。B 档不判 L10。
 - **D 档的“错”必须来自上一轮 `check_sketch` 人工项里所有答“否”的硬物理，不是只写自己注意到的那两条**（v4.25）。写 D 简报前先逐条过 HP1–HP6；漏一条，模型就会按“其余原样保留”把它保住。实测 UPC：D 档只写 beam/b，黄色 QGP 椭圆被完整保留；D2 点名删除后才消失。
+- **IR 的生效范围**（v4.26 明确）：B 档没有 IR；C 档只许用 IR 去“改 A 档真画错的东西”（`ir_scope_gate.py` 的 S3 要求每条带 `[HPn]` 或可量的证据）；D 档才逐条过 HP1–HP6。**IR 的版式 / 材质偏好不构成物理要求** —— 物理对的排法有很多种。
 - **用了整幅风格参考图，就必须写泄漏黑名单**（v4.25）：B/C/D 简报里必须有 `【参考图自带、本图不要】` 一节，逐条点名风格图里的物理对象（如“参考图自带的黄色椭圆 QGP 火球 + 放射箭头，本图不要”）。只写“不要 QGP”不够——要点名它的形状/位置，否则模型会把它当风格抄进来。`ladder_gate.py` 的 **L14** 会硬判 D 档缺这一节。
 - **整幅风格图带错误物理时，允许用同一本风格书抽出的“材质卡”当 `--ref`**（v4.25）：材质卡只保留材质/光照/渲染语言；L7 会报“风格图不一致”，用 `--ladder-waive "ref_is_material_card_from_same_stylebook"` 放行，理由写进交付说明。
 - **L9**：B 给图 = 硬伤；C 缺 A 或 B = 硬伤；D 缺上一档 = 硬伤。**L7**：阶梯里第一个带 `refs` 的 rung 是风格锚点。
 - 机械闸门：`ref_guard.py --run -- ...`（先查后调，查不过不烧 API 钱）；账本 `ladder.json`；`ladder_gate.py --selftest` 标定 L9/L12/L13。
 - **3D 感是首要判据**；草图管“基础物理”（三轴一一对应、方向关系、b 横向错开），位图管“IR 齐全度 + 精修”。
 - **选择权在客户**：`make_picker.py` → 客户点选 → `choice_gate.py --record --by client`；没有回执不许出成品位图。
+
+### 5. 取图与请求体预算（v4.26）
+
+- **生产图保持全尺寸**（如 2336×1280）；描摹、`axis_gate.py`、`keep_gate.py`、矢量重建只用全尺寸文件。
+- **模型（对话）只看长边 ≤1800 的 JPEG q90**：`python scripts/preview.py <文件或目录...>`，默认输出到 `_preview/`，并打印每张尺寸与合计体积。
+- **4up / 长条拼图也先缩到 1800px 再看**；全尺寸只喂脚本。
+- **单会话预览 ≤ 40 张**（约 8–12 MB base64）；到量就开新会话，把“当前选定 + 待改清单”带过去，不要搬整段历史。
+- 依据：请求体上限（DeepSeek Responses 为 48 MiB）按**整段历史**算，看过的每张图每轮都会重新 base64 发送。实测旧会话 20 次 `view_image` 累计 49.68 MB 触发 413 —— **与 skill 仓库体积无关**。
 
 ---
 
@@ -615,6 +660,8 @@ python3 scripts/auto_converge.py --ref 参考图.png \
 | 什么时候读 | 文件 |
 |---|---|
 | **判定任务 / 图型、写 IR、选后端、跑验证、走 A→B→C→D** | **`references/routing.md`** ★ |
+| **新对话 / 新工作区：硬规则在哪、每条由哪个闸门执行** | **`references/hard_rules.md`** ★ |
+| **把规则落到一个新目录（写 AGENTS.md + `tools/` 转发脚本）** | `scripts/init_workspace.py --dir <ws>` |
 | **走路线 B、出草图 / 位图、位图→矢量七步** | **`references/generate-flow.md`** ★ |
 | 查完整脚本表 / 某个脚本干什么 | `references/scripts.md` |
 | 写 IR 的字段细节 | `references/ir-spec.md` |
@@ -650,7 +697,7 @@ python3 scripts/auto_converge.py --ref 参考图.png \
 最常用的一条链：
 `ir_to_genbrief.py` / `brief_lite.py` → `gen_figure.py` → `trim_border.py` → `check_sketch.py` → `sketch_to_vector.py` / `sketch_handoff.py` / `choice_gate.py` → `gate3d_rank.py` → `axis_gate.py` → `raster_to_vector_semantic.py` → `trace_rebuild.py` → `svg_spline.py` → `check_delivery.py`
 
-- 生成与闸门：`gen_figure.py`、`ref_guard.py`、`ladder_gate.py`、`choice_gate.py`、`check_sketch.py`、`gate3d_rank.py`、`axis_gate.py`、`check_3d_generic.py`、`check_delivery.py`
+- 生成与闸门：`gen_figure.py`、`ref_guard.py`、`ladder_gate.py`、`ir_scope_gate.py`、`ir_layout_guard.py`、`keep_gate.py`、`element_list.py`、`choice_gate.py`、`check_sketch.py`、`gate3d_rank.py`、`axis_gate.py`、`check_3d_generic.py`、`check_delivery.py`、`preview.py`、`init_workspace.py`
 - 位图 → 矢量：`raster_to_vector_semantic.py`、`trace_rebuild.py`、`svg_spline.py`、`shade_smooth.py`、`pick_layer.py`
 - 诊断与返修：`check_render.py`、`compare_ref.py`、`style_bench.py`、`repair_brief.py`、`audit_composition.py`
 - 其余（IR、拼版、复现、工具探测）见 `references/scripts.md`。

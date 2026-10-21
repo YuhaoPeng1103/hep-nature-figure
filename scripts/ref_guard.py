@@ -3,6 +3,10 @@
 """
 ref_guard -- 出图的「参考图角色」硬闸门（作者 2026-09-29 要求；v3.1 起随 skill 发布，v4.13 起多了「上一轮草图」例外）
 
+v4.26：本脚本是**唯一入口**（先查后调）—— 除了参考图角色，还会跑 IR 契约 / IR 版式 /
+元素清单回执 / 客户选图回执 / 提示词阶梯 / **IR 生效范围（B 档不许出现 IR 的元素）**；
+--post 再跑 3D 与三轴闸门。规则不依赖工作区 AGENTS.md。
+
 作者原话：
     「出草图时不给自家成品当参考，skill 库里的只是风格参考图」
 
@@ -471,7 +475,7 @@ def ir_contract(ir_path):
 
 
 def post_checks(a, ws=None):
-    """出图后：3D 闸门 + 三轴物理闸门。返回进程退出码。"""
+    """出图后：3D 闸门 + 三轴物理闸门 + 标签泄漏（ref_role_gate）。返回进程退出码。"""
     rc = 0
     here = os.path.dirname(os.path.abspath(__file__))
     if a.post_3d:
@@ -498,6 +502,22 @@ def post_checks(a, ws=None):
         sys.stdout.flush()
         if subprocess.call(cmd) != 0:
             rc = 1
+    if a.post_3d and a.brief and not getattr(a, "no_ref_role_check", False):
+        rg = os.path.join(here, "ref_role_gate.py")
+        if os.path.exists(rg):
+            cmd = [sys.executable, rg, "--post", "--png", a.post_3d,
+                   "--brief", a.brief, "--ref-role", a.ref_role or "style-only"]
+            for _r in (getattr(a, "ref", None) or []):
+                cmd += ["--ref", _r]
+            if getattr(a, "labels", None):
+                cmd += ["--labels", a.labels]
+            sys.stdout.flush()
+            print("\n===== 出图后 标签泄漏 / 版式读数 =====")
+            sys.stdout.flush()
+            if subprocess.call(cmd) != 0:
+                rc = 1
+        else:
+            print("[warn] 找不到 ref_role_gate.py —— 出图后标签泄漏没查")
     return rc
 
 
@@ -509,6 +529,10 @@ def main():
     ap.add_argument("--ref", action="append", default=[], help="风格参考（只许风格书）")
     ap.add_argument("--content-ref", action="append", default=[], help="构图依据")
     ap.add_argument("--ir", default=None, help="IR；给了就同时查「版式有没有被写死」")
+    ap.add_argument("--brief", default=None,
+                    help="本轮简报（.md）；给了就同时查 IR 生效范围（B 档不许出现 IR 的元素，v4.26）")
+    ap.add_argument("--tier", choices=("A", "B", "C", "D", "render"), default=None,
+                    help="提示词阶梯档位；缺省从 --outdir 的 rung 目录或 brief_[ABCD].md 推断")
     ap.add_argument("--ws", default=None, help="工作区根（默认当前目录）")
     ap.add_argument("--base", default=None, help="相对路径的解析基准（默认当前目录）")
     ap.add_argument("--json", default=None)
@@ -521,6 +545,12 @@ def main():
                     help="元素清单/回执所在目录（缺省 = IR 同目录）")
     ap.add_argument("--no-choice-check", action="store_true",
                     help="跳过「客户有没有挑过草图」的检查（只在确有理由时才用）")
+    ap.add_argument("--ref-role", default=None,
+                    help="参考图的角色：style-only | style+content（缺省 style-only，v4.26）")
+    ap.add_argument("--labels", default=None,
+                    help="标签白名单（逗号分隔），交给 ref_role_gate；缺省从简报里解")
+    ap.add_argument("--no-ref-role-check", action="store_true",
+                    help="跳过 ref_role_gate（参考图角色声明 / 标签泄漏）")
     ap.add_argument("--allow-flat", default=None,
                     help="确实要出扁平稿时的理由（写进交付说明）；不给则 style.mode != render3d 判硬伤")
     ap.add_argument("--post", action="store_true",
@@ -656,6 +686,109 @@ def main():
                           "（--ladder-waive \"理由\" 可放行）")]
     elif (lad_out or a.ladder_gen_dir) and a.ladder_waive:
         print("[warn] 提示词阶梯闸门已用 --ladder-waive \"%s\" 放行" % a.ladder_waive)
+
+    # ── v4.26：IR 生效范围闸门（作者 2026-10-21：「B 档没有 IR 进去」） ──
+    #   S1 ④：A/B 档简报里出现 IR 元素的形体 / 材质词（竖立 / 网格 / 玻璃 / 薄板 …）= 硬伤。
+    #   档位优先 --tier；否则从 --outdir 末尾的 rung 目录（A/B/C/D）或 brief_[ABCD].md 推断。
+    #   render 档不归它管（位图档就是 IR 全量 + 错误清单，AGENTS §0.6）。
+    if (stage or "sketch") == "sketch":
+        scope = Path(__file__).resolve().parent / "ir_scope_gate.py"
+        sbrief = a.brief or lad_brief
+        stier = a.tier
+        if not stier:
+            for _p in (sbrief, lad_out):
+                if not _p:
+                    continue
+                _m = re.search(r"brief[_-]?([ABCD])(?=[_.\-]|$)", os.path.basename(_p), re.I)
+                if _m:
+                    stier = _m.group(1).upper()
+                    break
+                for _part in reversed(Path(_p).parts[:-1]):
+                    if _part.upper() in ("A", "B", "C", "D") and len(_part) == 1:
+                        stier = _part.upper()
+                        break
+                if stier:
+                    break
+        if not stier:
+            # 账本才是权威：下一档 = rungs 的个数（ladder_gate.rung_name 同一张表）
+            _cur = Path(lad_out or a.ladder_gen_dir or ".").resolve()
+            for _cand in (_cur, _cur.parent, _cur.parent.parent, _cur.parent.parent.parent):
+                _led = _cand / "ladder.json"
+                if _led.exists():
+                    try:
+                        _n = len(json.loads(_led.read_text(encoding="utf-8")).get("rungs") or [])
+                        stier = "ABCD"[_n] if _n < 4 else "D"
+                    except Exception:
+                        pass
+                    break
+        if not stier and sbrief:
+            # 兜底：宁可保守按 B 判，也不许靠改文件名绕过「B 档不许出现 IR 元素」。
+            stier = "B"
+            print("[warn] 推不出档位 —— 保守按 B 档判（C/D 档请显式写 --tier C / --tier D）")
+        if stier == "render":
+            stier = None
+        if not scope.exists():
+            print("[warn] 找不到 ir_scope_gate.py —— B 档「不许出现 IR 元素」没查")
+        elif not sbrief:
+            print("[warn] 没给 --brief（ref_guard 这侧与 -- 之后都没有）—— ir_scope_gate 跳过")
+        else:
+            cmd = [sys.executable, str(scope), "--tier", stier, "--brief", sbrief]
+            if ir:
+                cmd += ["--ir", ir]
+            _r = subprocess.run(cmd, capture_output=True, text=True, encoding="utf-8")
+            sys.stdout.write(_r.stdout or "")
+            if _r.returncode != 0:
+                v = v + [("--brief", sbrief, "IR_SCOPE",
+                          "%s 档简报违反 IR 生效范围（B 档不许出现 IR 的形体/材质词；"
+                          "C 档改动必须追得到 [HPn] 或可量证据）" % stier)]
+
+    # ── v4.26：参考图角色声明 + 标签泄漏（ref_role_gate；AGENTS §0.8） ──
+    #   作者 2026-10-13：「风格图只是风格，生图模型总喜欢完全照抄怎么办」。
+    #   style-only 下必须付三样代价：标签白名单 / 面板序列 / 不要标题图例，否则硬伤。
+    if style and not a.no_ref_role_check:
+        rg = Path(__file__).resolve().parent / "ref_role_gate.py"
+        _rb = a.brief or lad_brief
+        if not rg.exists():
+            print("[warn] 找不到 ref_role_gate.py —— 参考图角色声明没查")
+        elif not _rb:
+            print("[warn] 没给 --brief —— ref_role_gate 跳过（它要从简报里读白名单/面板序列）")
+        else:
+            cmd = [sys.executable, str(rg), "--check", "--stage", stage or "sketch",
+                   "--ref-role", a.ref_role or "style-only", "--brief", _rb]
+            for _r in style:
+                cmd += ["--ref", _r]
+            for _c in content:
+                cmd += ["--content-ref", _c]
+            if ir:
+                cmd += ["--ir", ir]
+            if a.labels:
+                cmd += ["--labels", a.labels]
+            _r = subprocess.run(cmd, capture_output=True, text=True, encoding="utf-8")
+            sys.stdout.write(_r.stdout or "")
+            if _r.returncode != 0:
+                v = v + [("--brief", _rb, "REF_ROLE",
+                          "参考图的角色没声明清楚 / 代价没付（style-only 需要标签白名单 + "
+                          "面板序列 + 不要标题图例）；见上面 ref_role_gate 的报告")]
+
+    # ── v4.26：位图简报闸门（render_brief_gate；AGENTS §0.6） ──
+    #   作者 2026-10-08：「位图是润色完善草图的……错误的就修改，需要增加的就添加元素」。
+    if (stage or "sketch") == "render":
+        bg = Path(__file__).resolve().parent / "render_brief_gate.py"
+        _bb = a.brief or lad_brief
+        if not bg.exists():
+            print("[warn] 找不到 render_brief_gate.py —— 位图简报四块没查")
+        elif not _bb:
+            print("[warn] 没给 --brief —— render_brief_gate 跳过")
+        else:
+            cmd = [sys.executable, str(bg), _bb]
+            if ir:
+                cmd += ["--ir", ir]
+            _r = subprocess.run(cmd, capture_output=True, text=True, encoding="utf-8")
+            sys.stdout.write(_r.stdout or "")
+            if _r.returncode != 0:
+                v = v + [("--brief", _bb, "RENDER_BRIEF",
+                          "位图简报缺四块（必须原样保留 / 必须改对 / 必须补上 / 标签白名单）"
+                          "或写了「不许简化/不许重画」；见上面 render_brief_gate 的报告")]
 
     if a.json:
         Path(a.json).write_text(json.dumps(
