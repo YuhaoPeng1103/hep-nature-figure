@@ -39,7 +39,20 @@ import argparse
 import io
 import json
 import os
+import re
 import sys
+
+
+def tag_root(svg_text, artifact, contract):
+    start = svg_text.find("<svg")
+    end = svg_text.find(">", start)
+    if start < 0 or end < 0:
+        raise ValueError("missing or unterminated <svg>")
+    tag = svg_text[start:end + 1]
+    for key, value in (("data-artifact", artifact), ("data-contract", contract)):
+        tag = re.sub(r'\s%s="[^"]*"' % re.escape(key), "", tag)
+        tag = tag[:-1] + ' %s="%s">' % (key, value)
+    return svg_text[:start] + tag + svg_text[end + 1:]
 
 
 def main():
@@ -51,6 +64,8 @@ def main():
                     help='可选 {"element": {"paths": [d, ...]}} —— 子物体（如逐核子），画在父级之后')
     ap.add_argument("-o", "--out", required=True, help="输出 svg")
     ap.add_argument("--gid", default="pick", help="拾取层的 <g id>（默认 pick）")
+    ap.add_argument("--artifact-role", default="visual-pick")
+    ap.add_argument("--contract", default="object-pick")
     a = ap.parse_args()
 
     src = io.open(a.svg, encoding="utf-8", errors="replace").read()
@@ -88,6 +103,7 @@ def main():
     out.append("</g>")
 
     dst = src.replace("</svg>", "\n".join(out) + "\n</svg>")
+    dst = tag_root(dst, a.artifact_role, a.contract)
     io.open(a.out, "w", encoding="utf-8", newline="\n").write(dst)
     print("wrote %s  (%.2f -> %.2f MB, +%d pick paths, +%d sub-object paths)"
           % (a.out, len(src.encode()) / 1048576., len(dst.encode()) / 1048576., len(sil), n_sub))

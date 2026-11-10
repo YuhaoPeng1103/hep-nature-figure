@@ -298,6 +298,8 @@ def main():
         out.append(src[pos:s]); out.append(txt); pos = e
     out.append(src[pos:])
     svg = "".join(out)
+    svg = re.sub(r"<svg\b", '<svg data-artifact="edit-master" data-contract="semantic-edit"',
+                 svg, count=1)
     i = svg.index(">", svg.index("<svg")) + 1
     svg = svg[:i] + "<defs>" + "".join(defs) + "</defs>" + svg[i:]
     io.open(SVG, "w", encoding="utf-8", newline="\n").write(svg)

@@ -1803,6 +1803,113 @@ def test_projection_gate():
     ir5 = {"style": {"classification": "矢量插画"}, "composition": {"视角": "正视"}}
     assert PG.check(ir5)[1], "非 T3 图（数据图/流程示意）不该被投影闸口拦下"
 
+
+def _semantic_release_fixture(tmp):
+    import os
+    from PIL import Image, ImageDraw
+
+    src = tmp / "src.png"
+    im = Image.new("RGB", (96, 64), "white")
+    dr = ImageDraw.Draw(im)
+    dr.rectangle((8, 24, 88, 56), fill="#b8bcc4")
+    dr.ellipse((34, 18, 62, 46), fill="#315da8")
+    im.save(src)
+    trace = tmp / "trace.svg"
+    trace.write_text(
+        '<svg xmlns="http://www.w3.org/2000/svg" width="96" height="64" viewBox="0 0 96 64">'
+        '<g id="background" data-element="background"><path d="M0 0H96V64H0Z" fill="#ffffff"/></g>'
+        '<g id="plate" data-element="plate"><rect x="8" y="24" width="80" height="32" fill="#b8bcc4"/></g>'
+        '<g id="nucleus" data-element="nucleus"><ellipse cx="48" cy="32" rx="14" ry="14" fill="#315da8"/></g>'
+        '<g data-role="text"><text x="4" y="10" font-family="Arial" font-size="6">A</text></g>'
+        "</svg>",
+        encoding="utf-8",
+    )
+    env = os.environ.copy()
+    env["PYTHONUTF8"] = "1"
+    env["PYTHONIOENCODING"] = "utf-8"
+    return src, trace, env
+
+
+def _run_semantic_release(src, trace, outdir, env, *extra):
+    return subprocess.run(
+        [sys.executable, str(SCRIPTS / "semantic_release.py"),
+         "--src", str(src), "--trace", str(trace), "--stem", "fig",
+         "--outdir", str(outdir), *extra],
+        capture_output=True, text=True, encoding="utf-8", errors="replace",
+        env=env, timeout=300)
+
+
+@case("semantic_release_happy_path",
+      "One command builds edit/visual/pick artifacts and a hashed release-v1 manifest")
+def test_semantic_release_happy_path():
+    import hashlib
+    import json
+    tmp = Path(tempfile.mkdtemp(prefix="hep_semrel_"))
+    src, trace, env = _semantic_release_fixture(tmp)
+    out = tmp / "out"
+    r = _run_semantic_release(src, trace, out, env, "--preset", "draft")
+    assert r.returncode == 0, r.stdout + r.stderr
+    manifest = json.loads((out / "fig_release.json").read_text(encoding="utf-8"))
+    assert manifest["schema"] == "hep-nature-figure/release-v1"
+    artifacts = manifest["artifacts"]
+    assert all(artifacts[k] for k in ("edit_master", "visual_master", "visual_pick"))
+    assert len({artifacts[k]["contract"] for k in artifacts if artifacts[k]}) == 3
+    for item in artifacts.values():
+        if not item:
+            continue
+        data = Path(item["path"]).read_bytes()
+        assert hashlib.sha256(data).hexdigest() == item["sha256"]
+    pick = Path(artifacts["visual_pick"]["path"]).read_text(encoding="utf-8")
+    assert 'data-contract="object-pick"' in pick
+
+
+@case("semantic_release_partial_modes",
+      "edit-only/visual-only/no-pick skip absent artifacts")
+def test_semantic_release_partial_modes():
+    tmp = Path(tempfile.mkdtemp(prefix="hep_semrel_part_"))
+    src, trace, env = _semantic_release_fixture(tmp)
+    for mode, extra, absent in (
+        ("edit", ("--edit-only", "--no-pick"), "fig_visual_mesh.svg"),
+        ("visual", ("--visual-only", "--no-pick"), "fig_edit.svg"),
+        ("edit_pick_guard", ("--edit-only",), "fig_visual_mesh.svg"),
+    ):
+        out = tmp / mode
+        r = _run_semantic_release(src, trace, out, env, *extra)
+        assert r.returncode == 0, mode + "\n" + r.stdout + r.stderr
+        assert not (out / absent).exists(), (mode, absent)
+
+
+@case("semantic_release_fails_closed",
+      "Mismatched IDs and stale manifest hashes fail validation")
+def test_semantic_release_fails_closed():
+    import json
+    tmp = Path(tempfile.mkdtemp(prefix="hep_semrel_bad_"))
+    src, trace, env = _semantic_release_fixture(tmp)
+    out = tmp / "out"
+    r = _run_semantic_release(src, trace, out, env, "--preset", "draft")
+    assert r.returncode == 0, r.stdout + r.stderr
+    manifest_path = out / "fig_release.json"
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    edit = Path(manifest["artifacts"]["edit_master"]["path"])
+    original = edit.read_text(encoding="utf-8")
+    edit.write_text(original.replace('data-element="nucleus"', 'data-element="other"'),
+                    encoding="utf-8")
+    rv = subprocess.run(
+        [sys.executable, str(SCRIPTS / "semantic_release.py"),
+         "--validate-manifest", str(manifest_path)],
+        capture_output=True, text=True, encoding="utf-8", errors="replace",
+        env=env, timeout=120)
+    assert rv.returncode != 0, "changed element IDs must fail validation"
+    edit.write_text(original, encoding="utf-8")
+    edit.write_bytes(edit.read_bytes() + b"\n")
+    rv = subprocess.run(
+        [sys.executable, str(SCRIPTS / "semantic_release.py"),
+         "--validate-manifest", str(manifest_path)],
+        capture_output=True, text=True, encoding="utf-8", errors="replace",
+        env=env, timeout=120)
+    assert rv.returncode != 0, "stale artifact hash must fail validation"
+
+
 if __name__ == "__main__":
     sys.exit(main())
 

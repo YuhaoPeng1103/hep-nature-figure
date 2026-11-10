@@ -419,7 +419,8 @@ def main():
         print("  text runs %d" % ntext, flush=True)
 
     out = ['<?xml version="1.0" encoding="UTF-8"?>',
-           '<svg xmlns="http://www.w3.org/2000/svg" width="%.4fmm" height="%.4fmm" viewBox="0 0 %d %d">'
+           '<svg xmlns="http://www.w3.org/2000/svg" data-artifact="visual-master" '
+           'data-contract="pixel-fidelity" width="%.4fmm" height="%.4fmm" viewBox="0 0 %d %d">'
            % (a.width_mm, a.width_mm * H / float(W), W, H),
            '<rect width="%d" height="%d" fill="#ffffff"/>' % (W, H),
            "<defs>", "".join(defs), "</defs>"]
