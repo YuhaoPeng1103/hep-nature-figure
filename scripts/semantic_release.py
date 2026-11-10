@@ -54,6 +54,31 @@ def artifact_record(path: Path, role: str, contract: str, **extra) -> dict[str, 
                 role=role, contract=contract, **extra)
 
 
+def report_record(path_text: str, expected_schema: str,
+                  release_ids: list[str]) -> tuple[dict[str, object] | None, int]:
+    if not path_text:
+        return None, 0
+    path = Path(path_text).resolve()
+    data = json.loads(path.read_text(encoding="utf-8"))
+    if data.get("schema") != expected_schema:
+        raise ValueError("%s: expected schema %s" % (path, expected_schema))
+    names = set(data.get("names") or [])
+    unknown = names - set(release_ids)
+    if unknown:
+        raise ValueError("%s contains IDs absent from release: %s"
+                         % (path, sorted(unknown)))
+    if expected_schema == "hep-nature-figure/conflicts-v1":
+        unresolved = len(data.get("high_risk_pairs") or [])
+    else:
+        unresolved = int(data.get("unresolved_high_risk") or 0)
+    return ({
+        "path": str(path),
+        "sha256": sha256(path),
+        "schema": expected_schema,
+        "unresolved_high_risk": unresolved,
+    }, unresolved)
+
+
 def tag_root(svg_text: str, role: str, contract: str) -> str:
     """Add stable artifact metadata without touching geometry."""
     start = svg_text.find("<svg")
@@ -152,6 +177,9 @@ def main() -> int:
     ap.add_argument("--outdir")
     ap.add_argument("--validate-manifest", default="",
                     help="validate release-v1 hashes and semantic IDs, then exit")
+    ap.add_argument("--audit-json", default="")
+    ap.add_argument("--competition-json", default="")
+    ap.add_argument("--strict-conflicts", action="store_true")
     ap.add_argument("--ir", default="", help="IR file for provenance")
     ap.add_argument("--size", default="", help="WxH; default follows the trace")
     ap.add_argument("--elements", default="", help="volume IDs rebuilt in the edit master")
@@ -233,6 +261,16 @@ def main() -> int:
     elif visual.exists():
         ids = element_ids(visual.read_text(encoding="utf-8"))
 
+    audit_record, audit_high = report_record(
+        a.audit_json, "hep-nature-figure/conflicts-v1", ids)
+    competition_record, competition_high = report_record(
+        a.competition_json, "hep-nature-figure/competition-v1", ids)
+    unresolved_high_risk = audit_high + competition_high
+    if a.strict_conflicts and unresolved_high_risk:
+        raise SystemExit(
+            "strict semantic conflicts: %d unresolved high-risk record(s)"
+            % unresolved_high_risk)
+
     pick_source = "none"
     if not a.no_pick and visual.exists():
         if a.pick_sil:
@@ -271,6 +309,9 @@ def main() -> int:
                                             completion=pick_source)
                             if pick.exists() and not a.edit_only else None),
         },
+        "semantic_audit": audit_record,
+        "semantic_competition": competition_record,
+        "unresolved_high_risk": unresolved_high_risk,
         "rules": [
             "IR, bitmap, and semantic trace are the source of truth.",
             "Edit shape/colour in the edit master, then rebuild the visual master.",

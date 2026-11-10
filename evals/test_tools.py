@@ -2051,6 +2051,68 @@ def test_semantic_competition_guards():
         "relabel that disconnects a protected object must be rejected"
 
 
+@case("semantic_release_conflict_provenance",
+      "Audit/competition reports are hashed and strict high-risk releases fail")
+def test_semantic_release_conflict_provenance():
+    import json
+    import numpy as np
+    tmp = Path(tempfile.mkdtemp(prefix="hep_semprov_"))
+    src, trace, env = _semantic_release_fixture(tmp)
+    audit = tmp / "audit.json"
+    competition = tmp / "competition.json"
+    names = ["background", "plate", "nucleus"]
+    audit.write_text(json.dumps({
+        "schema": "hep-nature-figure/conflicts-v1",
+        "names": names,
+        "boundary_pairs": [{"a": "plate", "b": "nucleus", "severity": "high"}],
+        "high_risk_pairs": [],
+    }), encoding="utf-8")
+    competition.write_text(json.dumps({
+        "schema": "hep-nature-figure/competition-v1",
+        "names": names,
+        "unresolved_high_risk": 0,
+        "pairs": [],
+    }), encoding="utf-8")
+    out = tmp / "out"
+    r = _run_semantic_release(
+        src, trace, out, env, "--preset", "draft",
+        "--audit-json", str(audit), "--competition-json", str(competition))
+    assert r.returncode == 0, r.stdout + r.stderr
+    data = json.loads((out / "fig_release.json").read_text(encoding="utf-8"))
+    assert data["semantic_audit"]["sha256"]
+    assert data["semantic_competition"]["sha256"]
+    assert data["unresolved_high_risk"] == 0
+
+    audit.write_text(json.dumps({
+        "schema": "hep-nature-figure/conflicts-v1",
+        "names": names,
+        "boundary_pairs": [{"a": "plate", "b": "nucleus", "severity": "high"}],
+        "high_risk_pairs": [{"a": "plate", "b": "nucleus"}],
+    }), encoding="utf-8")
+    out_bad = tmp / "out_bad"
+    rb = _run_semantic_release(
+        src, trace, out_bad, env, "--preset", "draft",
+        "--audit-json", str(audit), "--competition-json", str(competition),
+        "--strict-conflicts")
+    assert rb.returncode != 0, "strict unresolved conflicts must fail"
+    assert not (out_bad / "fig_release.json").exists()
+
+    elmap = tmp / "elmap.npy"
+    np.save(elmap, np.zeros((64, 96), dtype=np.int32))
+    names_txt = tmp / "names.txt"
+    names_txt.write_text(",".join(names), encoding="utf-8")
+    rc = subprocess.run(
+        [sys.executable, str(SCRIPTS / "semantic_conflicts.py"),
+         "--src", str(src), "--elmap", str(elmap), "--names", str(names_txt),
+         "--outdir", str(tmp / "conflicts")],
+        capture_output=True, text=True, encoding="utf-8", errors="replace",
+        env=env, timeout=120)
+    assert rc.returncode == 0, rc.stdout + rc.stderr
+    report = json.loads((tmp / "conflicts" / "semantic_conflicts.json")
+                        .read_text(encoding="utf-8"))
+    assert report["schema"] == "hep-nature-figure/conflicts-v1"
+
+
 if __name__ == "__main__":
     sys.exit(main())
 
