@@ -2207,6 +2207,53 @@ def test_edit_to_visual_trace():
     assert len(xs) and xs.mean() > 54, "edited nucleus did not move right"
 
 
+@case("edit_to_visual_rebuild",
+      "Edit compiler rebuilds visual/pick with matching IDs and hashed derivatives")
+def test_edit_to_visual_rebuild():
+    import hashlib
+    import json
+    import re
+
+    tmp = Path(tempfile.mkdtemp(prefix="hep_e2vrebuild_"))
+    src, trace, env = _semantic_release_fixture(tmp)
+    out = tmp / "release"
+    r = _run_semantic_release(src, trace, out, env, "--preset", "draft")
+    assert r.returncode == 0, r.stdout + r.stderr
+    manifest = out / "fig_release.json"
+    data = json.loads(manifest.read_text(encoding="utf-8"))
+    edit = Path(data["artifacts"]["edit_master"]["path"])
+    edited = tmp / "edited.svg"
+    text = edit.read_text(encoding="utf-8")
+    text = re.sub(
+        r'(<g\b(?=[^>]*\bdata-element="nucleus")[^>]*?)(>)',
+        r'\1 transform="translate(10 0)">', text, count=1)
+    edited.write_text(text, encoding="utf-8")
+    rebuilt = tmp / "rebuilt"
+    r = subprocess.run(
+        [sys.executable, str(SCRIPTS / "edit_to_visual.py"),
+         "--edit", str(edited), "--manifest", str(manifest),
+         "--outdir", str(rebuilt), "--stem", "fig2"],
+        capture_output=True, text=True, encoding="utf-8", errors="replace",
+        env=env, timeout=300)
+    assert r.returncode == 0, r.stdout + r.stderr
+    visual = rebuilt / "fig2_visual_mesh.svg"
+    pick = rebuilt / "fig2_visual_pick.svg"
+    new_manifest = rebuilt / "fig2_edit_release.json"
+    assert visual.exists() and pick.exists() and new_manifest.exists()
+    vtext = visual.read_text(encoding="utf-8")
+    ptext = pick.read_text(encoding="utf-8")
+    assert 'data-contract="pixel-fidelity"' in vtext
+    assert 'data-contract="object-pick"' in ptext
+    for eid in ("background", "plate", "nucleus"):
+        assert 'data-element="%s"' % eid in vtext
+        assert 'data-element="%s"' % eid in ptext
+    report = json.loads(new_manifest.read_text(encoding="utf-8"))
+    assert report["schema"] == "hep-nature-figure/edit-to-visual-v1"
+    for item in report["derivatives"].values():
+        path = Path(item["path"])
+        assert hashlib.sha256(path.read_bytes()).hexdigest() == item["sha256"]
+
+
 if __name__ == "__main__":
     sys.exit(main())
 
