@@ -3,6 +3,23 @@
 Date: 2026-11-10
 Status: approved 2026-11-11
 
+## Scope Amendment — 2026-11-11
+
+The product does not require full occlusion reasoning, amodal reconstruction, or
+one unified representation that is simultaneously pixel-accurate and editable.
+
+The supported contract is:
+
+- `edit-master` is the post-approval semantic editing source;
+- changing the edit master must regenerate `visual-master` and `visual-pick`;
+- the visual master remains the submission artifact;
+- unsupported topology changes may fail explicitly rather than fabricate texture;
+- full occlusion and hidden-geometry recovery are outside the current scope.
+
+Add `scripts/edit_to_visual.py` as the compiler between these contracts. It
+renders the edited semantic objects, reconstructs masks and labels, rebuilds the
+visual mesh and pick layer, and writes an updated release manifest.
+
 ## Goal
 
 Turn the existing raster-to-vector pipeline into an auditable semantic release
@@ -135,6 +152,32 @@ Outputs are separate derived files:
 The release manifest records the original elmap and competition-report hashes.
 The original trace remains the visible-geometry truth source; competition may
 change semantic ownership, not invent hidden geometry.
+
+### 3.2 Edit-to-Visual Compiler
+
+Add `scripts/edit_to_visual.py`.
+
+Inputs:
+
+- an `edit-master` SVG;
+- the original release manifest or explicit bitmap/provenance paths;
+- a render preset.
+
+Behavior:
+
+- validate the edit master contract and semantic element IDs;
+- render the full edited SVG and each semantic element mask at source resolution;
+- build a derived semantic trace containing the edited masks and preserved
+  editable text;
+- rebuild `visual-master` from that edited raster/trace pair;
+- rebuild `visual-pick` from the edited masks;
+- preserve labels as real text;
+- write a new manifest containing hashes of the edit master, derived render,
+  trace, visual master, and pick layer.
+
+Supported edits are colour changes, translation, scaling, and moderate shape
+adjustments. Severe topology changes may be rejected with an actionable error.
+The compiler does not perform texture hallucination or hidden-geometry recovery.
 
 ### 4. Generation Providers
 
