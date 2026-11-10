@@ -93,15 +93,37 @@ def _derived_trace(edit_root: ET.Element, groups: list[ET.Element],
 
 def render_edit_master(edit_svg: Path, outdir: Path, stem: str,
                        width: int | None = None,
-                       height: int | None = None) -> tuple[Path, Path, list[str]]:
+                       height: int | None = None,
+                       expected_ids: list[str] | None = None) -> tuple[Path, Path, list[str]]:
     root = ET.parse(edit_svg).getroot()
     if root.attrib.get("data-contract") != "semantic-edit":
         raise ValueError("edit master must use data-contract=\"semantic-edit\"")
+    for child in root:
+        if (child.tag.rsplit("}", 1)[-1] == "g"
+                and child.attrib.get("data-role") != "text"
+                and not child.attrib.get("data-element")):
+            raise ValueError("semantic group is missing data-element")
     groups = _direct_groups(root)
     ids = [g.attrib["data-element"] for g in groups]
     if not groups:
         raise ValueError("edit master contains no data-element groups")
+    if len(ids) != len(set(ids)):
+        seen = set()
+        dupes = set()
+        for eid in ids:
+            if eid in seen:
+                dupes.add(eid)
+            else:
+                seen.add(eid)
+        dupes = sorted(dupes)
+        raise ValueError("duplicate semantic IDs: %s" % dupes)
+    if expected_ids is not None and set(ids) != set(expected_ids):
+        raise ValueError("edit master IDs differ from release: missing=%s extra=%s"
+                         % (sorted(set(expected_ids) - set(ids)),
+                            sorted(set(ids) - set(expected_ids))))
     W, H, vx, vy = _root_size(root, width, height)
+    if W <= 0 or H <= 0:
+        raise ValueError("edit master dimensions must be positive")
     outdir.mkdir(parents=True, exist_ok=True)
     render_path = outdir / (stem + "_edit_render.png")
     trace_path = outdir / (stem + "_derived_trace.svg")
@@ -139,7 +161,9 @@ def build_visual(edit_svg: Path, manifest_path: Path, outdir: Path, stem: str,
         bitmap = source_manifest.get("truth_source", {}).get("bitmap", {}).get("path")
         if bitmap:
             width, height = Image.open(bitmap).size
-    render, trace, ids = render_edit_master(edit_svg, outdir, stem, width, height)
+    expected_ids = source_manifest.get("element_ids") or None
+    render, trace, ids = render_edit_master(
+        edit_svg, outdir, stem, width, height, expected_ids)
     cells = {
         "draft": "8,plate=6,default=4",
         "balanced": "background=8,plate=6,default=4",
@@ -214,7 +238,8 @@ def main() -> int:
             width, height = Image.open(bitmap).size
     if a.trace_only:
         render, trace, ids = render_edit_master(
-            Path(a.edit).resolve(), Path(a.outdir).resolve(), a.stem, width, height)
+            Path(a.edit).resolve(), Path(a.outdir).resolve(), a.stem, width, height,
+            manifest.get("element_ids") or None)
         print("edit render=%s trace=%s ids=%d" % (render, trace, len(ids)))
         return 0
     data = build_visual(Path(a.edit).resolve(), Path(a.manifest).resolve(),

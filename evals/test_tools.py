@@ -2254,6 +2254,43 @@ def test_edit_to_visual_rebuild():
         assert hashlib.sha256(path.read_bytes()).hexdigest() == item["sha256"]
 
 
+@case("edit_to_visual_guards",
+      "Malformed, duplicate, empty, or wrong-contract edit masters fail before manifest")
+def test_edit_to_visual_guards():
+    import json
+    import re
+
+    tmp = Path(tempfile.mkdtemp(prefix="hep_e2vguard_"))
+    src, trace, env = _semantic_release_fixture(tmp)
+    out = tmp / "release"
+    r = _run_semantic_release(src, trace, out, env, "--preset", "draft")
+    assert r.returncode == 0, r.stdout + r.stderr
+    manifest = out / "fig_release.json"
+    data = json.loads(manifest.read_text(encoding="utf-8"))
+    base = Path(data["artifacts"]["edit_master"]["path"]).read_text(encoding="utf-8")
+    cases = {
+        "missing": base.replace('data-element="nucleus"', 'data-element=""'),
+        "duplicate": base.replace('data-element="plate"', 'data-element="nucleus"'),
+        "empty": re.sub(
+            r'(<g\b(?=[^>]*\bdata-element="nucleus")[^>]*?)(>)',
+            r'\1 display="none">', base, count=1),
+        "contract": base.replace('data-contract="semantic-edit"',
+                                 'data-contract="wrong"'),
+    }
+    for name, svg in cases.items():
+        edit = tmp / (name + ".svg")
+        edit.write_text(svg, encoding="utf-8")
+        dest = tmp / ("out_" + name)
+        r = subprocess.run(
+            [sys.executable, str(SCRIPTS / "edit_to_visual.py"),
+             "--edit", str(edit), "--manifest", str(manifest),
+             "--outdir", str(dest), "--stem", "bad"],
+            capture_output=True, text=True, encoding="utf-8", errors="replace",
+            env=env, timeout=120)
+        assert r.returncode != 0, name + " should fail"
+        assert not (dest / "bad_edit_release.json").exists(), name
+
+
 if __name__ == "__main__":
     sys.exit(main())
 
