@@ -508,6 +508,8 @@ python3 scripts/svg_repro_check.py --svg fig.svg --png fig.png \
 6. **闸口②**：`check_sketch.py --sketch <草图>` 再跑一次；再 `gate3d_rank.py --require-all`、`axis_gate.py`、`check_3d_generic.py`。
 7. **位图 → 矢量**：固定三步 —— ① 客户确认的位图；② `raster_to_vector_semantic.py` 逐像素**临摹**（`<g data-element>` 语义层）；③ `trace_rebuild.py` **从临摹层重建**。**几何只来自临摹层**，禁止再走“颜色阈值 ∩ 包围盒”重抠（v37 教训）。
    - 默认交付 **③-B 光滑档**（`shade_smooth.py`）+ **③-A 对象档**；要“点一下 = 一个物理结构”加 `pick_layer.py`。
+   - 同色对象先用 `semantic_conflicts.py` 审计，再用 `semantic_competition.py` 生成边界带竞争结果；原 elmap 保留，competed 结果及置信度单独落盘。
+   - 用 `semantic_release.py` 一次生成 edit / visual / pick 三产物与 manifest，再用 `release_gate.py` 校验。visual master 用于投稿 PDF，edit master 用于后续修改，pick layer 只承担点选。
    - 文字必须真 `<text>`；边界用 `svg_spline.py --method subpixel`（默认，亚像素等值线），`vtracer` 只作对照。
    - 判好坏看**元素自身 MAE**，不看全图 MAE；cairosvg 不画 `<mask>`，验 MAE 用 Edge/Chrome。
 
@@ -699,5 +701,6 @@ python3 scripts/auto_converge.py --ref 参考图.png \
 
 - 生成与闸门：`gen_figure.py`、`ref_guard.py`、`ladder_gate.py`、`ir_scope_gate.py`、`ir_layout_guard.py`、`keep_gate.py`、`element_list.py`、`choice_gate.py`、`check_sketch.py`、`gate3d_rank.py`、`axis_gate.py`、`check_3d_generic.py`、`check_delivery.py`、`preview.py`、`init_workspace.py`
 - 位图 → 矢量：`raster_to_vector_semantic.py`、`trace_rebuild.py`、`svg_spline.py`、`shade_smooth.py`、`pick_layer.py`
+- 语义发布：`semantic_conflicts.py`、`semantic_competition.py`、`semantic_release.py`、`release_gate.py`
 - 诊断与返修：`check_render.py`、`compare_ref.py`、`style_bench.py`、`repair_brief.py`、`audit_composition.py`
 - 其余（IR、拼版、复现、工具探测）见 `references/scripts.md`。

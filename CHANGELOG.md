@@ -1,5 +1,16 @@
 # 变更记录
 
+## v4.27 — 2026-11-11
+
+**位图→矢量改为可审计的语义发布链；同色边界有独立竞争结果，三类产物职责不再混在一个 SVG 中。**
+
+- `semantic_conflicts.py`：新增 `conflicts-v1` 报告，审计同色、弱边缘和 z-order 冲突。
+- `semantic_competition.py`：边界带确定性竞争；保护物体核心、限制面积变化、拒绝拓扑断连；输出 competed elmap、置信度、报告和叠加图。
+- `semantic_release.py`：统一生成 `edit-master`、`visual-master`、`visual-pick` 与 `release-v1` manifest；记录源文件、冲突报告和产物哈希。
+- `release_gate.py`：校验哈希、语义 ID、嵌入位图、真文字和拾取目标；渲染器缺失时报 `unavailable`，不冒充通过。
+- 推荐流程：`semantic_conflicts` → `semantic_competition` → 用 competed elmap 临摹 → `semantic_release` → `release_gate`。
+- 投稿用 visual master；修改形状/基色用 edit master 后重建；点击整物体由 pick layer 完成。
+
 ## v4.26 — 2026-10-21
 
 **B 档把 IR 的形体/材质写进了简报，整条阶梯从 B 起被锁死；规则从 `AGENTS.md` 搬进 skill 并变成硬闸门。**

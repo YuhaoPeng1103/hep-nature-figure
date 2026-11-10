@@ -2113,6 +2113,33 @@ def test_semantic_release_conflict_provenance():
     assert report["schema"] == "hep-nature-figure/conflicts-v1"
 
 
+@case("semantic_release_workspace_integration",
+      "Workspace shims and skill documentation expose the release workflow")
+def test_semantic_release_workspace_integration():
+    import os
+    tmp = Path(tempfile.mkdtemp(prefix="hep_semws_"))
+    env = os.environ.copy()
+    env["PYTHONUTF8"] = "1"
+    env["PYTHONIOENCODING"] = "utf-8"
+    r = subprocess.run(
+        [sys.executable, str(SCRIPTS / "init_workspace.py"), "--dir", str(tmp)],
+        capture_output=True, text=True, encoding="utf-8", errors="replace",
+        env=env, timeout=120)
+    assert r.returncode == 0, r.stdout + r.stderr
+    for name in ("semantic_release", "semantic_conflicts",
+                 "semantic_competition", "release_gate"):
+        shim = tmp / "tools" / (name + ".py")
+        assert shim.exists(), shim
+        h = subprocess.run([sys.executable, str(shim), "--help"],
+                           capture_output=True, text=True, encoding="utf-8",
+                           errors="replace", env=env, timeout=30)
+        assert h.returncode == 0, name + "\n" + h.stdout + h.stderr
+    skill = (SCRIPTS.parent / "SKILL.md").read_text(encoding="utf-8")
+    refs = (SCRIPTS.parent / "references" / "scripts.md").read_text(encoding="utf-8")
+    assert "semantic_release.py" in skill and "release_gate.py" in skill
+    assert "semantic_conflicts.py" in refs and "semantic_competition.py" in refs
+
+
 if __name__ == "__main__":
     sys.exit(main())
 
