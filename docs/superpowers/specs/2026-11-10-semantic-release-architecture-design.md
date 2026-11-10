@@ -1,7 +1,7 @@
 # Semantic Release Architecture
 
 Date: 2026-11-10
-Status: draft for user review
+Status: approved 2026-11-11
 
 ## Goal
 
