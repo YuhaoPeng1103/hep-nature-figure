@@ -8,8 +8,10 @@
 - `semantic_competition.py`：边界带确定性竞争；保护物体核心、限制面积变化、拒绝拓扑断连；输出 competed elmap、置信度、报告和叠加图。
 - `semantic_release.py`：统一生成 `edit-master`、`visual-master`、`visual-pick` 与 `release-v1` manifest；记录源文件、冲突报告和产物哈希。
 - `release_gate.py`：校验哈希、语义 ID、嵌入位图、真文字和拾取目标；渲染器缺失时报 `unavailable`，不冒充通过。
+- `edit_to_visual.py`：从修改后的 edit master 重新渲染语义掩膜、派生 trace、visual master 和 pick；支持改色、平移、缩放和适度形变，明确拒绝空掩膜、ID 漂移和不支持的输入。
 - 推荐流程：`semantic_conflicts` → `semantic_competition` → 用 competed elmap 临摹 → `semantic_release` → `release_gate`。
 - 投稿用 visual master；修改形状/基色用 edit master 后重建；点击整物体由 pick layer 完成。
+- 完全遮挡、amodal 补全与统一“既可像素复现又可任意编辑”的表示不在当前范围。
 
 ## v4.26 — 2026-10-21
 

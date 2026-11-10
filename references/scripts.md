@@ -42,6 +42,7 @@
 | `semantic_competition.py` | 在冲突边界带上做确定性随机游走竞争；固定保护核、限制面积变化、拒绝断连，输出 `*_competed.npy`、置信度、改动报告与叠加图 |
 | `semantic_release.py` | **三产物唯一入口**：生成 `_edit.svg`（semantic-edit）、`_visual_mesh.svg`（pixel-fidelity）、`_visual_pick.svg`（object-pick）和 `release-v1` manifest；记录 bitmap/trace/IR 与冲突报告哈希 |
 | `release_gate.py` | 校验 manifest 哈希、元素 ID 一致性、无嵌入位图、真文字、拾取目标；缺少渲染对比时明确报 `unavailable` |
+| `edit_to_visual.py` | 修改后的 edit master → 每元素掩膜/派生 trace → visual master + pick + `edit-to-visual-v1` manifest；不合成遮挡或隐藏纹理 |
 | `pick_verify.py` | **★★ 拾取层验收（v4.10）**：把拾取层每条路径**单独栅格化**，出三张表 —— 覆盖表（`covered` / `extra` / `empty` / **`unc smooth|text`**）、探针表（位图上是甚么 vs 点一下选中甚么，`不符 = 0` 才算过）、子物体表（面积 / 合并块 / 编号地图）。★ 它把 `cli >> json` 也存下来，可直接进交付说明 |
 | `smooth_metric.py` | **★ 光滑判据（v4.10）**：只在**位图本身就是平滑**的像素上（相邻步长 ≤3、行列双向都满足，再内缩 7 px）量成品与位图的相邻像素最大通道差 —— mean / p99 / **>8 占比** / max。实测光滑档 1.19（位图自己 1.21，不可区分）vs VTracer 43.67。★ MAE 会把一条硬边摊薄，这条不会 |
 | `axonometric.py` | **★ 正交相机 + 校验（v4.0）**：给 `(az, el, roll)` 算三轴的屏幕方向与前缩；`--check` 打印 `\|r\|`、`\|u\|`、`r·u` 判它是不是**合法投影**（手挑三轴方向 = 斜投影，`\|r\|≠1`、`r·u≠0`，眼睛读它就叫「扁」）。★ 它**向上为正**，填 IR 的 `轴方向_deg` 要取负 |

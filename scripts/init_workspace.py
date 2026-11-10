@@ -28,6 +28,7 @@ SHIMS = [
     "sketch_handoff", "sketch_ingest", "sketch_to_vector", "trim_border",
     "ir_to_genbrief", "brief_lite", "raster_to_vector_semantic", "trace_rebuild",
     "semantic_conflicts", "semantic_competition", "semantic_release", "release_gate",
+    "edit_to_visual",
     "gen_figure",
 ]
 
@@ -129,6 +130,7 @@ IR 的版式 / 材质偏好**不构成物理要求**。
 审计/复核同色边界 → ② `raster_to_vector_semantic.py` 用 competed elmap 临摹
 （`<g data-element>`）→ ③ `semantic_release.py` 同时生成 edit/visual/pick 三个产物，
 `release_gate.py` 校验。几何只来自临摹层，禁止再按颜色阈值抠轮廓。
+修改 `edit-master` 后运行 `edit_to_visual.py`，从编辑产物重建 visual/pick。
 交付贴 `位图 | 临摹 | 重建` 三联图。
 
 ## 10. 交付强制项

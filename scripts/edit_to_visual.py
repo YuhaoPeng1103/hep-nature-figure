@@ -43,18 +43,40 @@ def _render(root: ET.Element, width: int, height: int,
     return np.asarray(Image.open(io.BytesIO(png)).convert("RGBA"))
 
 
-def _direct_groups(root: ET.Element) -> list[ET.Element]:
-    return [child for child in list(root)
-            if child.attrib.get("data-element")]
+def _semantic_groups(root: ET.Element) -> list[ET.Element]:
+    return [node for node in root.iter()
+            if node.tag.rsplit("}", 1)[-1] == "g"
+            and node.attrib.get("data-element")]
+
+
+def _path_to(root: ET.Element, target: ET.Element,
+             path: tuple[int, ...] = ()) -> tuple[int, ...] | None:
+    if root is target:
+        return path
+    for index, child in enumerate(list(root)):
+        found = _path_to(child, target, path + (index,))
+        if found is not None:
+            return found
+    return None
 
 
 def _single_group(root: ET.Element, target: ET.Element) -> ET.Element:
-    target_index = list(root).index(target)
+    path = _path_to(root, target)
+    if path is None:
+        raise ValueError("target group is not in edit tree")
     clone = copy.deepcopy(root)
-    for index, child in enumerate(list(clone)):
-        if index == target_index or child.tag.rsplit("}", 1)[-1] == "defs":
-            continue
-        clone.remove(child)
+
+    def prune(node: ET.Element, remaining: tuple[int, ...]) -> None:
+        if not remaining:
+            return
+        keep = remaining[0]
+        for index, child in enumerate(list(node)):
+            if index == keep:
+                prune(child, remaining[1:])
+            elif child.tag.rsplit("}", 1)[-1] != "defs":
+                node.remove(child)
+
+    prune(clone, path)
     return clone
 
 
@@ -85,9 +107,9 @@ def _derived_trace(edit_root: ET.Element, groups: list[ET.Element],
             "data-label": group.attrib.get("data-label", ""),
         })
         ET.SubElement(g, "{%s}path" % SVG_NS, {"d": d, "fill": fill})
-    for child in edit_root:
-        if child.attrib.get("data-role") == "text":
-            out.append(copy.deepcopy(child))
+    for node in edit_root.iter():
+        if node.attrib.get("data-role") == "text":
+            out.append(copy.deepcopy(node))
     return out
 
 
@@ -98,12 +120,7 @@ def render_edit_master(edit_svg: Path, outdir: Path, stem: str,
     root = ET.parse(edit_svg).getroot()
     if root.attrib.get("data-contract") != "semantic-edit":
         raise ValueError("edit master must use data-contract=\"semantic-edit\"")
-    for child in root:
-        if (child.tag.rsplit("}", 1)[-1] == "g"
-                and child.attrib.get("data-role") != "text"
-                and not child.attrib.get("data-element")):
-            raise ValueError("semantic group is missing data-element")
-    groups = _direct_groups(root)
+    groups = _semantic_groups(root)
     ids = [g.attrib["data-element"] for g in groups]
     if not groups:
         raise ValueError("edit master contains no data-element groups")

@@ -1817,10 +1817,12 @@ def _semantic_release_fixture(tmp):
     trace = tmp / "trace.svg"
     trace.write_text(
         '<svg xmlns="http://www.w3.org/2000/svg" width="96" height="64" viewBox="0 0 96 64">'
+        '<g id="figure" data-role="figure">'
         '<g id="background" data-element="background"><path d="M0 0H96V64H0Z" fill="#ffffff"/></g>'
         '<g id="plate" data-element="plate"><rect x="8" y="24" width="80" height="32" fill="#b8bcc4"/></g>'
         '<g id="nucleus" data-element="nucleus"><ellipse cx="48" cy="32" rx="14" ry="14" fill="#315da8"/></g>'
         '<g data-role="text"><text x="4" y="10" font-family="Arial" font-size="6">A</text></g>'
+        "</g>"
         "</svg>",
         encoding="utf-8",
     )
@@ -2150,7 +2152,7 @@ def test_semantic_release_workspace_integration():
         env=env, timeout=120)
     assert r.returncode == 0, r.stdout + r.stderr
     for name in ("semantic_release", "semantic_conflicts",
-                 "semantic_competition", "release_gate"):
+                 "semantic_competition", "release_gate", "edit_to_visual"):
         shim = tmp / "tools" / (name + ".py")
         assert shim.exists(), shim
         h = subprocess.run([sys.executable, str(shim), "--help"],
@@ -2161,6 +2163,7 @@ def test_semantic_release_workspace_integration():
     refs = (SCRIPTS.parent / "references" / "scripts.md").read_text(encoding="utf-8")
     assert "semantic_release.py" in skill and "release_gate.py" in skill
     assert "semantic_conflicts.py" in refs and "semantic_competition.py" in refs
+    assert "edit_to_visual.py" in skill and "edit_to_visual.py" in refs
 
 
 @case("edit_to_visual_trace",
