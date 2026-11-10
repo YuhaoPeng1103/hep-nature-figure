@@ -216,6 +216,8 @@ def main() -> int:
         "fidelity": ("3", "24", "10", "background=6,plate=4,default=2"),
     }
     band, nstop, dev_keep, cell = presets[a.preset]
+    built_edit = False
+    built_visual = False
 
     if not a.visual_only:
         cmd = [
@@ -229,6 +231,7 @@ def main() -> int:
         if a.elements:
             cmd += ["--elements", a.elements]
         run(cmd, a.dry_run)
+        built_edit = not a.dry_run and edit.exists()
 
     if not a.edit_only:
         cmd = [
@@ -240,25 +243,26 @@ def main() -> int:
         if a.size:
             cmd += ["--size", a.size]
         run(cmd, a.dry_run)
+        built_visual = not a.dry_run and visual.exists()
 
     if a.dry_run:
         return 0
-    for path, role, contract in (
-        (edit, "edit-master", "semantic-edit"),
-        (visual, "visual-master", "pixel-fidelity"),
+    for path, role, contract, built in (
+        (edit, "edit-master", "semantic-edit", built_edit),
+        (visual, "visual-master", "pixel-fidelity", built_visual),
     ):
-        if path.exists():
+        if built:
             path.write_text(tag_root(path.read_text(encoding="utf-8"), role, contract),
                             encoding="utf-8")
 
-    if not edit.exists() and not visual.exists():
+    if not built_edit and not built_visual:
         raise SystemExit("no artifact was built")
     ids = []
-    if edit.exists() and visual.exists():
+    if built_edit and built_visual:
         ids = validate_element_sets(edit, visual)
-    elif edit.exists():
+    elif built_edit:
         ids = element_ids(edit.read_text(encoding="utf-8"))
-    elif visual.exists():
+    elif built_visual:
         ids = element_ids(visual.read_text(encoding="utf-8"))
 
     audit_record, audit_high = report_record(
@@ -272,7 +276,7 @@ def main() -> int:
             % unresolved_high_risk)
 
     pick_source = "none"
-    if not a.no_pick and visual.exists():
+    if not a.no_pick and built_visual:
         if a.pick_sil:
             sil = Path(a.pick_sil).resolve()
             pick_source = "declared_amodal"
@@ -302,12 +306,12 @@ def main() -> int:
         "element_ids": ids,
         "artifacts": {
             "edit_master": (artifact_record(edit, "edit-master", "semantic-edit")
-                            if edit.exists() and not a.visual_only else None),
+                            if built_edit else None),
             "visual_master": (artifact_record(visual, "visual-master", "pixel-fidelity")
-                              if visual.exists() and not a.edit_only else None),
+                              if built_visual else None),
             "visual_pick": (artifact_record(pick, "visual-pick", "object-pick",
                                             completion=pick_source)
-                            if pick.exists() and not a.edit_only else None),
+                            if built_visual and pick.exists() and not a.no_pick else None),
         },
         "semantic_audit": audit_record,
         "semantic_competition": competition_record,

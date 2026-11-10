@@ -51,10 +51,42 @@ def _neighbour_pairs(lab: np.ndarray) -> list[tuple[int, int]]:
     return sorted(pairs)
 
 
-def _robust_model(lab_img: np.ndarray, mask: np.ndarray) -> np.ndarray:
-    core = ndimage.binary_erosion(mask, iterations=2)
-    points = lab_img[core] if core.any() else lab_img[mask]
-    return np.median(points, axis=0)
+def pair_window(lab: np.ndarray, ka: int, kb: int, band: int,
+                margin: int = 2) -> tuple[slice, slice]:
+    """Bounding window around the pair's boundary band."""
+    ma, mb = lab == ka, lab == kb
+    band_mask = ((ma & ndimage.binary_dilation(mb, iterations=band))
+                 | (mb & ndimage.binary_dilation(ma, iterations=band)))
+    ys, xs = np.nonzero(band_mask)
+    if not len(ys):
+        return slice(0, lab.shape[0]), slice(0, lab.shape[1])
+    y0, y1 = max(0, int(ys.min()) - margin), min(lab.shape[0], int(ys.max()) + margin + 1)
+    x0, x1 = max(0, int(xs.min()) - margin), min(lab.shape[1], int(xs.max()) + margin + 1)
+    return slice(y0, y1), slice(x0, x1)
+
+
+def apply_z_prior(proposal: np.ndarray, confidence: np.ndarray, ka: int, kb: int,
+                  front: int, roi: np.ndarray, threshold: float = 0.12
+                  ) -> np.ndarray:
+    """Give the declared front object ownership of low-confidence ties."""
+    if front not in (ka, kb):
+        return proposal
+    out = proposal.copy()
+    tie = roi & (confidence < threshold)
+    out[tie] = front
+    return out
+
+
+def _ir_z(elements: list[dict], name: str) -> float | None:
+    for elem in elements:
+        eid = str(elem.get("id", ""))
+        ename = str(elem.get("name", ""))
+        if name == eid or (eid and eid in name) or (ename and ename in name):
+            try:
+                return float(elem.get("z"))
+            except (TypeError, ValueError):
+                return None
+    return None
 
 
 def resolve_conflicts(src: np.ndarray, lab: np.ndarray, names: list[str],
@@ -78,12 +110,13 @@ def resolve_conflicts(src: np.ndarray, lab: np.ndarray, names: list[str],
     confidence = np.ones(base.shape, dtype=np.float32)
     records: list[dict] = []
     pair_index = {(str(p.get("a", "")), str(p.get("b", ""))): p for p in pairs}
-    by_name = {name: idx for idx, name in enumerate(names)}
 
     candidate_pairs = []
     for ka, kb in _neighbour_pairs(base):
         names_ab = (names[ka], names[kb])
-        if names_ab in pair_index:
+        if not pair_index:
+            candidate_pairs.append((ka, kb, {}))
+        elif names_ab in pair_index:
             candidate_pairs.append((ka, kb, pair_index[names_ab]))
         elif (names_ab[1], names_ab[0]) in pair_index:
             candidate_pairs.append((ka, kb, pair_index[(names_ab[1], names_ab[0])]))
@@ -102,24 +135,38 @@ def resolve_conflicts(src: np.ndarray, lab: np.ndarray, names: list[str],
         roi = (ma & near_b) | (mb & near_a)
         if not roi.any():
             continue
+        ys, xs = pair_window(result, ka, kb, band)
         known = np.zeros(base.shape, dtype=np.int8)
-        known[cores[ka]] = 1
-        known[cores[kb]] = 2
-        if not (known == 1).any() or not (known == 2).any():
+        seed_zone = ndimage.binary_dilation(roi, iterations=max(2, band))
+        known[cores[ka] & seed_zone] = 1
+        known[cores[kb] & seed_zone] = 2
+        known_crop = known[ys, xs]
+        if not (known_crop == 1).any() or not (known_crop == 2).any():
             continue
         try:
             with warnings.catch_warnings():
                 warnings.filterwarnings("ignore", message="The probability range is outside")
-                prob = random_walker(lab_img, known, beta=120, mode="cg_j",
+                prob = random_walker(lab_img[ys, xs], known_crop, beta=120, mode="cg_j",
                                      return_full_prob=True, channel_axis=-1,
                                      tol=1e-2, prob_tol=1e-2)
             prob = np.clip(prob, 0.0, 1.0)
-            proposal = np.where(prob[1] > prob[0], kb, ka).astype(np.int32)
+            proposal_crop = np.where(prob[1] > prob[0], kb, ka).astype(np.int32)
+            local_conf_crop = np.abs(prob[1] - prob[0]).astype(np.float32)
+            za, zb = _ir_z(ir_elements, names[ka]), _ir_z(ir_elements, names[kb])
+            front = None
+            if za is not None and zb is not None and za != zb:
+                front = ka if za > zb else kb
+            if front is not None:
+                proposal_crop = apply_z_prior(
+                    proposal_crop, local_conf_crop, ka, kb, front,
+                    roi[ys, xs])
         except Exception as exc:
             records.append({"a": names[ka], "b": names[kb], "status": "rejected",
                             "reason": "solver_failed: %s" % exc})
             continue
 
+        proposal = result.copy()
+        proposal[ys, xs] = proposal_crop
         changed = roi & (proposal != base)
         boundary = roi & (
             (ndimage.binary_dilation(proposal == ka, iterations=1)
@@ -135,7 +182,8 @@ def resolve_conflicts(src: np.ndarray, lab: np.ndarray, names: list[str],
         )
         topology_ok = (preserves_protected_core(trial, cores[ka], ka)
                        and preserves_protected_core(trial, cores[kb], kb))
-        local_conf = np.abs(prob[1] - prob[0]).astype(np.float32)
+        local_conf = np.zeros(base.shape, dtype=np.float32)
+        local_conf[ys, xs] = local_conf_crop
         confidence[roi] = np.minimum(confidence[roi], local_conf[roi])
         accepted = bool(changed.any() and edge_support >= 0.45
                         and area_ok and topology_ok)
@@ -155,6 +203,7 @@ def resolve_conflicts(src: np.ndarray, lab: np.ndarray, names: list[str],
             "a": names[ka], "b": names[kb], "status": status, "reason": reason,
             "changed_px": int(changed.sum()), "edge_support": round(edge_support, 4),
             "area_change_ok": bool(area_ok), "topology_ok": bool(topology_ok),
+            "z_prior": names[front] if front is not None else None,
         })
 
     return result, np.clip(confidence, 0.0, 1.0), records

@@ -1878,6 +1878,15 @@ def test_semantic_release_partial_modes():
         assert r.returncode == 0, mode + "\n" + r.stdout + r.stderr
         assert not (out / absent).exists(), (mode, absent)
 
+    out = tmp / "stale_reuse"
+    r = _run_semantic_release(src, trace, out, env, "--preset", "draft")
+    assert r.returncode == 0, r.stdout + r.stderr
+    visual = out / "fig_visual_mesh.svg"
+    visual.write_text(visual.read_text(encoding="utf-8").replace(
+        'data-element="nucleus"', 'data-element="stale-nucleus"'), encoding="utf-8")
+    r = _run_semantic_release(src, trace, out, env, "--edit-only")
+    assert r.returncode == 0, "unrequested stale artifact must not break edit-only"
+
 
 @case("semantic_release_fails_closed",
       "Mismatched IDs and stale manifest hashes fail validation")
@@ -2027,6 +2036,12 @@ def test_semantic_competition_same_colour():
     assert xs.min() <= 43, "same-colour boundary did not move to the visible seam"
     assert any(r["status"] == "accepted" for r in rows), rows
 
+    out2, _, rows2 = SC.resolve_conflicts(
+        src, lab, ["left", "right"], [], [], band=12, max_area_change=0.35)
+    assert np.nonzero((out2 == 1).any(axis=0))[0].min() <= 43, \
+        "without an audit JSON the resolver must still consider adjacent pairs"
+    assert any(r["status"] == "accepted" for r in rows2), rows2
+
 
 @case("semantic_competition_guards",
       "No-evidence ambiguity stays unresolved and topology-breaking changes are rejected")
@@ -2042,6 +2057,14 @@ def test_semantic_competition_guards():
     assert np.array_equal(out, lab), "zero-evidence pixels must keep original ownership"
     assert confidence[:, 26:34].max() < 0.75, "ambiguous band must be low confidence"
     assert rows and all(r["status"] != "accepted" for r in rows)
+    ys, xs = SC.pair_window(lab, 0, 1, band=6)
+    area = (ys.stop - ys.start) * (xs.stop - xs.start)
+    assert area < lab.size * 0.9, "solver must crop to the boundary band, not the full canvas"
+    proposal = np.array([[0, 1, 0, 1]], dtype=np.int32)
+    conf = np.zeros_like(proposal, dtype=np.float32)
+    biased = SC.apply_z_prior(proposal, conf, 0, 1, 1,
+                              np.ones_like(proposal, dtype=bool))
+    assert np.all(biased == 1), "declared front object must win low-confidence ties"
 
     base = np.zeros((40, 20), dtype=np.int32)
     base[:, 8:12] = 1
