@@ -2003,6 +2003,54 @@ def test_release_gate_renderer_unavailable():
     assert data["render_check"] == "unavailable"
 
 
+@case("semantic_competition_same_colour",
+      "Visible edge moves a same-colour boundary without changing protected cores")
+def test_semantic_competition_same_colour():
+    import numpy as np
+    from scipy import ndimage
+    import semantic_competition as SC
+
+    src = np.full((60, 80, 3), 100, dtype=np.uint8)
+    src[:, 42] = 55
+    lab = np.zeros((60, 80), dtype=np.int32)
+    lab[:, 50:] = 1
+    cores = {
+        0: ndimage.binary_erosion(lab == 0, iterations=8),
+        1: ndimage.binary_erosion(lab == 1, iterations=8),
+    }
+    pairs = [{"a": "left", "b": "right", "same_colour": True}]
+    out, confidence, rows = SC.resolve_conflicts(
+        src, lab, ["left", "right"], [], pairs, band=12, max_area_change=0.35)
+    assert out.shape == lab.shape and confidence.shape == lab.shape
+    assert np.all(out[cores[0]] == 0) and np.all(out[cores[1]] == 1)
+    xs = np.nonzero((out == 1).any(axis=0))[0]
+    assert xs.min() <= 43, "same-colour boundary did not move to the visible seam"
+    assert any(r["status"] == "accepted" for r in rows), rows
+
+
+@case("semantic_competition_guards",
+      "No-evidence ambiguity stays unresolved and topology-breaking changes are rejected")
+def test_semantic_competition_guards():
+    import numpy as np
+    import semantic_competition as SC
+
+    src = np.full((40, 60, 3), 128, dtype=np.uint8)
+    lab = np.zeros((40, 60), dtype=np.int32)
+    lab[:, 30:] = 1
+    out, confidence, rows = SC.resolve_conflicts(
+        src, lab, ["a", "b"], [], [{"a": "a", "b": "b"}], band=6)
+    assert np.array_equal(out, lab), "zero-evidence pixels must keep original ownership"
+    assert confidence[:, 26:34].max() < 0.75, "ambiguous band must be low confidence"
+    assert rows and all(r["status"] != "accepted" for r in rows)
+
+    base = np.zeros((40, 20), dtype=np.int32)
+    base[:, 8:12] = 1
+    broken = base.copy()
+    broken[8:32, 8:12] = 0
+    assert not SC.preserves_protected_core(broken, base, 1), \
+        "relabel that disconnects a protected object must be rejected"
+
+
 if __name__ == "__main__":
     sys.exit(main())
 
