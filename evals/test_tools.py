@@ -1910,6 +1910,99 @@ def test_semantic_release_fails_closed():
     assert rv.returncode != 0, "stale artifact hash must fail validation"
 
 
+def _run_release_gate(manifest, outdir, env, *extra):
+    report = outdir / "gate.json"
+    r = subprocess.run(
+        [sys.executable, str(SCRIPTS / "release_gate.py"),
+         "--manifest", str(manifest), "--json", str(report), *extra],
+        capture_output=True, text=True, encoding="utf-8", errors="replace",
+        env=env, timeout=120)
+    return r, report
+
+
+def _refresh_release_hashes(manifest_path):
+    import hashlib
+    import json
+    data = json.loads(manifest_path.read_text(encoding="utf-8"))
+    for item in data["artifacts"].values():
+        if item:
+            path = Path(item["path"])
+            item["bytes"] = path.stat().st_size
+            item["sha256"] = hashlib.sha256(path.read_bytes()).hexdigest()
+    manifest_path.write_text(json.dumps(data, ensure_ascii=False, indent=1),
+                             encoding="utf-8")
+    return data
+
+
+@case("release_gate_contracts",
+      "Gate checks hashes, IDs, raster, true text, and pick groups")
+def test_release_gate_contracts():
+    import json
+    tmp = Path(tempfile.mkdtemp(prefix="hep_relgate_"))
+    src, trace, env = _semantic_release_fixture(tmp)
+    out = tmp / "out"
+    r = _run_semantic_release(src, trace, out, env, "--preset", "draft")
+    assert r.returncode == 0, r.stdout + r.stderr
+    manifest = out / "fig_release.json"
+    ok, report = _run_release_gate(manifest, out, env)
+    assert ok.returncode == 0, ok.stdout + ok.stderr
+    assert json.loads(report.read_text(encoding="utf-8"))["ok"] is True
+
+    data = json.loads(manifest.read_text(encoding="utf-8"))
+    visual = Path(data["artifacts"]["visual_master"]["path"])
+    edit = Path(data["artifacts"]["edit_master"]["path"])
+    pick = Path(data["artifacts"]["visual_pick"]["path"])
+
+    original = {p: p.read_text(encoding="utf-8") for p in (edit, visual, pick)}
+
+    visual.write_text(visual.read_text(encoding="utf-8").replace(
+        "</svg>", '<image href="data:image/png;base64,AA=="/></svg>'), encoding="utf-8")
+    _refresh_release_hashes(manifest)
+    bad, _ = _run_release_gate(manifest, out, env)
+    assert bad.returncode != 0 and "embedded raster" in (bad.stdout + bad.stderr).lower()
+
+    for p, txt in original.items():
+        p.write_text(txt, encoding="utf-8")
+    visual.write_text(original[visual].replace('data-element="nucleus"',
+                                                'data-element="not-nucleus"'),
+                      encoding="utf-8")
+    _refresh_release_hashes(manifest)
+    bad, _ = _run_release_gate(manifest, out, env)
+    assert bad.returncode != 0 and "element" in (bad.stdout + bad.stderr).lower()
+
+    for p, txt in original.items():
+        p.write_text(txt, encoding="utf-8")
+    visual.write_text(original[visual].replace(">A</text>", "></text>"),
+                      encoding="utf-8")
+    _refresh_release_hashes(manifest)
+    bad, _ = _run_release_gate(manifest, out, env)
+    assert bad.returncode != 0 and "text" in (bad.stdout + bad.stderr).lower()
+
+    for p, txt in original.items():
+        p.write_text(txt, encoding="utf-8")
+    pick.write_text(original[pick].replace('data-element="nucleus"',
+                                          'data-element="removed-nucleus"'),
+                    encoding="utf-8")
+    _refresh_release_hashes(manifest)
+    bad, _ = _run_release_gate(manifest, out, env)
+    assert bad.returncode != 0 and "pick" in (bad.stdout + bad.stderr).lower()
+
+
+@case("release_gate_renderer_unavailable",
+      "Missing render comparison is unavailable, not pass")
+def test_release_gate_renderer_unavailable():
+    import json
+    tmp = Path(tempfile.mkdtemp(prefix="hep_relgate_un_"))
+    src, trace, env = _semantic_release_fixture(tmp)
+    out = tmp / "out"
+    r = _run_semantic_release(src, trace, out, env, "--preset", "draft")
+    assert r.returncode == 0, r.stdout + r.stderr
+    gate, report = _run_release_gate(out / "fig_release.json", out, env)
+    assert gate.returncode == 0, gate.stdout + gate.stderr
+    data = json.loads(report.read_text(encoding="utf-8"))
+    assert data["render_check"] == "unavailable"
+
+
 if __name__ == "__main__":
     sys.exit(main())
 
