@@ -2163,6 +2163,50 @@ def test_semantic_release_workspace_integration():
     assert "semantic_conflicts.py" in refs and "semantic_competition.py" in refs
 
 
+@case("edit_to_visual_trace",
+      "Edited SVG renders and yields a semantic trace with moved objects and real text")
+def test_edit_to_visual_trace():
+    import json
+    import re
+    import numpy as np
+    from PIL import Image
+
+    tmp = Path(tempfile.mkdtemp(prefix="hep_e2vtrace_"))
+    src, trace, env = _semantic_release_fixture(tmp)
+    out = tmp / "release"
+    r = _run_semantic_release(src, trace, out, env, "--preset", "draft")
+    assert r.returncode == 0, r.stdout + r.stderr
+    manifest = out / "fig_release.json"
+    data = json.loads(manifest.read_text(encoding="utf-8"))
+    edit = Path(data["artifacts"]["edit_master"]["path"])
+    edited = tmp / "edited.svg"
+    text = edit.read_text(encoding="utf-8")
+    text, count = re.subn(
+        r'(<g\b(?=[^>]*\bdata-element="nucleus")[^>]*?)(>)',
+        r'\1 transform="translate(12 0)">', text, count=1)
+    assert count == 1, "fixture nucleus group not found"
+    edited.write_text(text, encoding="utf-8")
+    rebuilt = tmp / "rebuilt"
+    r = subprocess.run(
+        [sys.executable, str(SCRIPTS / "edit_to_visual.py"),
+         "--edit", str(edited), "--manifest", str(manifest),
+         "--outdir", str(rebuilt), "--stem", "fig2", "--trace-only"],
+        capture_output=True, text=True, encoding="utf-8", errors="replace",
+        env=env, timeout=300)
+    assert r.returncode == 0, r.stdout + r.stderr
+    render = rebuilt / "fig2_edit_render.png"
+    derived = rebuilt / "fig2_derived_trace.svg"
+    assert render.exists() and derived.exists()
+    svg = derived.read_text(encoding="utf-8")
+    assert ">A</text>" in svg
+    for eid in ("background", "plate", "nucleus"):
+        assert 'data-element="%s"' % eid in svg
+    arr = np.asarray(Image.open(render).convert("RGB"))
+    blue = (arr[:, :, 2].astype(int) - arr[:, :, 0].astype(int)) > 35
+    ys, xs = np.nonzero(blue)
+    assert len(xs) and xs.mean() > 54, "edited nucleus did not move right"
+
+
 if __name__ == "__main__":
     sys.exit(main())
 
