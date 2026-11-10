@@ -96,6 +96,46 @@ It reports:
 Colour competition, weak edges, and z-order violations are separate readings.
 IR z-order constrains ownership; it is never treated as visible pixel evidence.
 
+### 3.1 Same-Colour Competition Resolver
+
+Add conflict resolution as a separate deterministic stage after the audit. It
+must not silently replace the original semantic map.
+
+Inputs:
+
+- source bitmap;
+- initial `elmap.npy` and element names;
+- IR element roles, primitives, materials, and z-order;
+- the audit's pairwise conflict report.
+
+For each adjacent conflicting pair, keep object cores fixed and optimize
+ownership only inside a bounded boundary band. The pixel cost combines:
+
+- distance to each class's robust Lab-colour distribution;
+- local gradient support and edge distance;
+- local texture/contrast similarity;
+- thinness and distance-transform shape prior;
+- distance from the original boundary;
+- optional declared overlap and z-order prior.
+
+The resolver uses deterministic local updates followed by topology checks. A
+candidate relabel is accepted only when it improves the weighted cost, does not
+disconnect either object's protected core, and does not exceed per-pair area
+change limits. Ambiguous pixels remain assigned to the initial map and are
+reported with confidence.
+
+Outputs are separate derived files:
+
+- `elmap_competed.npy` and `el_names_competed.txt`;
+- a confidence map;
+- a change report containing changed pixels, accepted/rejected proposals, and
+  reason codes;
+- an overlay comparing initial, accepted, and unresolved boundaries.
+
+The release manifest records the original elmap and competition-report hashes.
+The original trace remains the visible-geometry truth source; competition may
+change semantic ownership, not invent hidden geometry.
+
 ### 4. Generation Providers
 
 Add `scripts/providers/` with a provider protocol and implementations for:
@@ -203,6 +243,7 @@ brief + style refs + optional content ref
 ### Phase 1: Semantic Release Foundation
 
 - harden the existing release and conflict tools;
+- add the same-colour competition resolver and confidence output;
 - add release gate, manifest integration, workspace shims, and tests;
 - document artifact roles and source-of-truth rules.
 
@@ -237,7 +278,8 @@ Keep the session within ten grouped tests:
 2. edit-only, visual-only, and no-pick control flow;
 3. mismatched element IDs and stale hashes fail;
 4. visible-only versus declared amodal completion provenance;
-5. conflict audit on same-colour, weak-edge, and z-order synthetic cases;
+5. conflict audit and same-colour competition on synthetic cases, including
+   protected cores, topology rejection, and unresolved ambiguity;
 6. provider dry-run, capability rejection, and secret redaction;
 7. benchmark dry-run schema and fixed-input enforcement;
 8. semantic bootstrap produces elmap/names/table and flags ambiguity;
@@ -253,6 +295,8 @@ Paid provider integration is not part of automated tests.
 - The resulting manifest proves all artifacts and inputs by SHA-256.
 - `release_gate.py` catches element drift, embedded raster, missing pick groups,
   and hash mismatches.
+- Same-colour competition reduces tested high-risk boundary area without
+  changing protected object cores or inventing hidden geometry.
 - Existing generation tests remain green with DashScope as the default.
 - OpenAI and Gemini adapters pass mocked dry-run tests and are selectable without
   changing guard behavior.
