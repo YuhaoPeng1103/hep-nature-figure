@@ -57,7 +57,7 @@ AGENTS = """# AGENTS.md —— 配图工作硬规则（由 hep-nature-figure v4.
 ## 0. 唯一入口：先查后调
 
 ```bash
-python tools/ref_guard.py --run --stage sketch --brief <brief.md> --tier <A|B|C|D> --ir <IR> \\
+python tools/ref_guard.py --run --stage sketch --brief <brief.md> --tier <A|B|C|D|E> --ir <IR> \\
     --ref <风格书> -- --brief <brief.md> --stage sketch --ref <风格书> \\
     --seeds 1,2 --outdir <dir> --size 1664*909
 ```
@@ -98,7 +98,9 @@ python tools/axis_gate.py --png <草图_clean.png> --ir <IR>
 - 出成品前：`make_picker.py` → 客户点选 → `choice_gate.py --record --by client`。
 - `--by` 写 `agent/auto/codex` 一律判失败。
 
-## 6. A→B→C→D（R6）
+## 6. 提示词阶梯（R6）
+
+有作者草图时另起账本，首轮以 `--content-ref` 传入手稿：A 是手稿加一句话，B 复用该句且不给图，C 加风格图和输出约束，D 看本账本 A/B/C 各一张、以 C 为底稿替换元素，E 仅修紧邻上一稿的物理错误。具体规则见 skill 的 `references/routing.md`。无草图或继续旧账本时用原 A→D：
 
 - A：一句话（≤80 字符），默认不带 `--ref`，不进交付链。
 - B：A 的文字 + 面板序列 + 输出硬约束；**必须带 `--ref`**；不给上一档的图。

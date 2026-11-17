@@ -146,15 +146,18 @@ def classify(path: str, ws: str | None = None) -> str:
     ws = (ws or os.getcwd()).replace("\\", "/").lower().rstrip("/")
     name = low.rsplit("/", 1)[-1]
 
-    if "/hep-nature-figure/" in low:
-        tail = low.split("/hep-nature-figure/", 1)[1]
+    here = Path(__file__).resolve().parents[1].as_posix().lower().rstrip("/") + "/"
+    absolute = Path(path).resolve().as_posix().lower()
+    if absolute.startswith(here) or "/hep-nature-figure/" in low:
+        tail = absolute[len(here):] if absolute.startswith(here) else low.split("/hep-nature-figure/", 1)[1]
         if tail.startswith("assets/demos/"):
             return DEMO_FIG
         if tail.startswith("assets/t3-exemplars/") or tail.startswith("assets/style"):
             return STYLE_LIB
         if tail.startswith("assets/"):
             return SKILL_ASSET
-        return SKILL_OTHER
+        if "/hep-nature-figure/" in low:
+            return SKILL_OTHER
 
     if "/_t3" in low or low.startswith("_t3"):
         return STYLE_LIB
@@ -265,6 +268,10 @@ def render_report(stage, style, content, violations, warnings, ws, base=None):
 def parse_from_argv(argv):
     stage, style, content, ir, extra = None, [], [], None, {}
     i = 0
+    value_opts = {"--stage", "--ref", "--style-ref", "--content-ref", "--ir",
+                  "--choice", "--handoff", "--outdir", "--brief"}
+    argv = [part for arg in argv for part in
+            (arg.split("=", 1) if arg.partition("=")[0] in value_opts and "=" in arg else [arg])]
     while i < len(argv):
         a = argv[i]
         if a == "--stage" and i + 1 < len(argv):
@@ -275,7 +282,7 @@ def parse_from_argv(argv):
             content.append(argv[i + 1]); i += 2; continue
         if a == "--ir" and i + 1 < len(argv):
             ir = argv[i + 1]; i += 2; continue
-        if a in ("--choice", "--handoff") and i + 1 < len(argv):
+        if a in ("--choice", "--handoff", "--outdir", "--brief") and i + 1 < len(argv):
             extra[a] = argv[i + 1]; i += 2; continue
         i += 1
     return stage, style, content, ir, extra
@@ -531,8 +538,8 @@ def main():
     ap.add_argument("--ir", default=None, help="IR；给了就同时查「版式有没有被写死」")
     ap.add_argument("--brief", default=None,
                     help="本轮简报（.md）；给了就同时查 IR 生效范围（B 档不许出现 IR 的元素，v4.26）")
-    ap.add_argument("--tier", choices=("A", "B", "C", "D", "render"), default=None,
-                    help="提示词阶梯档位；缺省从 --outdir 的 rung 目录或 brief_[ABCD].md 推断")
+    ap.add_argument("--tier", choices=tuple("ABCDE") + ("render",), default=None,
+                    help="提示词阶梯档位；有账本时与账本核对")
     ap.add_argument("--ws", default=None, help="工作区根（默认当前目录）")
     ap.add_argument("--base", default=None, help="相对路径的解析基准（默认当前目录）")
     ap.add_argument("--json", default=None)
@@ -561,9 +568,11 @@ def main():
     ap.add_argument("--expect-plane", choices=("auto", "yes", "no"), default=None,
                     help="传给 check_3d_generic.py：这张图该不该有板面")
     ap.add_argument("--ladder-gen-dir", default=None,
-                    help="ABC 阶梯账本目录（缺省由 --outdir 往上找 ladder.json）")
+                    help="阶梯账本目录（缺省由 --outdir 往上找 ladder.json）")
+    ap.add_argument("--ladder-outdir", default=None,
+                    help="仅预检外部生图后端时填写本轮输出目录")
     ap.add_argument("--ladder-waive", default=None,
-                    help="确实要放行阶梯闸门（A→B→C）时的理由；会打印出来，交付说明必须照抄")
+                    help="确实要放行阶梯闸门时的理由；会打印出来，交付说明必须照抄")
     ap.add_argument("--run", action="store_true",
                     help="查过后直接执行 skill 的 gen_figure.py（参数放在 -- 之后）")
     a, rest = ap.parse_known_args()
@@ -571,6 +580,9 @@ def main():
     ws = os.path.abspath(a.ws or os.getcwd())
     base = os.path.abspath(a.base or os.getcwd())
     stage, style, content, ir = a.stage, list(a.ref), list(a.content_ref), a.ir
+    from ladder_gate import find_gen_dir, ladder_mode, load_ledger, rung_name, WITH_SKETCH
+    lad_out, lad_brief = a.ladder_outdir, a.brief
+    mismatch = []
     argv = None
     if a.run:
         argv = rest[rest.index("--") + 1:] if "--" in rest else rest
@@ -581,6 +593,24 @@ def main():
         ir = ir or i2
         a.choice = a.choice or x2.get("--choice")
         a.handoff = a.handoff or x2.get("--handoff")
+        lad_out = x2.get("--outdir") or a.ladder_outdir
+        lad_brief = x2.get("--brief") or a.brief
+        # Use the same values for preflight and for the generator.
+        for opt, outer, inner in (("--stage", a.stage, s2), ("--ir", a.ir, i2),
+                                  ("--brief", a.brief, x2.get("--brief")),
+                                  ("--outdir", a.ladder_outdir, x2.get("--outdir"))):
+            if outer and inner and outer != inner and (opt == "--stage" or
+                    os.path.normcase(resolve(outer, base)) != os.path.normcase(resolve(inner, base))):
+                mismatch.append(opt)
+            if outer and not inner:
+                argv += [opt, outer]
+        for opt, outer, inner in (("--ref", a.ref, r2), ("--content-ref", a.content_ref, c2)):
+            if outer and inner and [os.path.normcase(resolve(p, base)) for p in outer] != [
+                    os.path.normcase(resolve(p, base)) for p in inner]:
+                mismatch.append(opt)
+            if outer and not inner:
+                for path in outer:
+                    argv += [opt, path]
 
     # --post 且没给 --stage / --run：只跑出图后闸门，不重复跑参考图角色检查
     if a.post and not a.run and not a.stage:
@@ -588,6 +618,15 @@ def main():
 
     v, w = check(stage or "sketch", style, content, ws, base)
     sys.stdout.write(render_report(stage or "sketch", style, content, v, w, ws, base))
+    if mismatch:
+        print("[FAIL] 预检参数与实际生图参数不一致：" + ", ".join(mismatch))
+        v += [("--run", ", ".join(mismatch), "ARG_MISMATCH", "检查与实际生图使用的参数必须相同")]
+    ladder_active = bool(lad_out or a.ladder_gen_dir)
+    gen_dir = find_gen_dir(lad_out or ".", a.ladder_gen_dir)
+    led = load_ledger(gen_dir)
+    mode = ladder_mode(led, stage or "sketch", content)
+    if a.run and mode == WITH_SKETCH and not lad_out:
+        v += [("--outdir", "", "LADDER", "有作者草图时必须指定本档独立的 --outdir")]
 
     if ir and not a.no_ir_check:
         g = Path(__file__).resolve().parent / "ir_layout_guard.py"
@@ -655,14 +694,7 @@ def main():
 
     # ── v4.6：提示词阶梯闸门 A -> B -> C（作者 2026-10-06：「严格按 ABC 档来」） ──
     ladder = Path(__file__).resolve().parent / "ladder_gate.py"
-    lad_out, lad_brief = None, None
-    if argv:
-        for _i, _t in enumerate(argv):
-            if _t == "--outdir" and _i + 1 < len(argv):
-                lad_out = argv[_i + 1]
-            if _t == "--brief" and _i + 1 < len(argv):
-                lad_brief = argv[_i + 1]
-    if (lad_out or a.ladder_gen_dir) and not a.ladder_waive:
+    if ladder_active and not a.ladder_waive:
         if not ladder.exists():
             print("[warn] 找不到 ladder_gate.py —— 提示词阶梯闸门没跑成")
         else:
@@ -674,6 +706,8 @@ def main():
                 cmd += ["--brief", lad_brief]
             if a.ladder_gen_dir:
                 cmd += ["--gen-dir", a.ladder_gen_dir]
+            if a.tier:
+                cmd += ["--tier", a.tier]
             for _r in (style or []):
                 cmd += ["--ref", _r]
             for _c in (content or []):
@@ -682,7 +716,7 @@ def main():
             sys.stdout.write(_r.stdout or "")
             if _r.returncode != 0:
                 v = v + [("--outdir", lad_out or "", "LADDER",
-                          "提示词阶梯 A->B->C 不合规；见上面 ladder_gate 的报告"
+                          "提示词阶梯不合规；见上面 ladder_gate 的报告"
                           "（--ladder-waive \"理由\" 可放行）")]
     elif (lad_out or a.ladder_gen_dir) and a.ladder_waive:
         print("[warn] 提示词阶梯闸门已用 --ladder-waive \"%s\" 放行" % a.ladder_waive)
@@ -694,53 +728,42 @@ def main():
     if (stage or "sketch") == "sketch":
         scope = Path(__file__).resolve().parent / "ir_scope_gate.py"
         sbrief = a.brief or lad_brief
-        stier = a.tier
+        stier = (rung_name(len(led.get("rungs") or []), mode)
+                 if ladder_active else a.tier)
         if not stier:
             for _p in (sbrief, lad_out):
                 if not _p:
                     continue
-                _m = re.search(r"brief[_-]?([ABCD])(?=[_.\-]|$)", os.path.basename(_p), re.I)
+                _m = re.search(r"brief[_-]?([ABCDE])(?=[_.\-]|$)", os.path.basename(_p), re.I)
                 if _m:
                     stier = _m.group(1).upper()
                     break
                 for _part in reversed(Path(_p).parts[:-1]):
-                    if _part.upper() in ("A", "B", "C", "D") and len(_part) == 1:
+                    if _part.upper() in tuple("ABCDE"):
                         stier = _part.upper()
                         break
                 if stier:
-                    break
-        if not stier:
-            # 账本才是权威：下一档 = rungs 的个数（ladder_gate.rung_name 同一张表）
-            _cur = Path(lad_out or a.ladder_gen_dir or ".").resolve()
-            for _cand in (_cur, _cur.parent, _cur.parent.parent, _cur.parent.parent.parent):
-                _led = _cand / "ladder.json"
-                if _led.exists():
-                    try:
-                        _n = len(json.loads(_led.read_text(encoding="utf-8")).get("rungs") or [])
-                        stier = "ABCD"[_n] if _n < 4 else "D"
-                    except Exception:
-                        pass
                     break
         if not stier and sbrief:
             # 兜底：宁可保守按 B 判，也不许靠改文件名绕过「B 档不许出现 IR 元素」。
             stier = "B"
             print("[warn] 推不出档位 —— 保守按 B 档判（C/D 档请显式写 --tier C / --tier D）")
-        if stier == "render":
-            stier = None
+        if stier == "render" or (stier == "E" and mode != WITH_SKETCH):
+            v = v + [("--tier", str(stier), "LADDER", "档位不适用于当前草图阶梯")]
+            stier = "B"
         if not scope.exists():
             print("[warn] 找不到 ir_scope_gate.py —— B 档「不许出现 IR 元素」没查")
         elif not sbrief:
             print("[warn] 没给 --brief（ref_guard 这侧与 -- 之后都没有）—— ir_scope_gate 跳过")
         else:
-            cmd = [sys.executable, str(scope), "--tier", stier, "--brief", sbrief]
+            cmd = [sys.executable, str(scope), "--tier", stier, "--brief", sbrief, "--ladder-mode", mode]
             if ir:
                 cmd += ["--ir", ir]
             _r = subprocess.run(cmd, capture_output=True, text=True, encoding="utf-8")
             sys.stdout.write(_r.stdout or "")
             if _r.returncode != 0:
                 v = v + [("--brief", sbrief, "IR_SCOPE",
-                          "%s 档简报违反 IR 生效范围（B 档不许出现 IR 的形体/材质词；"
-                          "C 档改动必须追得到 [HPn] 或可量证据）" % stier)]
+                          "%s 档简报违反 IR 生效范围；见上面 ir_scope_gate 的报告" % stier)]
 
     # ── v4.26：参考图角色声明 + 标签泄漏（ref_role_gate；AGENTS §0.8） ──
     #   作者 2026-10-13：「风格图只是风格，生图模型总喜欢完全照抄怎么办」。
@@ -819,7 +842,7 @@ def main():
         rc = subprocess.call([sys.executable, gf] + list(argv), env=_env)
         if rc != 0:
             return rc
-        if (lad_out or a.ladder_gen_dir) and not a.ladder_waive and ladder.exists():
+        if ladder_active and not a.ladder_waive and ladder.exists() and "--dry-run" not in argv:
             cmd = [sys.executable, str(ladder), "--record"]
             cmd += ["--stage", stage or "sketch"]
             if lad_out:
@@ -835,7 +858,8 @@ def main():
             _r = subprocess.run(cmd, capture_output=True, text=True, encoding="utf-8")
             sys.stdout.write(_r.stdout or "")
             if _r.returncode != 0:
-                print("[warn] 阶梯账本登记失败 —— 下一轮会被 L1「跳档」拦住")
+                print("[FAIL] 阶梯账本登记失败 —— 请先重新登记本轮")
+                return _r.returncode
         if a.post:
             return post_checks(a, ws)
         return 0

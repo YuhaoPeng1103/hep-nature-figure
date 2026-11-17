@@ -273,7 +273,12 @@ def has_evidence(item):
     return any(w in item for w in EVID_WORD)
 
 
-def check(tier, text, view):
+def check(tier, text, view, mode="text-only"):
+    from ladder_gate import WITH_SKETCH, legacy_role
+    merging = mode == WITH_SKETCH and tier == "D"
+    actual_tier = tier
+    if tier != "render":
+        tier = legacy_role(tier, mode)
     hard, soft, reading = [], [], []
     if tier in ("A", "B"):
         # 建议块豁免：IR 的画法/外观内容，在**任何**档里都只许出现在「外观建议」块里（与 S4 同一条原则）。
@@ -295,10 +300,18 @@ def check(tier, text, view):
                 hard.append(("S1_IR_PROP_IN_BRIEF",
                              "A/B 档简报里出现 IR 元素的形体/材质词「%s」—— B 档只许有 A 的文字 + "
                              "面板序列 + 输出硬约束；板 / 玻璃 / 网格这类形体留到 C 档再长出来" % w))
+        # C in the guided ladder requires a label whitelist. Reusing the official
+        # spelling of a label is not a copied style convention.
+        style_text = nb
+        if mode == WITH_SKETCH and actual_tier == "C":
+            style_text = norm("\n".join(
+                part for part in re.split(r"[；;。\n]", text)
+                if not (any(mark in part for mark in OUT_MARK_WHITE) and re.search(r"[:：]", part))
+            ))
         for tag, lines in (("conventions", view["conv"]), ("preferences", view["pref"])):
             for ln in lines:
                 nl = norm(ln)
-                if len(nl) >= 12 and lcs(nl, nb) >= 12:
+                if len(nl) >= 12 and lcs(nl, style_text) >= 12:
                     hard.append(("S1_IR_%s_IN_BRIEF" % tag.upper(),
                                  "A/B 档简报里出现 IR style.%s 的整条：%s" % (tag, ln[:40])))
         hit_names = [nm for nm in view["element_names"] if norm(nm) and norm(nm) in nb]
@@ -312,9 +325,9 @@ def check(tier, text, view):
     # ---- C / D 档（严格改档）----
     bl = blocks(text)
     fixblocks = [(t, b) for t, b in bl if is_fix(t)]
-    if not fixblocks:
+    if not fixblocks and not merging:
         hard.append(("S2_NO_FIX_BLOCK",
-                     "%s 档没有「上一轮画错 -> 改成什么」这一节（IR 只许以这个形状进来）" % tier))
+                     "%s 档没有「上一轮画错 -> 改成什么」这一节（IR 只许以这个形状进来）" % actual_tier))
     if not any(m in text for m in OUT_MARK_WHITE):
         soft.append(("S2_NO_LABEL_WHITELIST", "%s 档没有标签白名单（上一档的东西要累积下来）" % tier))
     if not any(m in text for m in OUT_MARK_NODECOR):
@@ -352,13 +365,16 @@ def main():
     ap = argparse.ArgumentParser(add_help=True,
                                  formatter_class=argparse.RawDescriptionHelpFormatter,
                                  description="IR 生效范围闸门：IR 只在 C 档起作用，且只改 A 档真画错的（见文件头）")
-    ap.add_argument("--tier", required=True, choices=("A", "B", "C", "D", "render"))
+    ap.add_argument("--tier", required=True, choices=tuple("ABCDE") + ("render",))
+    ap.add_argument("--ladder-mode", choices=("text-only", "with-sketch"), default="text-only")
     ap.add_argument("--brief", required=True)
     ap.add_argument("--ir", default=None, help="IR；给了才能判 S1 的 conventions / S3 的 [HPn] / S4 的画法词")
     ap.add_argument("--json", default=None)
     ap.add_argument("--show-vocab", action="store_true", help="打印从 IR 抽出来的画法专属词，供人核对")
     ap.add_argument("--waive", default=None, help="确要放行时的理由；会被打印，交付说明必须照抄")
     a = ap.parse_args()
+    if a.tier == "E" and a.ladder_mode != "with-sketch":
+        ap.error("E 档只适用于 --ladder-mode with-sketch")
 
     text = io.open(a.brief, encoding="utf-8").read()
     if a.tier == "render":
@@ -375,7 +391,7 @@ def main():
 
     hard, soft, reading = check(a.tier, text, view or
                                 {"one_liner": "", "conv": [], "pref": [], "element_names": [],
-                                 "mats": [], "hp": [], "phys_text": "", "style_toks": []})
+                                 "mats": [], "hp": [], "phys_text": "", "style_toks": []}, a.ladder_mode)
 
     print("=" * 72)
     print("ir_scope_gate  tier=%s  brief=%s  ir=%s" % (a.tier, a.brief, a.ir or "(未给)"))

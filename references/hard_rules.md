@@ -10,7 +10,7 @@
 
 ```bash
 python scripts/ref_guard.py --run --stage sketch \
-    --brief <brief.md> --tier <A|B|C|D> --ir <IR> \
+    --brief <brief.md> --tier <A|B|C|D|E> --ir <IR> \
     --ref <风格书> --content-ref <构图依据> \
     -- --brief <brief.md> --stage sketch --ref <风格书> --content-ref <构图依据> \
        --seeds 1,2 --outdir <dir> --size 1664*909
@@ -102,7 +102,9 @@ python scripts/choice_gate.py --handoff <dir> --record --code <TAG>-cand_NN \
 ```
 没有客户回执 = 不许出成品位图（`ref_guard` 在 render 档硬拦，`NO_CLIENT_CHOICE`）。
 
-## 7. A→B→C→D 阶梯（R6）
+## 7. 两条提示词阶梯（R6）
+
+新账本首轮收到作者草图才走 A→E：A 是手稿加一句话；B 复用原句、不带图；C 才加风格书、面板序列及输出硬约束；D 以 C 为底稿，对照本账本 A/B/C 各一张逐元素取舍；E 仅用紧邻上一稿修物理。正式位图基于作者选中的最后一张 E 草图。无草图及旧账本沿用以下 A→D。
 
 - **A**：一句话（≤80 字符），**默认不带 `--ref`**；只作诊断，不进交付链。
 - **B**：A 的文字 + 面板序列 + 输出硬约束；**必须带 `--ref`**；**不给上一档的图**；不写“保留”措辞。
@@ -111,7 +113,9 @@ python scripts/choice_gate.py --handoff <dir> --record --code <TAG>-cand_NN \
 - 用了整幅风格图，就必须写 `【参考图自带、本图不要】` 泄漏黑名单（L14）。
 - 闸门：`scripts/ladder_gate.py`（L1–L14；`--selftest` 跑标定），账本 `gen/ladder.json`。
 
-### 7.1 IR 的生效范围（v4.26，新增硬闸门）
+### 7.1 IR 的生效范围
+
+下列 B/C/D 是无草图档位。有作者草图时，风格档移至 C，禁止提前引入 IR 的形体和材质；D 以三张候选图取舍元素，无需为了通过闸门而虚构物理错误；E 逐条复查硬物理。
 
 > 作者 2026-10-14：「B 档输入取消输入 A 档的图，只有参考图」；
 > 2026-10-21：「B 档没有 IR 进去，IR 第一次起作用应该是在 D 档起到删除错误物理改成正确物理的作用」。

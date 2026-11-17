@@ -398,7 +398,7 @@ python3 scripts/svg_repro_check.py --svg fig.svg --png fig.png \
 | R3 | 三轴：X1–X5 轴名与轴杆一一对应、X7 右手系、X8 投影、X9 束流轴=z | `axis_gate.py` | `X1–X9` |
 | R4 | 出草图前 IR 元素清单给客户过目并点头 | `element_list.py --check` | `NO_ELEMENT_ACK` |
 | R5 | 出成品前客户挑草图、`--by client` 回执 | `choice_gate.py` | `NO_CLIENT_CHOICE` |
-| R6 | A→B→C→D：B 不带上一档图、C 给 A+B、D 给上一档、D 只改列出的错、泄漏黑名单 | `ladder_gate.py` | `L1–L14` |
+| R6 | 无作者草图 A→D；有作者草图 A→E。账本固定路线，元素替换与物理修正按所属路线取图 | `ladder_gate.py` | `L1–L14` |
 | **R6.1** | **B 档没有 IR：B 简报不许出现板/网格/玻璃/薄板/竖立/斜置/半透明/冷灰等 IR 形体与材质词** | **`ir_scope_gate.py`（已接进 `ref_guard`）** | **`IR_SCOPE` / `S1_IR_PROP_IN_BRIEF`** |
 | R7 | 草图管“对不对”，位图管“全不全、精不精” | `check_sketch.py` | 人工逐条答“否”就重出 |
 | R8 | 位图简报 = IR 全量 + 上一版错误清单；构图参考原样送 | `render_brief_gate.py` + 复检 | — |
@@ -409,8 +409,7 @@ python3 scripts/svg_repro_check.py --svg fig.svg --png fig.png \
 它拦的是一次实测过的系统性 bug：A 档只写“两个核子堆成的重核”，B 档自己加了
 “竖立半透明网格板”，C/D 的“原样保留”把它冻结成竖玻璃板 + 冷灰石材质；
 而更早那版的 B 也带了“斜置浅灰网格薄板”，只是风格锚点恰好同族所以没人看出来。
-档位从 `--tier` / `--outdir` 的 rung 目录 / `brief_[ABCD].md` / `ladder.json` 推断；
-都推不出时**保守按 B 判**（C/D 档请显式写 `--tier`）。
+有账本时档位与路线由账本推断，显式 `--tier` 必须与之相符；脱离账本单查时可由简报文件名推断。
 
 ---
 
@@ -467,7 +466,11 @@ python3 scripts/svg_repro_check.py --svg fig.svg --png fig.png \
 5. `axis_gate.py` / `check_3d_generic.py` / `gate3d_rank.py` / `check_delivery.py` —— 三轴、3D、交付硬闸门。
 6. **最后必须人看图**；物理正确性无法自动验证（纪律 4）。
 
-### 4. 出图入口与 A→B→C→D 阶梯（v4.15）
+### 4. 出图入口与两条阶梯（v4.28）
+
+**上传作者草图才走 A→E**：在新账本首轮把手稿放入 `--content-ref`，A 用手稿 + ≤80 字符的一句话，B 用完全相同的一句话、不传任何图，C 加风格书 + 面板序列 + 输出硬约束、不传构图图，D 给本账本 A/B/C 各一张、逐元素挑选，在 C 底稿上替换对应处，E 拿紧邻上一稿只改物理。风格书从 C 沿用到位图。最后一张合格 E 草图仍交作者选择后再正式出位图。详见 [routing](references/routing.md)。
+
+**无作者草图及已开始的旧账本仍按以下 A→D 规则。**
 
 - **A 档**：一句话（≤80 字符），**默认不带 `--ref`**；只作诊断，**不进交付链**。
 - **出草图前**：把 IR 的**元素清单**（中文 5–10 行）贴给客户过目 / 加项，**客户点头才开跑**（v4.19）。
@@ -503,7 +506,7 @@ python3 scripts/svg_repro_check.py --svg fig.svg --png fig.png \
 2. **出草图**：`gen_figure.py --stage sketch --ref <风格书> --seeds ...`；产物 `sketch_sN.png` + `calls.jsonl`。模型稳定画 1–2 px 外框，**别求它去掉**，用 `trim_border.py` 确定性地裁（两层外框加 `--bg 0.975`）。
 3. **草图矢量化**：`sketch_to_vector.py ... --ocr`；每形体一个子层，人可直接改。
 4. **闸口①**：`check_sketch.py --ir ...`。过闸后 `sketch_handoff.py` 交候选 → `make_picker.py` → `choice_gate.py` 收回执；客户改完用 `sketch_ingest.py` 灌回，**强制重过闸口①**。
-5. **出成品位图**：`ir_to_genbrief.py --stage render` → `gen_figure.py --stage render --content-ref <构图依据> --ref <风格书>`。普通 render 的构图依据是选中的草图；**C 档给 A、B 两张，D 档给紧邻上一档一张**（L9）。草图**原样送**（`auto -> full`）；只有草图本身是扁平稿才加 `--content-ref-mode layout`。别把草图塞进 `--ref`。简报必须写「在上一张图的基础上改，别换掉画对的」；D 档只改列出的物理错误（L10/L13）；列之前先逐条过 HP1–HP6，并把上一轮 `check_sketch` 里答“否”的项全部写进增量清单。
+5. **出成品位图**：`ir_to_genbrief.py --stage render` → `ref_guard.py --run -- ... --stage render --content-ref <作者选中的末档草图> --ref <风格书>`。末档是 D（无手稿）或 E（有手稿）；草图**原样送**（`auto -> full`），只有草图本身扁平时才考虑 `--content-ref-mode layout`。简报写「在上一张图的基础上改，别换掉画对的」，对照硬物理逐条列出仍需修正或补齐的内容。
    - `--ref` 只收风格书（`assets/t3-exemplars/`、`_T3精选/`）；`--content-ref` 只收手绘输入或本阶梯已登记的 rung；`assets/demos/**` 任何阶段不许当参考；同一张图不许同时占两个角色。
 6. **闸口②**：`check_sketch.py --sketch <草图>` 再跑一次；再 `gate3d_rank.py --require-all`、`axis_gate.py`、`check_3d_generic.py`。
 7. **位图 → 矢量**：固定三步 —— ① 客户确认的位图；② `raster_to_vector_semantic.py` 逐像素**临摹**（`<g data-element>` 语义层）；③ `trace_rebuild.py` **从临摹层重建**。**几何只来自临摹层**，禁止再走“颜色阈值 ∩ 包围盒”重抠（v37 教训）。

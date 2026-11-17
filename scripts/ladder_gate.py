@@ -1,8 +1,13 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-ladder_gate —— 提示词阶梯闸门（A → B → C → D，作者 2026-10-06 / 2026-10-14）
+ladder_gate —— 提示词阶梯闸门
 =========================================================================
+
+v4.28：新阶梯首轮以 --content-ref 收作者草图时，路线记为 with-sketch。
+A 草图加一句话 → B 同句纯文字 → C 风格与输出约束 → D 比较 A/B/C、以 C 为底稿
+逐元素替换 → E 仅修上一轮物理错误。另见 references/routing.md。
+无草图及已有的旧账本保持下述 A→D 规则。
 
 作者原话：「你要确保后续别的用户使用都是严格按照 ABC 档来的啊」；
 同日另一句：「a 档是一句话加参考图……B 档（+ 面板序列 + 标签白名单 + 不许标题/图例）、
@@ -108,6 +113,7 @@ C 档（+ 物理增量）按需往上加，加什么由上一轮真画错的地�
 import argparse
 import json
 import os
+import re
 import sys
 from pathlib import Path
 
@@ -207,9 +213,43 @@ def save_ledger(gen_dir, led):
     return p
 
 
-def rung_name(idx):
-    """A → B → C → D；D 档之后还是 D（作者 2026-10-14 加 C 档、原 C 改 D）。"""
-    return "ABCD"[idx] if idx < 4 else "D"
+TEXT_ONLY = "text-only"
+WITH_SKETCH = "with-sketch"
+
+
+def rung_sequence(mode):
+    return "ABCDE" if mode == WITH_SKETCH else "ABCD"
+
+
+def rung_name(idx, mode=TEXT_ONLY):
+    seq = rung_sequence(mode)
+    return seq[min(idx, len(seq) - 1)]
+
+
+def ladder_mode(led, stage, content_refs):
+    if led.get("mode") or led.get("rungs") or stage != "sketch":
+        return led.get("mode") or TEXT_ONLY
+    # Only a fresh ladder can opt in, and only an author-provided sketch can opt it in.
+    from ref_guard import classify, AUTHOR_IN
+    return (WITH_SKETCH if any(classify(p) == AUTHOR_IN for p in content_refs or [])
+            else TEXT_ONLY)
+
+
+def legacy_role(rung, mode):
+    """Role names used by the shared shape and IR validators."""
+    return dict(zip("ABCDE", "AABCD"))[rung] if mode == WITH_SKETCH else rung
+
+
+def display_checks(messages, mode):
+    if mode != WITH_SKETCH:
+        return messages
+    return [re.sub(r"\b[ABCD]\b", lambda m: "BCDE"["ABCD".index(m[0])], msg)
+            for msg in messages]
+
+
+def rung_brief(gen_dir, entry):
+    bp = (entry or {}).get("brief")
+    return _read(Path(gen_dir) / bp) if bp else ""
 
 
 def read_calls(outdir):
@@ -370,24 +410,30 @@ def brief_shape(rung, text, refs, prev_text):
     return v, w
 
 
-def order_checks(led):
+def order_checks(led, mode=TEXT_ONLY):
     rungs = led.get("rungs") or []
     names = [r.get("rung") for r in rungs]
-    want = [rung_name(i) for i in range(len(names))]
+    want = [rung_name(i, mode) for i in range(len(names))]
     if names != want:
-        return ["L1 阶梯跳档：账本里是 %s，必须是 %s（A → B → C → D…）。" % (names, want)]
+        return ["L1 阶梯跳档：账本里是 %s，必须是 %s。" % (names, want)]
     return []
 
 
-def precheck(gen_dir, brief_path, outdir, refs, stage, content_refs=None):
+def precheck(gen_dir, brief_path, outdir, refs, stage, content_refs=None, *, tier=None):
     led = load_ledger(gen_dir)
     rungs = led.get("rungs") or []
-    v, w = order_checks(led), []
+    mode = ladder_mode(led, stage, content_refs)
+    guided = mode == WITH_SKETCH
+    v, w = order_checks(led, mode), []
     text = _read(brief_path) if brief_path else ""
     if brief_path and not text:
         v.append("L0 简报文件读不到：%s" % brief_path)
     idx = len(rungs)
-    rung = rung_name(idx)
+    rung = rung_name(idx, mode)
+    role = legacy_role(rung, mode)
+    expected_tier = "render" if stage == "render" else rung
+    if tier and tier != expected_tier:
+        v.append(f"L1 本轮是 {expected_tier}，与声明的 --tier {tier} 不一致。")
     if outdir:
         od = os.path.abspath(outdir)
         for r in rungs:
@@ -395,11 +441,9 @@ def precheck(gen_dir, brief_path, outdir, refs, stage, content_refs=None):
                 v.append("L1 这个 outdir 已经登记过第 %s 段了 —— 换 outdir，或先删账本里那一段。"
                          % r.get("rung"))
     prev = rungs[-1] if rungs else None
-    prev_text = ""
-    if prev and prev.get("brief"):
-        bp = Path(prev["brief"])
-        prev_text = _read(bp if bp.is_absolute() else Path(gen_dir) / bp)
-    if not refs and prev:
+    prev_text = rung_brief(gen_dir, prev)
+    passed_refs = list(refs or [])
+    if not refs and prev and not guided:
         refs = prev.get("refs") or []
     # L7 风格参考图必须贯穿整条阶梯（作者 2026-10-07）。
     #     ★ 2026-10-13：A 档默认不带参考图，所以锚点取**阶梯里第一个带 refs 的 rung**
@@ -410,12 +454,13 @@ def precheck(gen_dir, brief_path, outdir, refs, stage, content_refs=None):
             if _r.get("refs"):
                 anchor = _r
                 break
-        now_refs = sorted(os.path.basename(x) for x in (refs or []))
+        ref_key = (lambda x: os.path.normcase(os.path.realpath(x))) if guided else os.path.basename
+        now_refs = sorted(ref_key(x) for x in (refs or []))
         if anchor is not None:
-            a_refs = sorted(os.path.basename(x) for x in (anchor.get("refs") or []))
-            if now_refs and a_refs != now_refs:
+            a_refs = sorted(ref_key(x) for x in (anchor.get("refs") or []))
+            if (now_refs or guided) and a_refs != now_refs:
                 v.append("L7 风格参考图与本条阶梯的 %s 档不一致：%s 档用 %s，这一轮用 %s —— "
-                         "B/C/D 档是同一张风格书的续，中途换风格图 = 另起一张。"
+                         "引入风格后要沿用同一张风格书。"
                          % (anchor.get("rung"), anchor.get("rung"), a_refs, now_refs))
     # L8 慢慢加提示词：每上一档只加一条新约束（作者 2026-10-07）
     if stage == "sketch" and prev is not None:
@@ -429,7 +474,41 @@ def precheck(gen_dir, brief_path, outdir, refs, stage, content_refs=None):
     #    B 档：**不给** --content-ref（B 的输入只有风格图，A 的图不进 B）
     #    C 档：给两条 —— A 档的图（要搬进来的好元素）+ B 档的图（要被替换的那一版）
     #    D 档：给一条 —— 紧邻上一档（C）的图
-    if stage == "sketch" and rungs:
+    if stage == "sketch" and guided:
+        content = list(content_refs or [])
+        def source(path):
+            cp = Path(path).resolve()
+            for entry in reversed(rungs):
+                od = entry.get("outdir")
+                if od and entry.get("stage", "sketch") == "sketch" and Path(od).resolve() in cp.parents:
+                    return entry
+            return None
+
+        if rung == "A":
+            from ref_guard import classify, AUTHOR_IN
+            if len(content) != 1 or classify(content[0]) != AUTHOR_IN or not Path(content[0]).is_file():
+                v.append("L9 A 档只收一张存在的作者草图（--content-ref）。")
+        elif rung in ("B", "C") and content:
+            v.append(f"L9 {rung} 档不许给任何 --content-ref。")
+        elif rung == "D":
+            names = sorted((source(p) or {}).get("rung", "") for p in content)
+            if names != list("ABC") or not all(Path(p).is_file() for p in content):
+                v.append("L9 D 档必须给本账本 A、B、C 各一张草图（--content-ref），不加别的构图图。")
+        elif rung == "E":
+            if len(content) != 1 or source(content[0]) is not prev or not Path(content[0]).is_file():
+                v.append("L9 E 档只给紧邻上一档的一张草图（首次为 D）。")
+        if rung in ("A", "B"):
+            if passed_refs or not text.strip() or len(text.strip().splitlines()) != 1:
+                v.append(f"L2 {rung} 档只用一句话，不给风格参考。")
+            if rung == "B" and prev_text.strip() != text.strip():
+                v.append("L2 B 档必须沿用 A 档原句，只移除草图，才能比较有无草图。")
+        if rung == "D":
+            compact = _squash(text).upper()
+            compare = re.search(r"A(?:档|版)?[、/+,，和与-]*B(?:档|版)?[、/+,，和与-]*C", compact)
+            base = re.search(r"C(?:档|版)?.{0,6}(?:为底|作底|做底|作为底|为基|作基|作为基)", compact)
+            if not (compare and base and "替换" in compact and ("选" in compact or "择" in compact)):
+                v.append("L12 D 档须写明「逐元素比较 A、B、C 三档，以 C 档为底稿，选择优秀元素替换对应处」。")
+    elif stage == "sketch" and rungs:
         def _which_rung(x):
             cp = os.path.abspath(x)
             for r in rungs:
@@ -484,20 +563,19 @@ def precheck(gen_dir, brief_path, outdir, refs, stage, content_refs=None):
                 w.append("L9 给的 --content-ref 不在**紧邻的上一档**目录里 —— "
                          "确认给的是「修改前」那一版，不是更早的版本。")
     # L10 D 档必须严格在上一张图上改（作者 2026-10-13）；A/B/C 档不判（C 是元素替换）
-    if stage == "sketch" and rung == "D":
+    if stage == "sketch" and role == "D":
         _hits = [k for k in STRICT_KEEP_MARKERS if k in (text or "")]
         if text and len(_hits) < 2:
-            v.append("L10 D 档必须写清它是**严格在上一张图上改**（作者 2026-10-13："
-                     "「只有 C 档时严格在上一张图片上改」—— 那一档现在叫 D 档）—— 只改下面"
+            v.append(f"L10 {rung} 档必须写清它是**严格在上一张图上改** —— 只改下面"
                      "列出的那几条，其余连形状 / 质感 / 配色 / 光源 / 视角 / 位置都不许变，"
                      "不许重画、不许换材质、不许加也不许删。现在只命中 %s。"
                      % (_hits or "0 个严格措辞"))
     # L11 D 档改「形状 / 几何」时不许改「材质 / 质感」（作者 2026-10-14）
-    if stage == "sketch" and rung == "D" and text:
+    if stage == "sketch" and role == "D" and text:
         inc = extract_increment(text)
         _geo = [k for k in GEOM_CHANGE_MARKERS if k in inc]
         if _geo and not has_material_keep(text):
-            v.append("L11 D 档要改【形状 / 几何】（命中 %s），但简报里没写明**不要修改材质 / "
+            v.append(f"L11 {rung} 档要改【形状 / 几何】（命中 %s），但简报里没写明**不要修改材质 / "
                      "质感**（作者 2026-10-14：「对 C 档修改物理几何的地方不修改材质……"
                      "我建议说'不要修改材质'」）—— 形状 / 几何是物理（该改），材质 / 质感是"
                      "观感（不该顺手换），两者要分开。做法：在增量块里加一句「不要修改材质」"
@@ -506,7 +584,7 @@ def precheck(gen_dir, brief_path, outdir, refs, stage, content_refs=None):
                      "实测：只让把圆球压成扁球，模型却把上一版的光滑球面一起重画成了粗糙石块"
                      "（keep_gate 质感漂移 0.881）。" % (_geo[:3],))
         elif not _geo:
-            w.append("L11 这一轮 D 档没看出要改形状 / 几何；确认不动材质 —— 建议仍写一句"
+            w.append(f"L11 这一轮 {rung} 档没看出要改形状 / 几何；确认不动材质 —— 建议仍写一句"
                      "「材质保持不变（以给的那张图为准）」，免得模型顺手换材质"
                      "（形状是物理，材质是观感）。")
         _mh = material_prescribe_hint(text)
@@ -515,7 +593,7 @@ def precheck(gen_dir, brief_path, outdir, refs, stage, content_refs=None):
                      "材质为准），**不要替模型指定材质**（作者 2026-10-14：「不要写材质保持光滑啊，"
                      "应该是材质保持不变」）。" % _mh)
     # L12 C 档 = 元素替换档：必须写明「把 A 档画得好的元素搬进来、替换 B 里对应的那一个」
-    if stage == "sketch" and rung == "C" and text and not has_swap_clause(text):
+    if stage == "sketch" and not guided and rung == "C" and text and not has_swap_clause(text):
         v.append("L12 C 档必须写明**把上一档（A）画得好的元素搬进来、替换 B 档里对应的那一个**"
                  "（作者 2026-10-14：「在 B 档和 C 档之间加一个档次作为新的 C 档，将 A 档的"
                  "优秀元素替换 B 档中相应的东西」）—— C = A 的好元素 × B 的版式。做法：在简报里"
@@ -539,7 +617,8 @@ def precheck(gen_dir, brief_path, outdir, refs, stage, content_refs=None):
                      "做法：--content-ref %s"
                      % ((os.path.join(last_sk["outdir"], "sketch_sN.png")
                          if (last_sk and last_sk.get("outdir")) else "<gen>/<最后一档>/sketch_sN.png")))
-        elif not sk_hits:
+        elif not sk_hits or (guided and (len(content_refs) != 1 or
+                                          not Path(content_refs[0]).is_file())):
             v.append("L13 给的 --content-ref 不在**最后一个草图档**的目录里 —— 位图要在"
                      "「上一张草图」的基础上改，别拿更早版本。")
         _okk, _b, _k = has_render_keep(text or "")
@@ -548,13 +627,22 @@ def precheck(gen_dir, brief_path, outdir, refs, stage, content_refs=None):
                      "改」+「不要换掉原来画对的元素」。作者原话：「修改物理错误和使相应的元素变得"
                      "更优秀，绝对不要将原来优秀的元素换掉」—— 现在【基础上改】命中 %s、"
                      "【别换掉】命中 %s。" % (_b or "0 个", _k or "0 个"))
-    bv, bw = brief_shape(rung, text, refs, prev_text)
-    v += bv
-    w += bw
+    if guided and stage == "render":
+        # Render has its own structured brief gate; do not parse it as an E sketch delta.
+        bv = (["L14 位图用了整幅风格参考图，但缺【参考图自带、本图不要】黑名单。"]
+              if refs and not any(k in text for k in LEAK_HEADERS) else [])
+        bw = []
+    else:
+        bv, bw = brief_shape(role, text, refs, prev_text)
+    v += display_checks(bv, mode) if not (guided and rung == "A") else bv
+    if guided and rung == "C":
+        bw = [msg for msg in bw if not msg.startswith("L3 提醒")]
+    w += display_checks(bw, mode) if not (guided and rung == "A") else bw
     if stage == "render":
-        names = [r.get("rung") for r in rungs]
-        if not all(x in names for x in ("A", "B", "C", "D")):
-            v.append("L6 出成品位图之前阶梯必须至少有 A、B、C、D 四段（现在只有 %s）。" % names)
+        names = [r.get("rung") for r in rungs if r.get("stage", "sketch") == "sketch"]
+        seq = rung_sequence(mode)
+        if not all(x in names for x in seq):
+            v.append("L6 出成品位图之前必须完成草图阶梯 %s（现在只有 %s）。" % ("→".join(seq), names))
         # L3b render 档：累积草图简报里三样必须齐全（L3 在 B 档已降级为软警，
         # 允许分几步慢慢加，但出成品位图前必须补齐）。
         # 只看 sketch 段的累积简报（render 段简报是 IR 编译稿，不算「草图阶梯」）
@@ -587,7 +675,8 @@ def do_record(gen_dir, brief_path, outdir, refs, add=None, stage="sketch", conte
     led = load_ledger(gen_dir)
     rungs = led.get("rungs") or []
     idx = len(rungs)
-    rung = rung_name(idx)
+    mode = ladder_mode(led, stage, content_refs)
+    rung = rung_name(idx, mode)
     text = _read(brief_path) if brief_path else ""
     inc = extract_increment(text)
     calls = read_calls(outdir) if outdir else None
@@ -599,8 +688,8 @@ def do_record(gen_dir, brief_path, outdir, refs, add=None, stage="sketch", conte
             rel_add = str(Path(add).resolve())
     # 出图记录里的 `refs` 会把 --content-ref 一起算进去；登记"风格参考"时必须剔掉它，
     # 否则 L7（风格图贯穿整条阶梯）会把上一轮的图当成风格图比，误判。
-    _all = (calls or {}).get("refs") or list(refs or [])
-    _cr = (calls or {}).get("content_refs") or list(content_refs or [])
+    _all = (calls or {}).get("refs") or [str(x) for x in refs or []]
+    _cr = (calls or {}).get("content_refs") or [str(x) for x in content_refs or []]
     _crn = {os.path.normcase(os.path.abspath(x)) for x in _cr if x}
     _style = [x for x in _all if os.path.normcase(os.path.abspath(x)) not in _crn]
     entry = {
@@ -610,13 +699,14 @@ def do_record(gen_dir, brief_path, outdir, refs, add=None, stage="sketch", conte
                   if brief_path else None),
         "brief_chars": len(text.strip()),
         "outdir": str(Path(outdir).resolve()) if outdir else None,
-        "refs": _style or _all,
+        "refs": _style,
         "content_refs": _cr,
         "seeds": (calls or {}).get("seeds") or [],
         "inc_chars": len(inc),
         "add": rel_add,
     }
     rungs.append(entry)
+    led["mode"] = mode
     led["rungs"] = rungs
     led["gen_dir"] = str(Path(gen_dir).resolve())
     p = save_ledger(gen_dir, led)
@@ -724,7 +814,7 @@ def selftest():
 
 def main():
     ap = argparse.ArgumentParser(
-        description="提示词阶梯闸门 A → B → C → D（见文件头）",
+        description="提示词阶梯闸门：有作者草图走 A→E，否则走 A→D",
         formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--gen-dir", default=None, help="账本目录（缺省由 --outdir 往上找）")
     ap.add_argument("--outdir", default=None, help="这一轮出图的目录")
@@ -734,6 +824,7 @@ def main():
     ap.add_argument("--content-ref", action="append", default=[],
                     help="这一轮的构图依据；给几张按档位定（L9：B 不给 / C 给 A+B / D 给上一档）")
     ap.add_argument("--stage", choices=("sketch", "render"), default="sketch")
+    ap.add_argument("--tier", choices=tuple("ABCDE") + ("render",), help="声明档位并与账本核对")
     ap.add_argument("--record", action="store_true", help="出图成功后登记这一段")
     ap.add_argument("--waive", default=None, help="确实要放行时的理由（会打印出来）")
     ap.add_argument("--json", default=None)
@@ -746,11 +837,13 @@ def main():
 
     gen_dir = find_gen_dir(a.outdir or ".", a.gen_dir)
     print("=" * 70)
-    print("ladder_gate —— 提示词阶梯闸门（A → B → C → D）")
+    mode = ladder_mode(load_ledger(gen_dir), a.stage, a.content_ref)
+    print("ladder_gate —— 提示词阶梯闸门（%s）" % " → ".join(rung_sequence(mode)))
     print("=" * 70)
     print("账本 : %s" % ledger_path(gen_dir))
 
-    if a.record:
+    rung, v, w, idx = precheck(gen_dir, a.brief, a.outdir, a.ref, a.stage, a.content_ref, tier=a.tier)
+    if a.record and (not v or a.waive):
         entry, p = do_record(gen_dir, a.brief, a.outdir, a.ref, a.add, a.stage, a.content_ref)
         n = len(load_ledger(gen_dir)["rungs"])
         print("已登记第 %d 段：%s 档 | 简报 %d 字符 | 增量 %d 字符"
@@ -758,7 +851,6 @@ def main():
         print("账本 -> %s" % p)
         return 0
 
-    rung, v, w, idx = precheck(gen_dir, a.brief, a.outdir, a.ref, a.stage, a.content_ref)
     print("这一轮 : 第 %d 段 = %s 档%s" % (idx + 1, rung,
           "（A 档只作诊断，不许进交付链）" if rung == "A" else ""))
     for x in w:
@@ -772,20 +864,16 @@ def main():
         else:
             print("-" * 70)
             print("结论：阶梯不合规 —— 不许调生图接口。")
-            print("  阶梯：A（一句话，默认不带参考图，只作诊断）→ "
-                  "B（+ 风格图 + 面板序列 + 输出硬约束；**不给 A 的图**）→ "
-                  "C（把 A 档画得好的元素搬进来、替换 B 里对应的）→ "
-                  "D（**严格在上一张图上改**，只补上一轮真画错的）")
             if a.json:
                 Path(a.json).write_text(json.dumps(
-                    {"gen_dir": str(gen_dir), "rung": rung, "index": idx,
+                    {"gen_dir": str(gen_dir), "mode": mode, "rung": rung, "index": idx,
                      "violations": v, "warnings": w}, ensure_ascii=False, indent=1), encoding="utf-8")
             return 2
     print("-" * 70)
     print("结论：阶梯合规（第 %d 段 = %s 档）。" % (idx + 1, rung))
     if a.json:
         Path(a.json).write_text(json.dumps(
-            {"gen_dir": str(gen_dir), "rung": rung, "index": idx,
+            {"gen_dir": str(gen_dir), "mode": mode, "rung": rung, "index": idx,
              "violations": v, "warnings": w}, ensure_ascii=False, indent=1), encoding="utf-8")
     return 0
 

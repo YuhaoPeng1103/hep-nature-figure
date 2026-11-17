@@ -2,7 +2,7 @@
 
 **面向高能核物理 3D 示意图的配图 Skill。** 从手绘草图或物理描述出发，在草图和成品上核对几何关系，保留复杂的光照与渐变，并交付零嵌入位图的 SVG 与按物理对象分层的编辑稿。
 
-当前主线为 [v4.27](CHANGELOG.md#v427--2026-11-11)，新装请用 `main`。早期的 `route-a`、`route-b1`、`route-b2` 仅作历史保留。
+当前主线为 [v4.28](CHANGELOG.md#v428--2026-11-18)，新装请用 `main`。早期的 `route-a`、`route-b1`、`route-b2` 仅作历史保留。
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
@@ -78,8 +78,9 @@
    ↓
 ② IR → 约束简报              scripts/ir_to_genbrief.py --stage sketch
    ↓
-③ 出候选草图：A 一句话，默认不带参考；B 给风格参考，不给 A 的图；
-   C 参考 A 和 B，D 基于上一轮只修明确的物理错误（见 references/routing.md）。
+③ 出候选草图：无作者草图走 A→D（文字、风格、替换、物理修正）；
+   有作者草图走 A→E（草图+一句话、同句纯文字、风格、从 A/B/C 选元素、物理修正）。
+   输入与账本规则见 references/routing.md。
                              scripts/gen_figure.py --stage sketch
    ↓
 ④ ★ 草图矢量化 —— 人可改的 SVG 草图（必须输出）
@@ -321,7 +322,7 @@ python3 scripts/demo_combined.py
 │   ├── make_picker.py           ★★ 客户选择入口（v3.1）：handoff 候选 → pick.html（双击可点、底栏给选择码）+ pick_sheet.png
 │   ├── choice_gate.py           ★★ 客户拍板闸门（v3.1）：没有 handoff/choice.json 就不许出成品位图；--by 写 agent 判失败
 │   ├── ref_guard.py             ★ 参考图角色闸门（v3.1；v4.13 加 LADDER_PREV）：--ref 只许风格书、sketch 的 --content-ref 只许手绘（+ 同一条阶梯上一轮的图）、render 的只许已过闸口①的草图；--run 先查后调
-│   ├── ladder_gate.py           ★★ 提示词阶梯闸门（v4.14）：A 档=一句话(默认无参考图)、B 档必须带 --ref+面板序列+输出硬约束+写明「保留上一档好的元素」（L12）、C 档严格在上一张图上改+改几何必须写「不要修改材质」（L11）；B/C 每轮必须把「修改前的图」当 --content-ref（L9）；--selftest 跑标定
+│   ├── ladder_gate.py           ★★ 提示词阶梯闸门：无作者草图 A→D；有作者草图 A→E；按账本核对档位、参考图和位图入口
 │   ├── keep_gate.py             ★★ 阶梯相邻两档的「保留」对账（v4.13）：形体删除（上一版有→这一版没了）+ 质感漂移（东西还在但材质被换掉）—— 正是 L11 那条「C 档不许顺手换材质」的对账工具
 │   ├── ir_layout_guard.py       ★ IR 版式锁闸门（v3.1）：把简报真的编译出来再扫「版式有没有被写死」
 │   ├── check_sketch.py          ★ 闸口①/②：草图与成品位图的物理检查（可一次查多张 + --json + --sketch 量构图保真）
@@ -366,7 +367,7 @@ python3 scripts/demo_combined.py
 
 | 文件 | 什么时候看 |
 |---|---|
-| `references/routing.md` | 判任务 / 图型、写 IR、选后端、验证、走 A→B→C→D 之前 |
+| `references/routing.md` | 判任务 / 图型、写 IR、选后端、验证、选择草图阶梯之前 |
 | `references/generate-flow.md` | 走路线 B、出草图 / 位图、位图→矢量七步之前 |
 | `references/scripts.md` | 查完整脚本表 / 某个脚本干什么 |
 | `references/ir-spec.md` | 写 IR 之前 —— 六层规范（物理 / 元素 / 构图 / 风格 / 执行 / 验收） |
