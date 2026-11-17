@@ -2,7 +2,7 @@
 
 **面向高能核物理 3D 示意图的配图 Skill。** 从手绘草图或物理描述出发，在草图和成品上核对几何关系，保留复杂的光照与渐变，并交付零嵌入位图的 SVG 与按物理对象分层的编辑稿。
 
-当前主线为 [v4.28](CHANGELOG.md#v428--2026-11-18)，新装请用 `main`。早期的 `route-a`、`route-b1`、`route-b2` 仅作历史保留。
+当前主线为 [v4.29](CHANGELOG.md#v429--2026-11-18)，新装请用 `main`。早期的 `route-a`、`route-b1`、`route-b2` 仅作历史保留。
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 

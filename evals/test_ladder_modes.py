@@ -12,6 +12,45 @@ SCRIPTS = Path(__file__).resolve().parents[1] / "scripts"
 
 
 class LadderModes(unittest.TestCase):
+    def test_guided_baseline_rejects_shape_and_color_on_both_rungs(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            hand = root / "sketches_in" / "sketch.png"
+            hand.parent.mkdir()
+            hand.touch()
+            a_brief, brief = root / "A.md", root / "brief.md"
+            neutral = "画高能核物理中的三维喷注淬火期刊示意图，展示背对背喷注。"
+            physics_terms = "画三维示意图，展示圆偏振探针、红外辐射、蓝移和色荷。"
+            prescribed = [
+                ("画三维喷注淬火示意图，暖色椭球 QGP 配蓝色喷注。", ("暖色", "椭球", "蓝色")),
+                ("画一张近圆的橙红QGP图。", ("近圆", "橙红")),
+                ("画三维喷注淬火示意图，QGP 不是椭圆。", ("椭圆",)),
+                ("Draw an oblate QGP with cobalt blue jets.", ("oblate", "blue")),
+                ("画三维喷注淬火示意图，介质用 #F80。", ("#F80",)),
+            ]
+
+            def pre(tier, text, content):
+                brief.write_text(text, encoding="utf-8")
+                return precheck(root, brief, root / tier, [], "sketch", content, tier=tier)[1]
+
+            for value in (neutral, physics_terms):
+                self.assertEqual(pre("A", value, [hand]), [])
+            for value, tokens in prescribed:
+                with self.subTest(tier="A", text=value):
+                    errors = pre("A", value, [hand])
+                    self.assertTrue(any(e.startswith("L2") and all(t in e for t in tokens) for e in errors), errors)
+                    self.assertEqual(pre("A", value, []), [])  # existing no-sketch route
+
+            a_brief.write_text(neutral, encoding="utf-8")
+            do_record(root, a_brief, root / "A", [], content_refs=[hand])
+            self.assertEqual(pre("B", neutral, []), [])
+            for value, tokens in prescribed:
+                with self.subTest(tier="B", text=value):
+                    # Even if A was recorded before this rule existed, B must not pass the old styling.
+                    a_brief.write_text(value, encoding="utf-8")
+                    errors = pre("B", value, [])
+                    self.assertTrue(any(e.startswith("L2") and all(t in e for t in tokens) for e in errors), errors)
+
     def test_author_sketch_ladder(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
@@ -27,7 +66,7 @@ class LadderModes(unittest.TestCase):
             one = "画三维科研示意图。"
             base = one + "单面板；图上只许出现这些标签：beam。不要标题，不要图例。\n【参考图自带、本图不要】网格。"
             merge = base + "\n逐元素比较 A、B、C 三档，以 C 档为底稿，选择优秀元素替换 C 档中对应处，其余原样保留。"
-            fix = base + "\n════ 上一轮画错的地方（这一轮必须改对）════\n严格在上一张图上改，其余原样保留，不许重画。\n[HP1] 顶点位置错了，改成偏右，不要修改材质。"
+            fix = base + "\n════ 上一轮画错的地方（这一轮必须改对）════\n严格在上一张图上改，其余原样保留，不许重画。\n[HP1] 核形变方向错了，改成沿束流压扁的椭球，不要修改材质。"
 
             def check(tier, body, refs, content, stage="sketch", code=None, claim=None):
                 brief.write_text(body, encoding="utf-8")

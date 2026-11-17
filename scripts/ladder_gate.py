@@ -115,12 +115,33 @@ import json
 import os
 import re
 import sys
+import unicodedata
 from pathlib import Path
 
 MAX_A_CHARS = 80
 MAX_B_CHARS = 1500
 MAX_INC_CHARS = 3000
 MAX_STEP_GROWTH = 250
+
+# Common explicit appearance terms in the shared A/B baseline. Leave physics
+# terms such as 圆偏振, 红外, 色荷 and 火球 alone.
+BASELINE_APPEARANCE = re.compile(
+    r"椭圆|椭球|正圆|近圆|浑圆|扁圆|圆盘|圆球|圆柱|圆锥|圆(?:形|状|的|一点)"
+    r"|扁球|球(?:形|状|壳)|(?<!火)球体|方形|矩形|三角形|多边形|立方体|棱柱|棱锥"
+    r"|杏仁[形状]|环[形状]|圆环|盘状|锥[形状]|管状|薄片|扇[形状]|卵[形状]|八字形|不规则[形状]"
+    r"|[黑白红橙黄绿青蓝紫粉灰褐棕金银暖冷][色调底]"
+    r"|橙红|红橙|灰蓝|深蓝|浅蓝|天蓝|藏蓝|金黄|银灰|黑白|暖橙|冷蓝"
+    r"|(?:[深浅亮暗淡浓][红橙黄绿蓝紫粉灰褐棕]|[红橙黄绿蓝紫灰])(?=的?(?:QGP|火球|喷注|介质|线条|背景))"
+    r"|\b(?:ellips(?:e|es|oid(?:s|al)?)|elliptic(?:al)?|spher(?:e|es|ical|oid(?:s|al)?)"
+    r"|oblate|prolate|oval(?:s)?|round(?:ed)?|circular(?!\s+polari[sz])"
+    r"|disc|disk|cone|conical|cylind(?:er|rical)|toroid(?:al)?|rectang(?:le|ular)|cube|cuboid"
+    r"|triang(?:le|ular)|almond[- ]shaped|ring[- ]shaped|fan[- ]shaped)\b"
+    r"|\b(?:white(?!\s+dwarf)|black(?!\s+hole)|red(?![- ]shift)|blue(?![- ]shift)"
+    r"|orange|yellow|green|cyan|teal|purple|violet|magenta|pink|gr[ae]y|brown|beige|golden|amber"
+    r"|monochrome|gr[ae]yscale|warm[- ](?:colou?rs?|tones?)|cool[- ](?:colou?rs?|tones?))\b"
+    r"|#[0-9a-f]{3,8}(?![0-9a-f])|\b(?:rgba?|hsla?|cmyk)\s*\(",
+    re.IGNORECASE,
+)
 
 PANEL_MARKERS = ("面板", "从左到右", "a/b/c", "a b c", "三个面板", "两个面板", "四面板")
 NO_DECOR_MARKERS = ("不要图例", "不要标题", "不要说明文字", "不成段", "不图例", "不色卡",
@@ -502,6 +523,11 @@ def precheck(gen_dir, brief_path, outdir, refs, stage, content_refs=None, *, tie
                 v.append(f"L2 {rung} 档只用一句话，不给风格参考。")
             if rung == "B" and prev_text.strip() != text.strip():
                 v.append("L2 B 档必须沿用 A 档原句，只移除草图，才能比较有无草图。")
+            terms = dict.fromkeys(m.group() for m in BASELINE_APPEARANCE.finditer(
+                unicodedata.normalize("NFKC", text)))
+            if terms:
+                v.append(f"L2 {rung} 档的一句话不许预设形状或颜色（命中：{'、'.join(terms)}）。"
+                         "只写领域、题材和必要的物理关系；形状确实违反硬物理时，留到 E 档修正。")
         if rung == "D":
             compact = _squash(text).upper()
             compare = re.search(r"A(?:档|版)?[、/+,，和与-]*B(?:档|版)?[、/+,，和与-]*C", compact)
