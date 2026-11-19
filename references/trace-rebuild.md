@@ -1,4 +1,6 @@
-# 矢量成品的三步：先临摹 → 再从临摹层重建（v4.0）
+# 临摹备用：先临摹 → 再从临摹层重建（v4.0 历史方法）
+
+> **2026-11-18：默认改为 [按对象直接重绘 SVG](direct-svg-redraw.md)。** 下文用于像素级临摹和旧算法复算。
 
 > **配套**：`scripts/trace_rebuild.py`（第三步）· `scripts/raster_to_vector_semantic.py`（第二步）
 > · `references/svg-cookbook.md`（矢量怎么画）· `references/3d-checklist.md`（3D 怎么立起来）

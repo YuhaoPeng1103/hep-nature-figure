@@ -35,14 +35,16 @@
 | `ir_layout_guard.py` | **★ IR 版式锁闸门（v3.1）**：IR 把整张版式写死（`composition.分区` / `元素布局`、`elements[].params` 的绝对毫米、`conventions` 里的逐面板脚本 / "exactly N panels in ONE ROW"）→ 同一份物理每次草图都一样。它把**简报真的编译出来再扫**（简报才是模型看到的东西），只查 IR 字面会漏掉被模板合成的那些 |
 | `choice_gate.py` | **★★ 客户拍板闸门（v3.1）**：没有客户回执 `handoff/choice.json` 就**不许出成品位图**；`--by` 只认 `client/customer/author/user/客户/作者/用户/甲方`，写 `agent`/`auto`/`codex` 一律判失败（客户明确说"你定"才用 `manual`）。`ref_guard.py --run --stage render` 会自动带上它 |
 | `make_picker.py` | **★★ 客户选择入口（v3.1）**：handoff 候选 → `pick.html`（客户双击、点一张、底栏给选择码）+ `pick_sheet.png`（贴聊天窗口的总览图）。每张配 `notes.json` 的一句话说明与闸口①读数，有硬伤的卡片点不动 |
-| `trace_rebuild.py` | **★★ 矢量成品三步的第三步（v4.0）**：从**临摹层**（`<g data-element=...>` 的掩膜）重建体积元素 —— 每个体积重做成 `clipPath`（精确可见轮廓）+ **真渐变网格**（每 BAND 一条 `linearGradient`）+ **线稿逐像素保留**。几何一律从掩膜取，**不重新走颜色阈值**。回归基线：v38 输入 MAE **1.946**、三体积像素数逐一对上 |
-| `shade_smooth.py` | **★★ 位图→矢量 第 ③-B 档装配器（v4.11）**：`--src 位图 --trace 临摹.svg` → **光滑档 SVG**。几何只有临摹层一个来源（每个 `<g data-element>` 单独栅格化成掩膜，按文档顺序 back→front 叠成分区）；每个元素 = `clipPath`（Chaikin 轮廓）+ **逐行自适应 `linearGradient`**（颜色简化到最少 stop）+ 纵向 `<mask>` 插值；网格解释不了的线稿走**残差层**（`|src-base|>thr` 的细网格，按距离场羽化）。`background` 元素吞掉画布的白色空白，所以元素不会糊出边界。回归基线：喷注淬火图上火球 ROI `smooth_metric` **mean 1.16 / >8 0.000**（= 交付件读数；位图自己 1.19） |
+| `check_direct_svg.py` | 检查直接重绘的对象组、原生文字与 SVG 引用，禁止嵌位图；`--hide … --hidden-png …` 渲染隐藏组的试编辑。被遮挡形体是否完整需目检。 |
+| `check_svg_pair.py` | 核对几何/透明纹理两版的 viewBox、共同对象、原生文字和引用；试编辑只能改变声明的 transform/display，可选单对象 RGBA 整数平移验证。 |
+| `trace_rebuild.py` | **临摹备用：从临摹层重建（v4.0）**：从**临摹层**（`<g data-element=...>` 的掩膜）重建体积元素 —— 每个体积重做成 `clipPath`（精确可见轮廓）+ **真渐变网格**（每 BAND 一条 `linearGradient`）+ **线稿逐像素保留**。几何一律从掩膜取，**不重新走颜色阈值**。回归基线：v38 输入 MAE **1.946**、三体积像素数逐一对上 |
+| `shade_smooth.py` | **临摹备用 ③-B 档装配器（v4.11）**：`--src 位图 --trace 临摹.svg` → **光滑档 SVG**。几何只有临摹层一个来源（每个 `<g data-element>` 单独栅格化成掩膜，按文档顺序 back→front 叠成分区）；每个元素 = `clipPath`（Chaikin 轮廓）+ **逐行自适应 `linearGradient`**（颜色简化到最少 stop）+ 纵向 `<mask>` 插值；网格解释不了的线稿走**残差层**（`|src-base|>thr` 的细网格，按距离场羽化）。`background` 元素吞掉画布的白色空白，所以元素不会糊出边界。回归基线：喷注淬火图上火球 ROI `smooth_metric` **mean 1.16 / >8 0.000**（= 交付件读数；位图自己 1.19） |
 | `pick_layer.py` | **★★ 位图→矢量 第 ④ 档（v4.10）**：在成品上叠一层**不可见**的「每个物理结构一条闭合路径」（`fill-opacity="0" pointer-events="all"`）⇒ **点一下 = 一个物理结构**。顺序必须 = 图里的真实遮挡（back→front），因为**一次点击由最后画的那条路径决定**。`--sub` 支持**子物体**（如核里逐核子一条），子画在父之后 ⇒ 点球选球、点没被切开的区域选核 |
 | `semantic_conflicts.py` | 审计同色竞争、弱边缘与声明遮挡冲突；输出可复查的 JSON 与叠加图。只发现问题，不改 elmap |
 | `semantic_competition.py` | 在冲突边界带上做确定性随机游走竞争；固定保护核、限制面积变化、拒绝断连，输出 `*_competed.npy`、置信度、改动报告与叠加图 |
-| `semantic_release.py` | **三产物唯一入口**：生成 `_edit.svg`（semantic-edit）、`_visual_mesh.svg`（pixel-fidelity）、`_visual_pick.svg`（object-pick）和 `release-v1` manifest；记录 bitmap/trace/IR 与冲突报告哈希 |
+| `semantic_release.py` | **临摹备用三产物入口**：生成 `_edit.svg`（semantic-edit）、`_visual_mesh.svg`（pixel-fidelity）、`_visual_pick.svg`（object-pick）和 `release-v1` manifest；记录 bitmap/trace/IR 与冲突报告哈希 |
 | `release_gate.py` | 校验 manifest 哈希、元素 ID 一致性、无嵌入位图、真文字、拾取目标；缺少渲染对比时明确报 `unavailable` |
-| `edit_to_visual.py` | 修改后的 edit master → 每元素掩膜/派生 trace → visual master + pick + `edit-to-visual-v1` manifest；不合成遮挡或隐藏纹理 |
+| `edit_to_visual.py` | 临摹备用：修改后的 edit master → 每元素掩膜/派生 trace → visual master + pick + `edit-to-visual-v1` manifest；不合成遮挡或隐藏纹理 |
 | `pick_verify.py` | **★★ 拾取层验收（v4.10）**：把拾取层每条路径**单独栅格化**，出三张表 —— 覆盖表（`covered` / `extra` / `empty` / **`unc smooth|text`**）、探针表（位图上是甚么 vs 点一下选中甚么，`不符 = 0` 才算过）、子物体表（面积 / 合并块 / 编号地图）。★ 它把 `cli >> json` 也存下来，可直接进交付说明 |
 | `smooth_metric.py` | **★ 光滑判据（v4.10）**：只在**位图本身就是平滑**的像素上（相邻步长 ≤3、行列双向都满足，再内缩 7 px）量成品与位图的相邻像素最大通道差 —— mean / p99 / **>8 占比** / max。实测光滑档 1.19（位图自己 1.21，不可区分）vs VTracer 43.67。★ MAE 会把一条硬边摊薄，这条不会 |
 | `axonometric.py` | **★ 正交相机 + 校验（v4.0）**：给 `(az, el, roll)` 算三轴的屏幕方向与前缩；`--check` 打印 `\|r\|`、`\|u\|`、`r·u` 判它是不是**合法投影**（手挑三轴方向 = 斜投影，`\|r\|≠1`、`r·u≠0`，眼睛读它就叫「扁」）。★ 它**向上为正**，填 IR 的 `轴方向_deg` 要取负 |

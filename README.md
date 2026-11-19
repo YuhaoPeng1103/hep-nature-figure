@@ -1,8 +1,11 @@
 # hep-nature-figure
 
+> **最终 SVG 默认同时交付两版（2026-11-19）：原生几何 `_edit.svg` + 独立透明纹理 `_texture.svg`。** 原来的 [几何重绘](references/direct-svg-redraw.md) 保留，新增 [双版制作与验收](references/dual-svg.md)。
+> 旧临摹保留为像素级保真与维护旧稿的备用。
+
 **面向高能核物理 3D 示意图的配图 Skill。** 从手绘草图或物理描述出发，在草图和成品上核对几何关系，保留复杂的光照与渐变，并交付零嵌入位图的 SVG 与按物理对象分层的编辑稿。
 
-当前主线为 [v4.29](CHANGELOG.md#v429--2026-11-18)，新装请用 `main`。早期的 `route-a`、`route-b1`、`route-b2` 仅作历史保留。
+当前主线为 [v4.30](CHANGELOG.md#v430--2026-11-19)，新装请用 `main`。早期的 `route-a`、`route-b1`、`route-b2` 仅作历史保留。
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
@@ -99,8 +102,7 @@
 ⑦ ★ 闸口②：成品位图再过一次同一个闸口    scripts/check_sketch.py --sketch 成品位图
       ★ 多张备选先机器排序（人眼只审没硬伤的）    scripts/pick_best.py
    ↓
-⑧ 位图 → 矢量：确认的位图 → 按物理元素临摹 → 从临摹层重建
-   同色或弱边界先审计；输出 visual master、edit master、pick 层及校验清单
+⑧ 同时交原生几何与独立透明纹理两版 SVG，各自回渲染并验证不切换纹理的拖动
    ↓
 ⑨ 交付检查 + 返修单 → 交付（SVG 工作稿 + PDF 成品）
 ```
@@ -115,13 +117,14 @@
 
 ## 三条路线，怎么选
 
-|  | **路线 1：直接代码出图** | **路线 2：生图草图 → 代码完善** | **路线 3：生图草图 → 成品位图 → 临摹** |
+|  | **路线 1：直接代码出图** | **路线 2：生图草图 → 代码完善** | **路线 3：生图草图 → 成品位图 → 重绘 SVG** |
 |---|---|---|---|
 | 中间产物 | 无 | 草图 PNG + **矢量草图 SVG** | 草图 PNG + **矢量草图 SVG** + 成品位图 |
 | 谁保证物理 | 代码（`geometry_constraints` 直接可算） | 闸口① | 闸口① + 闸口② |
 | 适合 | 精确、可参数化的图形 | 先探索视觉方案，再手工控制几何 | 需要保留生成位图的复杂光照和材质 |
 | 成本 | 低 | 中 | 高 |
 
+- **从文字或手稿探索新图**可走路线 3；已有指定成品且要可编辑 SVG，直接重绘。
 - **需要按选定草图生成复杂光照和材质** → 路线 3，是 3D 生图任务的默认选择。
 - **要批量扫参数 / 要代码直渲** → 路线 1（`scene_render.py` IR 直渲，或 `svg_lib` 手写）
 - **要人插手改草图** → 路线 2（矢量草图交给人在 Illustrator 里改，再代码完善）
@@ -129,6 +132,7 @@
 > 路线 2 和 3 的**前两段完全一样**（IR → 简报 → 生图 → 矢量草图 → 闸口①）。
 > 区别只在第三段：2 是代码接着完善草图，3 是多跑一张成品位图再矢量化。
 > 路线 3 最耗时，且草图进入成品渲染之前需要作者确认；确认后的位图是后续保真重建的依据。
+> 路线 3 的最后一段也按对象直接重绘。
 
 > ⚠️ **生图 key 由使用者自备**（环境变量 `DASHSCOPE_API_KEY`），skill 里不存任何 key；
 > 没 key 也能 `gen_figure.py --dry-run` 走通全流程自检。
@@ -136,9 +140,15 @@
 
 ---
 
-## 位图 → 矢量：保观感，也能改对象
+## 现成参考图 → 两版可编辑 SVG
 
-路线 3 先用 `raster_to_vector_semantic.py` 按物理对象临摹选定的位图，再从临摹层的掩膜重建几何。v4.27 在临摹前审计同色、弱边缘和遮挡次序的冲突，记录边界调整及其置信度。文字以真正的 SVG 文本保留。复杂光照可用沿对象轮廓裁切的矢量渐变带重建，不需要把整块对象作为 PNG 嵌入。
+默认同时交付 `<stem>_edit.svg`（原生几何重绘版）与 `<stem>_texture.svg`（独立透明纹理版），各附 PNG、源码和试编辑结果。两版使用同一对象表、viewBox 与原生文字；纹理版拖动仅改变组变换，不关闭纹理或切换重绘稿。 见 [双版 SVG](references/dual-svg.md)。
+
+按对象直接重绘：量参考图的比例与锚点 → 列对象和前后关系 → 画出完整形体（包括可合理补画的遮挡部分） → 用真渐变、独立阴影和原生文字塑形 → 回渲染、隐藏/移动一个对象核对。SVG 不嵌位图；每个物体是可单独编辑的命名组。 操作与两张喷注图的源码见 [直接重绘 SVG](references/direct-svg-redraw.md)。只有作者明确要像素级保真、对照旧算法或维护旧稿时，才走临摹备用。那条路线的掩膜、`--W`、MAE 与三联图要求不适用于直接重绘。 草图快速交接仍可用 `sketch_to_vector.py`。
+
+### 旧临摹工程的备用工具
+
+维护旧稿或显式选择临摹备用时，先用 `raster_to_vector_semantic.py` 按物理对象临摹选定的位图，再从临摹层的掩膜重建几何。v4.27 在临摹前审计同色、弱边缘和遮挡次序的冲突，记录边界调整及其置信度。文字以真正的 SVG 文本保留。复杂光照可用沿对象轮廓裁切的矢量渐变带重建，不需要把整块对象作为 PNG 嵌入。
 
 | 交付物 | 用途 |
 |---|---|
@@ -149,17 +159,6 @@
 
 改动编辑稿后，用 `edit_to_visual.py` 重新生成成品与拾取层。当前支持改色、平移、缩放和适度形变；完全遮挡的几何和不存在于源图中的纹理无法可靠恢复。复杂图仍可能需要人工校正元素分区或文字；评估保真时，应看对象和边界区域的误差，避免白底稀释全图误差。详见[矢量流程](references/bitmap-to-vector.md)及 [v4.27 发布说明](CHANGELOG.md#v427--2026-11-11)。
 
-### 如何和其他工具比较
-
-| 任务 | 对照方法 | 本项目的侧重点 |
-|---|---|---|
-| 草图 → 3D 成品位图 | [Adobe Firefly 构图参考](https://www.adobe.com/learn/firefly/web/sketch-to-ai-generated-image)可控制轮廓和布局。 | 分开指定构图和风格，作者先选或改草图，再核对投影、束流和喷注路径等物理关系。 |
-| 高渐变位图 → 可编辑 SVG | [AutoFigure-Edit](https://arxiv.org/abs/2603.06674)重建科研图布局，可把分割出的复杂图标作为[透明 PNG 嵌入 SVG](https://github.com/ResearAI/AutoFigure-Edit/blob/16f3749e9d512bdf7b7b55c162307bc289750b7a/autofigure2.py#L2807)，便于移动整个组件。 | 对复杂明暗做纯矢量重建；在保真成品之外，交付按物理对象可修改的编辑稿。 |
-| 通用位图描摹 | [VTracer](https://github.com/visioncortex/vtracer)适合快速得到路径，可按精度和体积调参。 | 把文字保留为文字、按物理对象分层，并检查重建后的几何和交付格式。 |
-
-已有证据是上面的喷注淬火 A/B（几何约束由 **2/6** 项提升至 **6/6**）和[复杂光照的 3D 火球算例](assets/demos/evo3d_smooth/)（无嵌入位图、4 个可编辑文字对象，PDF 回渲染的火球区域 MAE 为 **2.78 / 255**）。这些是具体案例，不是跨工具排行榜；项目尚未发布在相同输入和时间预算下的独立横评。
-
----
 
 ## 示例预览
 
@@ -168,7 +167,7 @@
 | **位图 → 矢量三种做法对照**（重画 / 混合临摹 / 真渐变开关） | <a href="assets/demos/flow_semantic/cmp_three_ways.png"><img src="assets/demos/flow_semantic/cmp_three_ways.png" width="260" alt="集体流：源位图 / 混合临摹 / 真渐变 / 重画 四格对照"></a> | 同一个末态火球（v2 > 0）四种做法并排：**重画** 12 KB 且**物理量是参数**（`RX, RY = R0(1 +- V2)` 一行同时定火球扁度和箭头各向异性，实测箭头比 **1.55** 是算出来的）；**混合临摹** 38,079 `<path>` / 15 `<text>` / `<image>` **0**、MAE **2.70**、6.67 MB；**真渐变开关**反而更差（右火球 MAE **6.48 -> 7.28**、体积 6.67 -> 6.64 MB —— 占体积的是抗锯齿碎屑，换渐变省不到） |
 | **喷注淬火 / 双喷注不对称**（路线③，v2.7.2） | <a href="assets/demos/jet_quenching/cmp_bitmap_vs_svg.png"><img src="assets/demos/jet_quenching/cmp_bitmap_vs_svg.png" width="260" alt="喷注淬火：位图 vs 临摹矢量"></a> | 新闸口**机器量出「IR 自己把几何写反了」**：按 IR 给的端点算，被淬火那侧只有 0.09W 就出射、另一侧反而 0.30W，3/3 草图一致照抄。修 IR 后弦长比 **4.00x**；34,076 `<path>` / **6 `<text>`** / `<image>` **0**，PDF 全图 MAE **1.797** |
 | 自旋关联示意图（路线③ 全过程） | <a href="assets/demos/spin_semantic/cmp_preview.png"><img src="assets/demos/spin_semantic/cmp_preview.png" width="260" alt="自旋关联：位图 vs 临摹矢量"></a> | 上 = 生图模型的成品位图，下 = 临摹矢量回渲染；非文字区 MAE **0.518**、`<image>` **0** |
-| 形变核 → 火球四阶段链（路线③ 全过程） | <a href="assets/demos/evo_semantic/cmp_preview.png"><img src="assets/demos/evo_semantic/cmp_preview.png" width="260" alt="形变核→火球：位图 vs 临摹矢量"></a> | 上 = 成品位图，下 = 全矢量临摹；MAE **0.626**、31005 `<path>` / `<image>` **0**、PDF 183x102 mm 纯矢量 | 
+| 形变核 → 火球四阶段链（路线③ 全过程） | <a href="assets/demos/evo_semantic/cmp_preview.png"><img src="assets/demos/evo_semantic/cmp_preview.png" width="260" alt="形变核→火球：位图 vs 临摹矢量"></a> | 上 = 成品位图，下 = 全矢量临摹；MAE **0.626**、31005 `<path>` / `<image>` **0**、PDF 183x102 mm 纯矢量 |
 | **形变核 → 火球 3D 版**（v2.6.7 风格档） | <a href="assets/demos/evo3d_semantic/cmp_bitmap_vs_svg.png"><img src="assets/demos/evo3d_semantic/cmp_bitmap_vs_svg.png" width="260" alt="形变核→火球 3D：位图 vs 矢量"></a> | 同一份 IR + 同一张参考图，只把 `--style-mode` 判成 `render3d`：火球从**纯色圆盘**变成内亮外暗的多层半透明 3D 渐变；686 `<path>` / **5 `<text>`** / `<image>` **0**，MAE 0.994 |
 | **IR 的 `material` 从没进过简报 → 火球是颗光滑糖球**（v2.6.9） | <a href="assets/demos/evo3d_fireball_spec/cmp_fireball_specs.png"><img src="assets/demos/evo3d_fireball_spec/cmp_fireball_specs.png" width="260" alt="火球 5 方对照"></a> | T3-02 / Gemini / 旧 spec / 两个新 spec：**同一个模型、同一个 seed**，只把 `material` 写清楚并送进简报，火球内部高频能量 0.0103 → 0.0418（2.6~4 倍），从光滑糖球变成有内部结构的等离子体团 |
 | **构图参考会把「扁平」当风格一起送进去**（v2.6.8） | <a href="assets/demos/evo3d_layoutref/cmp_refmodes.png"><img src="assets/demos/evo3d_layoutref/cmp_refmodes.png" width="260" alt="content-ref 三种送法的 A/B/C 对照"></a> | 同一份简报 / 同一 seed，只改 `--content-ref` 怎么送：原样送 → **纯色橙盘**；不送 → 3D 但构图跑掉；**降级成 layout-only → 3D 辉光 + 亮核，且构图相关 r 反而最高（0.904）**（★ v4.7 起降级改为 opt-in：它只对**扁平**草图成立；草图本身已经 3D 时降级是纯损失，见 `--content-ref-mode`） |
@@ -195,7 +194,7 @@
 - **成品 PDF**（默认 183×102 mm 双栏）+ 可选 PNG 预览；提交前请核对目标期刊的图件和 AI 使用要求。
 - **中间产物全部落盘**：IR、生图简报、草图 PNG、**矢量化草图 SVG**、成品位图，以及
   每个 seed 的 `calls.jsonl`（model / seed / size / refs / prompt 指纹 / 耗时）。
-- **验收记录**：闸口①/② 的逐条结论、临摹自检（MAE / PSNR / 色阶差）、交付门禁、构图审计。
+- **验收记录**：闸口①/② 的逐条结论、SVG 回渲染与试编辑（只有保真临摹备用看 MAE / PSNR / 色阶差）、交付门禁、构图审计。
 - **图层清单**（`*_layers.md`）：每个物理元素一行 —— 在 Illustrator / Inkscape 的图层面板里
   按名字点选就能改，不用在图里找。
 

@@ -4,7 +4,7 @@ description: >-
   Produce publication-quality high-energy nuclear physics figures: 3D schematics with
   lighting, collision/QGP illustrations, multi-panel composites, and reproductions of
   existing journal figures. Use for 科研配图、论文示意图、高能核物理配图、Nature 级配图、
-  碰撞示意图、QGP 示意图、复现论文图、手绘草图转配图、3D 示意图 with shading.
+  碰撞示意图、QGP 示意图、复现论文图、手绘草图转配图、参考图重绘成可编辑 SVG、3D 示意图 with shading.
   Routes to the right backend per figure (SVG / matplotlib / Blender / image generation)
   instead of forcing one tool. Not for statistics-only work or interactive dashboards.
 ---
@@ -17,21 +17,20 @@ description: >-
 
 | 环节 | 谁做 | 为什么 |
 |---|---|---|
-| **画** | **模型**（直接输出 SVG） | 模型有视觉先验，能做出代码拼不出的质感。实测：纯代码管线产出"干净的教科书插图"，达不到期刊观感；模型直接画明显更好 |
+| **画** | **按对象重绘 SVG**；探索新图时可先生成参考位图 | 模型读图、定形体和叠放；手写 SVG 或写逐图脚本实现几何与光影 |
 | **约束** | **IR + geometry_constraints** | 防"好看但物理错"。模型单干时最爱犯这个 |
 | **验收** | **三道门禁** | 模型看不见自己的输出，这里能量（见下「三道门禁是谁」） |
 | **拍板**（只一次） | **作者本人** | 闸口①之后、成品位图之前：机器只能排序，"哪张更像你要讲的物理"只有你知道。草图是全链最便宜的返工点（`sketch_handoff.py` / `sketch_ingest.py`）。**v3.1 起这条有闸门了**：`make_picker.py` 交出去、`choice_gate.py` 收回执 —— 没有**你本人**的回执就不许出成品位图 |
 | **返修** | **`repair_brief.py` → 模型改** | 光说"文字重叠"模型只能猜；返修单给**归一化坐标 + 具体错开量** |
 
-**结论：不要试图用代码把图"画好看"——那条路性价比极低。**
-代码该干的是**把模型的输出卡对**。
+**最终 SVG 默认双版交付：原生几何版 + 独立透明纹理版。** 先读 [直接重绘](references/direct-svg-redraw.md)，再读 [双版流程](references/dual-svg.md)。默认同时交付 `<stem>_edit.svg`（原生几何重绘版）与 `<stem>_texture.svg`（独立透明纹理版），各附 PNG、源码和试编辑结果。两版使用同一对象表、viewBox 与原生文字；纹理版拖动仅改变组变换，不关闭纹理或切换重绘稿。
 
 ### 架构（2026-09-26 定稿）
 
 **三条职责，各管一段：**
 
 ```
-IR 管物理  ｜  生图管风格  ｜  矢量那一步管矢量化
+IR 管物理  ｜  按需生图探索风格  ｜  SVG 按对象重绘
 ```
 
 ```
@@ -53,11 +52,8 @@ IR 管物理  ｜  生图管风格  ｜  矢量那一步管矢量化
    ★ 闸口②  check_sketch.py 成品位图 —— **同一个脚本再跑一次**
         （以前只跑闸口①，闸口②是漏的）
         ↓
-④ 位图 → 矢量。**两个终点，首选重画、备用混合临摹**（见下）
-        ★ v4.0 固定三步：① 客户选定/确认的位图 ② 逐像素**临摹**（raster_to_vector_semantic.py，
-        带 <g data-element> 语义图层）③ **从临摹层重建**（trace_rebuild.py）——
-        几何一律从临摹层的掩膜取，**别再走颜色阈值**（v37 教训：包围盒把真 bbox 切平、
-        「板下淡出」描成卷曲细带；改从 data-element 取几何后 MAE 2.49 / 5.28 → 1.95）
+④ 同时制作两版 SVG：原生几何重绘 → 遮挡补全、前景反混合 → 独立透明纹理版
+        回渲染，隐藏或移动关键对象核对被挡几何
         ↓
 ⑤ 三道门禁 + 返修单 → 交付
 ```
@@ -174,148 +170,15 @@ python3 scripts/ref_guard.py --run --post \
 
 > ⚠️ 门禁挡不住物理。物理只由两个 `check_sketch.py` 闸口 + `axis_gate.py`（轴名 ↔ 轴杆、板面 ↔ 三轴）+ 人看图把关（纪律 4）。
 
-### ★ ④ 的两个终点：**重画（首选）** vs **混合临摹（备用）**
+### ★ ④ 双版 SVG（默认同时交付）
 
-| | **重画（首选）** | **混合临摹（备用）** |
-|---|---|---|
-| 做法 | 看懂位图里**每个部分是什么**，逐个重画成 SVG；形体带真 `<gradient>`，保留色彩与阴影 | 逐像素描摹 + 文字擦掉重写真 `<text>` |
-| 分层 | 按**结构/物理**（`nucleus-A` / `photon-A` / `vertex`…） | 同上，**不按颜色分层** |
-| 可编辑性 | 最好（曲线是干净的形体） | 次之（路径碎，但是全矢量） |
-| 忠实度 | 取决于重画水平 | **最高**（同分辨率下 MAE 可到 0.2–0.5） |
-| 什么时候用 | 默认 | 重画不划算 / 要求"和位图一模一样"时 |
+默认同时交付 `<stem>_edit.svg`（原生几何重绘版）与 `<stem>_texture.svg`（独立透明纹理版），各附 PNG、源码和试编辑结果。两版使用同一对象表、viewBox 与原生文字；纹理版拖动仅改变组变换，不关闭纹理或切换重绘稿。 具体透明分离和验收见 [双版 SVG](references/dual-svg.md)。不得仅改文件名冒充两版，不得将像素稿或背景依赖修正层当纹理版。隐藏几何参考不等于自动驱动显示纹理，能力边界须说明。
 
-**两条都要求**：文字是真 `<text>`、图层按物理元素分（颜色只是 `<path>` 的属性）。
+读 [直接重绘 SVG](references/direct-svg-redraw.md)。按对象直接重绘：量参考图的比例与锚点 → 列对象和前后关系 → 画出完整形体（包括可合理补画的遮挡部分） → 用真渐变、独立阴影和原生文字塑形 → 回渲染、隐藏/移动一个对象核对。SVG 不嵌位图；每个物体是可单独编辑的命名组。
 
-> ⚠️ 老版本这里只写了"③ 必须是混合临摹"，且 `ir_to_genbrief` 的另一处又说
-> "看懂后**重画**、**不要照抄位图的几何**" —— 两句互相打架，AI 读到哪句走哪句。
-> 2026-09-26 统一：**位图已经过闸口，就该照它画**；对不上 = 位图错了，回去重出。
+交可编辑 SVG、回渲染的 PNG、所用绘制源码与「参考图 | SVG 回渲染」对照，记录一次试编辑结果。正式投稿继续按已有条件导出 PDF 并过相应门禁。 `check_direct_svg.py` 检查结构，并可输出一次隐藏对象后的回渲染；要看图确认露出的网格、喷注等是否完整。
 
-### ★ 但纯像素描摹一定不行：文字会全变成轮廓（实测依据）
-
-| | 纯像素描摹 | **擦掉重写（必须）** |
-|---|---|---|
-| 图形忠实度 | 高 | **高**（同样的像素描摹） |
-| 文字 | **0 个 `<text>`** —— 全是轮廓，`check_delivery` 判不合规 | **真 `<text>`，可编辑** |
-
-实测：同一张图，纯描摹 `<text>` 元素 **0 个**；给文字清单后 **3 个**。
-
-```bash
-# 模型看图后写出文字清单，再做混合临摹
-python3 scripts/raster_to_vector.py fig.png -o fig.svg --text-spec texts.yaml
-```
-
-```yaml
-texts:
-  - {content: "escaping jet", x: 0.62, y: 0.10, size: 13, anchor: start}
-```
-
-### ★ 临摹的两种粒度：逐像素 vs 先理解
-
-备用方案有两个实现，**按图的类型选**：
-
-| | `raster_to_vector.py`（逐像素描摹） | `raster_to_vector_semantic.py`（先理解再临摹） |
-|---|---|---|
-| 文字 | 模型写 `--text-spec` → 擦掉重写 | **OCR 词表 + 逐词对齐**（字号/字距/位置自动估） |
-| 图层 | `--groups`（模型给代表点） | `panels.py` 的 **ELEMENTS 表** → 面板/元素两层树（**颜色只是 `<path>` 的属性**） |
-| 忠实度 | 高 | 非文字区 MAE **0.227**、>32 色阶像素 **0.00%** |
-| 误差验收 | 要自己量 | **自带** MAE / PSNR / `--check` 回渲染 |
-| 依赖 | cv2 / skimage | numpy / scipy / Pillow / cairosvg / cairocffi / fontTools |
-| 适合 | 通用 | 色块 + 硬边的渲染示意图 |
-
-**要「人能直接点选某个物理元素改它」→ 用 semantic 那条** —— 它出的是
-panel → element 的**命名图层树**，`--legend` 给可读清单，
-`--elmap` 出元素划分自检图（人眼确认名字有没有贴对物体）。
-
-代价：**要人写两张每图各不相同的表** —— `words.txt`（OCR 词表）和
-`panels.py`（面板框 + 物理元素框 + 颜色条件）。自动切分只定"形状"，
-**"这块叫什么物理名字"必然要人来写**。这是它比纯描摹贵、也比纯描摹准的地方。
-
-```bash
-# ① 出词表（Windows.Media.Ocr，自动 2× 放大）
-powershell -File scripts/raster_vector/ocr_words.ps1 -Image fig.png -Out words.txt
-# ② 照 scripts/raster_vector/panels.py 改出这张图的 CELLS / ELEMENTS / SPLIT
-# ③ 组装 + 自检
-python3 scripts/raster_to_vector_semantic.py fig.png -o fig.svg --words words.txt \
-        --panels my_panels.py --legend fig_layers.md --elmap fig_el.png --check
-```
-
-> ⚠️ 两条路都**做不出真渐变网格**。原图的连续渐变在矢量里只能是色阶台阶
-> （调小 `--R` 变细，代价是路径数/体积）或真 `<gradient>`（要求图能拆成图元）。
-
-### ★ 台阶边界 -> 亚像素等值线：`--spline`（v4.23，纯 CPU）
-
-临摹层的几何是**可见像素轮廓**，边缘天然是 1 px 台阶。`svg_spline.py` 把「单连通大形体」
-的轮廓换成光滑曲线，**只改边界、不动明暗**（明暗仍是临摹层的四分块）。
-
-```bash
-# 交给 raster_to_vector_semantic 一步做完（默认关）
-python3 scripts/raster_to_vector_semantic.py fig.png -o fig.svg --no-text --spline
-# 或对已有成品做后处理
-python3 scripts/svg_spline.py --svg in.svg --png src.png --elmap elmap.npy --el-names "S1,N1,N2" -o out.svg [--method subpixel|vtracer]
-```
-
-- **默认 `--method subpixel`**：掩膜高斯软化（σ=1.4）→ `find_contours(0.5)` 取**亚像素**
-  闭合轮廓 → 周期三次样条 → 按弧长每 8 px 一段转成 `C` 段。
-  等值线落在**抗锯齿过渡带的 50% 中点**，也就是真实可见边缘上。
-- `--method vtracer` 保留：对**二值**掩膜拟合，边界落在台阶**外沿**，面积系统性偏大
-  （N1 +1.04%、N2 +0.75%），实测比等值线**更差** —— 只作为对照。
-- 四道写盘前闸门：多连通不做、回渲染 IoU ≥ 0.95、**代价 = 段数 × 该组 path 数 ≤ 2e6**、
-  图层组必须唯一（多面板同名元素明确跳过）。
-- UPC 实测（1664×909，边界带 = 两核轮廓内外各 3 px / 7849 px）：
-
-  | 版本 | 边界来源 | MAE | >32 | 边界带 MAE |
-  |---|---|---:|---:|---:|
-  | v4.21m | 1 px 台阶 | 1.279 | 1.12% | 16.607 |
-  | v4.22 | vtracer 二值样条 | 1.287 | 1.12% | 18.094 |
-  | **v4.23** | 亚像素等值线 | **1.275** | **1.10%** | **15.733** |
-
-  ★ 判据（写在这里防止再犯）：**看「元素自身 MAE」，不看全图 MAE**。全图被大片平背景稀释 ——
-  实测把细条元素 A1/P1/T1/B1 也套等值线，全图 MAE 1.274→1.248「变好」，但元素自身
-  A1 6.40→6.84、T1 7.10→10.30 全都变差（只是裁掉了 1 px 描边外溢）—— 那是刷指标，不是改进。
-  用 `svg_repro_check.py --elmap ... --el-names ...` 逐元素拆账。
-  ★ 教训：**「更光滑」不等于「更准」**。vtracer 那一版我只看 8×
-  放大觉得顺眼就宣布"更好"，实际边界带误差从 16.6 涨到 18.1。做这类判断必须报
-  **边界带 MAE**（全图 MAE 被大片平背景稀释，看不出边界变差）。
-- ★ 坑：vtracer 把图形**居中到原点**，真实位置在 `<path transform="translate(tx,ty)">` 里。
-  只取 `d`、丢掉 transform，路径会整体错位并把画布涂满（实测 MAE 11.6、核整块消失）。
-- ★ 坑：cairosvg 把 clip 路径**摊进每一条被裁的 path**。板 S1（512 段 × 8504 path）
-  会让 PDF 从 2.68 MB 涨到几百 MB、渲染 >12 min，而它对 MAE 的贡献是 0.000 ——
-  所以 `--max-cost` 会把它挡掉，这是有依据的取舍。
-
-### ★ 复现度不能只看「像不像」：`svg_repro_check.py`（v4.21）
-
-```bash
-python3 scripts/svg_repro_check.py --svg fig.svg --png fig.png \
-        [--elmap seg/elmap.npy --el-names A,B,...] [--json r.json] [--diff d.png]
-```
-
-四个读数一起看：`MAE`（会被大片平背景稀释）、`>8%`、`>32%`、`PSNR`；
-给了 `--elmap` 就逐元素拆账 —— 总量变差时能直接看出是哪个元素变差。
-
-同一张图实测（喷注淬火 1664×928，cairosvg 同分辨率回渲染）：
-
-| 版本 | MAE | >32 |
-|---|---|---|
-| 旧成品 | 3.07 | 2.67% |
-| 旧临摹（按颜色分层，96k path） | 2.32 | 1.57% |
-| v4.21（语义分层 + 实测底色 + 0.25 接缝） | **1.64** | **0.33%** |
-
-★ **两处隐藏的系统性误差**（不做这个读数就永远发现不了）：
-
-1. 画布底色原来写死 `#ffffff`，生图模型的底其实是 `#fdfcfd` —— 没归进任何元素的背景像素
-   整片偏 2~3 个色阶，MAE 白送 1.7。现在按位图量：边框环取初值 → 全图「离初值 ≤4 的低饱和
-   像素」再求中位（第二遍是为了避开模型自带的暗角，四角比中间暗 3~5 级）。
-2. 同色接缝描边（`SEAM`）让每块色块四周各外扩 sw/2 px；元素边界两侧颜色差大时
-   （QGP 橙 vs 板灰）这半像素就是系统性偏色。实测 1.00 → MAE 2.39 / 0.50 → 1.87 /
-   0.25 → 1.64 / 0 → 1.45；4× 放大下 0.25 已能盖住 1 设备像素的接缝（PDF 无纱窗），
-   所以这张图用 `SEAM = {"*": 0.25}`。**细碎色块很多的图仍要 1.0**（那是堵 PDF 纱窗的
-   标定值），这是按图标定的参数，不是全局最优。
-
-★ **临摹稿过两道门禁时会踩两个假阳性（v2.5 已修，但你得知道它们存在）：** 位图临摹稿的
-页面就是图本身，白底矩形总是顶到边 → `audit_composition` 会报「出界」（白上白被裁
-不可见，现已不计）；渐变填充会被 MuPDF 当成嵌入位图 →
-`check_delivery` 会报「72 dpi 位图」（现已改成扫 xref 认真 `/Subtype /Image`）。
-完整算例（含实测数字）：`assets/demos/jet_quenching/`（**线路③ 全流程 + 路径不对称闸口**，v2.7.2）、`assets/demos/upc_semantic/`、`assets/demos/spin_semantic/`、`assets/demos/evo_semantic/`（质感）与 `assets/demos/evo3d_semantic/`（**3D 风格档**：同一份 IR，`--style-mode render3d`，火球从纯色圆盘变成内亮外暗的 3D 渐变）。
+只有作者明确要像素级保真、对照旧算法或维护旧稿时，才走临摹备用。那条路线的掩膜、`--W`、MAE 与三联图要求不适用于直接重绘。 旧工具见 [临摹备用](references/bitmap-to-vector.md)；草图交接的 `sketch_to_vector.py` 照旧。
 
 ### ★ 物理检查要在【最终矢量】上做
 
@@ -336,20 +199,19 @@ python3 scripts/svg_repro_check.py --svg fig.svg --png fig.png \
 
 ### 三条路线怎么选
 
-|  | **路线 1：直接代码出图** | **路线 2：生图草图 → 代码完善** | **路线 3：生图草图 → 成品位图 → 临摹** |
+|  | **路线 1：直接代码出图** | **路线 2：生图草图 → 代码完善** | **路线 3：生图草图 → 成品位图 → 重绘 SVG** |
 |---|---|---|---|
 | 中间产物 | 无 | 草图 PNG + **草图 SVG** | 草图 PNG + **草图 SVG** + 成品位图 |
 | 谁保证物理 | 代码（`geometry_constraints` 直接可算） | 闸口① | 闸口① + 闸口② |
 | 观感 | 教科书插画 | 中 | **最好** |
 | 成本 | 低 | 中 | 高 |
 
-- **默认 = 路线 3**（生图草图 → 成品位图 → 重画/临摹成矢量）
+- **从文字或手稿探索新图**按需走路线 2 / 3；已有指定成品且要可编辑 SVG，直接重绘。
 - **要批量扫参数 / 要代码直渲** → 路线 1（`scene_render.py` IR 直渲，或 `svg_lib` 手写）
 - **要人插手改草图** → 路线 2（草图矢量化后交给人在 Illustrator 里改，再代码完善）
 
 > 路线 2 和 3 的**前两段完全一样**（IR → 简报 → 生图 → 矢量化草图 → 闸口①）。
 > 区别只在第三段：2 是代码/模型接着完善草图，3 是再多跑一张成品位图。
-> **默认走 3**，因为"质感"这件事生图模型比代码强得多；只有要代码直渲时才退回 1。
 
 ### ★ 生图那一步的三条硬规矩
 
@@ -403,7 +265,7 @@ python3 scripts/svg_repro_check.py --svg fig.svg --png fig.png \
 | R7 | 草图管“对不对”，位图管“全不全、精不精” | `check_sketch.py` | 人工逐条答“否”就重出 |
 | R8 | 位图简报 = IR 全量 + 上一版错误清单；构图参考原样送 | `render_brief_gate.py` + 复检 | — |
 | R9 | 物理否决美观；美观否决画法；硬物理每条必须给 `measure` | `ir_scope_gate.py` S3/S4 + IR 契约 | `NO_HARD_PHYSICS` |
-| R10 | 位图 → 临摹 → 从临摹层重建；几何只来自临摹层 | `raster_to_vector_semantic.py` → `trace_rebuild.py` | — |
+| R10 | 同时交原生几何 `_edit.svg` 与独立透明 `_texture.svg`；完整遮挡几何，拖动不切换纹理 | `check_direct_svg.py`（两版）+ `check_svg_pair.py` + 目检 | — |
 
 **R6.1 是 v4.26 新增的硬闸门**（作者 2026-10-21：「B 档没有 IR 进去」）。
 它拦的是一次实测过的系统性 bug：A 档只写“两个核子堆成的重核”，B 档自己加了
@@ -502,7 +364,7 @@ python3 scripts/svg_repro_check.py --svg fig.svg --png fig.png \
 
 ## 路线 B：图像生成（速查；完整命令链见 `references/generate-flow.md`）
 
-> **动手出图之前，先读 `references/generate-flow.md`。** 默认走这条路；本节只是 7 步骨架与硬约束，每一步的命令、参数、实测读数在下沉文件里。
+> **动手出图之前，先读 `references/generate-flow.md`。** 需生成并精修新位图时走这条路；已有目标图的直接重绘从第 7 步开始。本节是 7 步骨架与硬约束，每一步的命令、参数、实测读数在下沉文件里。
 
 1. **IR → 简报**：`ir_to_genbrief.py --stage sketch`。默认先走 `brief_lite.py --tier 0`（一句话 + 面板序列 + 输出硬约束），看图后 `--tier 1 --add 上一轮画错.md` 只补错的那几条（= 上一轮 `check_sketch` 人工项里所有答“否”的硬物理，不是只写注意到的）；完整规格书留给 A 类复现。
 2. **出草图**：`gen_figure.py --stage sketch --ref <风格书> --seeds ...`；产物 `sketch_sN.png` + `calls.jsonl`。模型稳定画 1–2 px 外框，**别求它去掉**，用 `trim_border.py` 确定性地裁（两层外框加 `--bg 0.975`）。
@@ -511,13 +373,8 @@ python3 scripts/svg_repro_check.py --svg fig.svg --png fig.png \
 5. **出成品位图**：`ir_to_genbrief.py --stage render` → `ref_guard.py --run -- ... --stage render --content-ref <作者选中的末档草图> --ref <风格书>`。末档是 D（无手稿）或 E（有手稿）；草图**原样送**（`auto -> full`），只有草图本身扁平时才考虑 `--content-ref-mode layout`。简报写「在上一张图的基础上改，别换掉画对的」，对照硬物理逐条列出仍需修正或补齐的内容。
    - `--ref` 只收风格书（`assets/t3-exemplars/`、`_T3精选/`）；`--content-ref` 只收手绘输入或本阶梯已登记的 rung；`assets/demos/**` 任何阶段不许当参考；同一张图不许同时占两个角色。
 6. **闸口②**：`check_sketch.py --sketch <草图>` 再跑一次；再 `gate3d_rank.py --require-all`、`axis_gate.py`、`check_3d_generic.py`。
-7. **位图 → 矢量**：固定三步 —— ① 客户确认的位图；② `raster_to_vector_semantic.py` 逐像素**临摹**（`<g data-element>` 语义层）；③ `trace_rebuild.py` **从临摹层重建**。**几何只来自临摹层**，禁止再走“颜色阈值 ∩ 包围盒”重抠（v37 教训）。
-   - 默认交付 **③-B 光滑档**（`shade_smooth.py`）+ **③-A 对象档**；要“点一下 = 一个物理结构”加 `pick_layer.py`。
-   - 同色对象先用 `semantic_conflicts.py` 审计，再用 `semantic_competition.py` 生成边界带竞争结果；原 elmap 保留，competed 结果及置信度单独落盘。
-   - 用 `semantic_release.py` 一次生成 edit / visual / pick 三产物与 manifest，再用 `release_gate.py` 校验。visual master 用于投稿 PDF，edit master 用于后续修改，pick layer 只承担点选。
-   - 修改 edit master 后运行 `edit_to_visual.py --edit <edit.svg> --manifest <release.json>`；它以编辑产物为源重建 visual 和 pick。支持改色、平移、缩放和适度形变，不处理完全遮挡或纹理凭空生成。
-   - 文字必须真 `<text>`；边界用 `svg_spline.py --method subpixel`（默认，亚像素等值线），`vtracer` 只作对照。
-   - 判好坏看**元素自身 MAE**，不看全图 MAE；cairosvg 不画 `<mask>`，验 MAE 用 Edge/Chrome。
+7. **双版 SVG**：默认同时交付 `<stem>_edit.svg`（原生几何重绘版）与 `<stem>_texture.svg`（独立透明纹理版），各附 PNG、源码和试编辑结果。两版使用同一对象表、viewBox 与原生文字；纹理版拖动仅改变组变换，不关闭纹理或切换重绘稿。 按 [重绘](references/direct-svg-redraw.md) 和 [双版流程](references/dual-svg.md) 制作，纹理版另做不切换纹理的拖动/隐藏试验。
+   - 临摹备用仍可用 `semantic_conflicts.py` / `semantic_competition.py` 审计边界，再以 `semantic_release.py` 发布、`release_gate.py` 校验；旧 edit master 的修改用 `edit_to_visual.py` 重建。它们不替代默认双版流程，不负责补全遮挡。
 
 ---
 
@@ -679,7 +536,9 @@ python3 scripts/auto_converge.py --ref 参考图.png \
 | 风格量化、闭环修正 | `references/style-bench.md` |
 | 遇到渲染异常 / 静默失败 | `references/gotchas.md` |
 | **一张图要用多种工具** | `references/multi-tool.md` |
-| **位图 → 矢量的四档 / amodal 补全 / 拾取层 / 光滑判据** | **`references/bitmap-to-vector.md`** ★ |
+| **最终 SVG：对象拆解、补画遮挡、3D 光影、试编辑及示例** | **`references/direct-svg-redraw.md`** ★ |
+| **双版交付：反混合、遮挡补全、独立纹理与拖动验收** | **`references/dual-svg.md`** ★ |
+| 临摹备用：amodal 补全、拾取层、光滑档 | `references/bitmap-to-vector.md` |
 | 硬物理 vs 画法偏好的完整规则 | `references/physics-vs-style.md` |
 
 ## 资产
@@ -703,10 +562,10 @@ python3 scripts/auto_converge.py --ref 参考图.png \
 ## 脚本（索引；完整表见 `references/scripts.md`）
 
 最常用的一条链：
-`ir_to_genbrief.py` / `brief_lite.py` → `gen_figure.py` → `trim_border.py` → `check_sketch.py` → `sketch_to_vector.py` / `sketch_handoff.py` / `choice_gate.py` → `gate3d_rank.py` → `axis_gate.py` → `raster_to_vector_semantic.py` → `trace_rebuild.py` → `svg_spline.py` → `check_delivery.py`
+`ir_to_genbrief.py` / `brief_lite.py` → `gen_figure.py` → `trim_border.py` → `check_sketch.py` → `sketch_to_vector.py` / `sketch_handoff.py` / `choice_gate.py` → `gate3d_rank.py` → `axis_gate.py` → 两版 SVG（几何/透明纹理）→ `check_direct_svg.py`（两版）+ `check_svg_pair.py`（试编辑）→ `check_delivery.py`
 
 - 生成与闸门：`gen_figure.py`、`ref_guard.py`、`ladder_gate.py`、`ir_scope_gate.py`、`ir_layout_guard.py`、`keep_gate.py`、`element_list.py`、`choice_gate.py`、`check_sketch.py`、`gate3d_rank.py`、`axis_gate.py`、`check_3d_generic.py`、`check_delivery.py`、`preview.py`、`init_workspace.py`
-- 位图 → 矢量：`raster_to_vector_semantic.py`、`trace_rebuild.py`、`svg_spline.py`、`shade_smooth.py`、`pick_layer.py`
-- 语义发布：`semantic_conflicts.py`、`semantic_competition.py`、`semantic_release.py`、`release_gate.py`、`edit_to_visual.py`
+- 双版 SVG：`check_direct_svg.py`（两版）、`check_svg_pair.py`（共同对象/文字及无切换的拖动）。临摹备用：`raster_to_vector_semantic.py`、`trace_rebuild.py`、`svg_spline.py`、`shade_smooth.py`、`pick_layer.py`。
+- 临摹备用的语义发布：`semantic_conflicts.py`、`semantic_competition.py`、`semantic_release.py`、`release_gate.py`、`edit_to_visual.py`。
 - 诊断与返修：`check_render.py`、`compare_ref.py`、`style_bench.py`、`repair_brief.py`、`audit_composition.py`
 - 其余（IR、拼版、复现、工具探测）见 `references/scripts.md`。

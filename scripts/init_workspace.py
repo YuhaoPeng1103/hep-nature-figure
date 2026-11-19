@@ -26,7 +26,7 @@ SHIMS = [
     "axis_gate", "check_3d_generic", "gate3d_rank", "check_sketch", "check_delivery",
     "make_picker", "choice_gate", "element_list", "preview", "audit_refs",
     "sketch_handoff", "sketch_ingest", "sketch_to_vector", "trim_border",
-    "ir_to_genbrief", "brief_lite", "raster_to_vector_semantic", "trace_rebuild",
+    "ir_to_genbrief", "brief_lite", "check_direct_svg", "check_svg_pair", "raster_to_vector_semantic", "trace_rebuild",
     "semantic_conflicts", "semantic_competition", "semantic_release", "release_gate",
     "edit_to_visual",
     "gen_figure",
@@ -126,19 +126,20 @@ IR 的版式 / 材质偏好**不构成物理要求**。
 **物理可以否决美观；美观不能否决物理；美观可以否决画法偏好。**
 硬物理每条必须在 IR 的 `hard_physics` 里给出 `measure`；给不出 measure 的就是画法。
 
-## 9. 位图 → 矢量（R10）
+## 9. 最终 SVG（R10）
 
-① 客户确认的位图 → 可选 `semantic_conflicts.py` + `semantic_competition.py`
-审计/复核同色边界 → ② `raster_to_vector_semantic.py` 用 competed elmap 临摹
-（`<g data-element>`）→ ③ `semantic_release.py` 同时生成 edit/visual/pick 三个产物，
-`release_gate.py` 校验。几何只来自临摹层，禁止再按颜色阈值抠轮廓。
-修改 `edit-master` 后运行 `edit_to_visual.py`，从编辑产物重建 visual/pick。
-交付贴 `位图 | 临摹 | 重建` 三联图。
+默认同时交付 `<stem>_edit.svg`（原生几何重绘版）与 `<stem>_texture.svg`（独立透明纹理版），各附 PNG、源码和试编辑结果。两版使用同一对象表、viewBox 与原生文字；纹理版拖动仅改变组变换，不关闭纹理或切换重绘稿。 读 skill 的 `references/dual-svg.md`；两版都过 `tools/check_direct_svg.py`，再用 `tools/check_svg_pair.py` 核对对象、文字和无切换拖动。
+
+已有作者指定的成品图、只要重绘 SVG 时，从对象拆解直接开始，跳过生图、草图阶梯和逐像素临摹。需要创作新图时，草图、作者选择和成品位图门禁照旧，最后按对象重绘 SVG。
+按对象直接重绘：量参考图的比例与锚点 → 列对象和前后关系 → 画出完整形体（包括可合理补画的遮挡部分） → 用真渐变、独立阴影和原生文字塑形 → 回渲染、隐藏/移动一个对象核对。SVG 不嵌位图；每个物体是可单独编辑的命名组。
+用 `tools/check_direct_svg.py` 验结构；图层隐藏或移动后的几何要回渲染核对。只有作者明确要像素级保真、对照旧算法或维护旧稿时，才走临摹备用。那条路线的掩膜、`--W`、MAE 与三联图要求不适用于直接重绘。
+临摹备用保留 `semantic_conflicts.py`、`semantic_competition.py`、`semantic_release.py`、`release_gate.py` 和 `edit_to_visual.py`，仅按该路线的条件使用。
 
 ## 10. 交付强制项
 
-客户确认的位图 + 可编辑 SVG + 三联图 + 两行读数
-（`坐标约定：…` / `3D 闸门读数：板面 ?% / 接触阴影 ?% / 高光偏离 ? 半轴`）+ 已知偏差清单。
+交可编辑 SVG、回渲染的 PNG、所用绘制源码与「参考图 | SVG 回渲染」对照，记录一次试编辑结果。正式投稿继续按已有条件导出 PDF 并过相应门禁。
+保留坐标约定、3D 闸门读数、已知偏差清单。
+
 """
 
 
