@@ -2,7 +2,6 @@
 """Validate geometry/texture SVG deliverables and an edit that changes only object transforms."""
 import argparse
 from copy import deepcopy
-from hashlib import sha256
 from io import BytesIO
 from pathlib import Path
 import re
@@ -36,14 +35,33 @@ def load(path):
     return root,groups,words
 
 
-def fingerprint(node,ignored=()):
-    copy=deepcopy(node)
-    for key in ignored:
-        copy.attrib.pop(key,None)
-    return sha256(ET.tostring(copy)).hexdigest()
+def named_objects(root):
+    objects = {}
+    for node in root:
+        if node.tag == f"{{{NS}}}defs":
+            continue
+        if node.get("id") and node.get("data-element"):
+            objects[node.get("id")] = node
+        if node.tag == f"{{{NS}}}g":
+            objects.update(named_objects(node))
+    return objects
 
 
-def rgba_probe(root,obj,modified):
+def validate_edit(original, edited, changed, kind):
+    before, after = deepcopy(original), deepcopy(edited)
+    original_objects, edited_objects = named_objects(before), named_objects(after)
+    if not set(changed) <= original_objects.keys() & edited_objects.keys():
+        raise ValueError("Unknown changed object")
+    for key in changed:
+        previous = original_objects[key].attrib.pop(kind, None)
+        current = edited_objects[key].attrib.pop(kind, None)
+        if previous == current:
+            raise ValueError(f"{key}: declared edit made no change")
+    if ET.tostring(before) != ET.tostring(after):
+        raise ValueError("Edit changed content outside the declared attributes")
+
+
+def rgba_probe(root,obj,modified,report_only=False):
     import cairosvg
     import numpy as np
     from PIL import Image
@@ -79,13 +97,31 @@ def rgba_probe(root,obj,modified):
         raise ValueError("RGBA probe requires a nonempty object fully inside the edited canvas")
     left,right=max(0,-dx),min(w,w-dx)
     top,bottom=max(0,-dy),min(h,h-dy)
-    if not np.array_equal(a[top:bottom,left:right],b[top+dy:bottom+dy,left+dx:right+dx]):
-        raise ValueError("Intrinsic RGBA changed after translation")
+    reference = a[top:bottom, left:right]
+    translated = b[top+dy:bottom+dy, left+dx:right+dx]
     permitted=np.zeros((h,w),dtype=bool)
     permitted[top+dy:bottom+dy,left+dx:right+dx]=True
+    if not b[..., 3].any():
+        raise ValueError("RGBA probe did not render the translated object")
     if b[:,:,3][~permitted].any():
         raise ValueError("Unexpected pixels outside the translated object")
-    print("PASS: intrinsic object RGBA identical after integer translation")
+    if np.array_equal(reference, translated):
+        print("PASS: intrinsic object RGBA identical after integer translation")
+        return
+    if not report_only:
+        raise ValueError("Intrinsic RGBA changed after translation")
+
+    foreground = (reference[..., 3] > 0) | (translated[..., 3] > 0)
+    a, b = reference[foreground].astype(float), translated[foreground].astype(float)
+    difference = np.abs(a - b)
+    a[:, :3] *= a[:, 3:] / 255
+    b[:, :3] *= b[:, 3:] / 255
+    premultiplied = np.abs(a - b)
+    print(f"DIAGNOSTIC: RGBA differs at {np.any(difference > 0, axis=1).sum()} / "
+          f"{len(a)} foreground pixels after alignment (0-255 channels)")
+    print(f"  Straight RGBA MAE {difference.mean():.6f}, max {difference.max():.0f}")
+    print(f"  Premultiplied RGBA MAE {premultiplied.mean():.6f}, max {premultiplied.max():.3f}")
+    print("  Exact RGBA equality not met. Inspect the aligned object and scene renders.")
 
 
 def main():
@@ -96,7 +132,11 @@ def main():
     p.add_argument("--changed",nargs="+",default=[])
     p.add_argument("--kind",choices=("transform","display"),default="transform")
     p.add_argument("--rgba-object",help="optional expensive RGBA translation probe")
+    p.add_argument("--rgba-report-only", action="store_true",
+                   help="report rendering differences without requiring exact RGBA equality")
     a=p.parse_args()
+    if a.rgba_report_only and not a.rgba_object:
+        p.error("--rgba-report-only requires --rgba-object")
     if bool(a.edited)!=bool(a.changed) or (a.rgba_object and (not a.edited or a.kind!="transform")):
         p.error("--edited requires --changed, and --rgba-object requires a transform edit")
     try:
@@ -111,31 +151,17 @@ def main():
         if any(n.get("data-role")=="appearance-patch" for n in tr.iter()):
             raise ValueError("The old background-dependent appearance patch is not the texture deliverable")
         if a.edited:
-            er,eg,et=load(a.edited)
-            if er.attrib!=tr.attrib:
-                raise ValueError("Edit changed root scene attributes")
-            stable=lambda root: [fingerprint(n) for n in root if not n.get("data-element")]
-            if stable(er)!=stable(tr):
-                raise ValueError("Edit changed shared definitions or scene content")
-            if eg.keys()!=tg.keys() or et!=tt or er.get("viewBox")!=tr.get("viewBox"):
-                raise ValueError("Edited scene removed objects, changed text or changed viewBox")
-            if not set(a.changed)<=tg.keys():
-                raise ValueError("Unknown changed object")
-            for key,obj in tg.items():
-                ignored=(a.kind,) if key in a.changed else ()
-                if fingerprint(obj,ignored)!=fingerprint(eg[key],ignored):
-                    raise ValueError(f"{key}: edit changed native geometry/texture or toggled a fallback")
-                if key in a.changed and obj.get(a.kind)==eg[key].get(a.kind):
-                    raise ValueError(f"{key}: declared edit made no change")
-            if fingerprint(next(n for n in tr if n.tag==f"{{{NS}}}defs"))!=fingerprint(
-                next(n for n in er if n.tag==f"{{{NS}}}defs")):
-                raise ValueError("Edit changed shared geometry/material definitions")
+            er,_,_=load(a.edited)
+            validate_edit(tr, er, a.changed, a.kind)
             print(f"PASS: edit changes only {a.kind} on the declared objects")
             if a.rgba_object:
                 if a.rgba_object not in a.changed: raise ValueError("RGBA object must be among --changed")
-                rgba_probe(tr,tg[a.rgba_object],eg[a.rgba_object])
+                original, edited = named_objects(tr), named_objects(er)
+                if a.rgba_object not in tg:
+                    raise ValueError("RGBA probe requires a top-level object to preserve its scene context")
+                rgba_probe(tr, original[a.rgba_object], edited[a.rgba_object], a.rgba_report_only)
         print(f"PASS: both variants, {len(tg)} named objects, {len(tt)} native text objects, no raster embeds")
-    except (OSError,ValueError,ET.ParseError) as exc:
+    except (ImportError,OSError,ValueError,ET.ParseError) as exc:
         p.exit(1,f"FAIL: {exc}\n")
 
 

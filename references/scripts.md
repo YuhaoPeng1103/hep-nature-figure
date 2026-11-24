@@ -7,7 +7,7 @@
 |---|---|
 | `svg_lib.py` | SVG 图元库（火球/圆柱/核子/壳/环/坐标轴/场线…） |
 | `check_render.py` | 渲染静默失败检测，四项检查 |
-| `compare_ref.py` | 参考图与成图并排对比 |
+| `compare_ref.py` | 并排对比。可用 `--metrics report.json --region NAME X0 Y0 X1 Y1` 量原尺寸整幅、面板及前景误差。 |
 | `style_bench.py` | 风格度量与基准比对（**是诊断工具，不是优化目标**） |
 | `assemble_panels.py` | 复合图拼版，保矢量 |
 | `extract_figures.py` | 从论文 PDF 自动切图 |
@@ -36,7 +36,7 @@
 | `choice_gate.py` | **★★ 客户拍板闸门（v3.1）**：没有客户回执 `handoff/choice.json` 就**不许出成品位图**；`--by` 只认 `client/customer/author/user/客户/作者/用户/甲方`，写 `agent`/`auto`/`codex` 一律判失败（客户明确说"你定"才用 `manual`）。`ref_guard.py --run --stage render` 会自动带上它 |
 | `make_picker.py` | **★★ 客户选择入口（v3.1）**：handoff 候选 → `pick.html`（客户双击、点一张、底栏给选择码）+ `pick_sheet.png`（贴聊天窗口的总览图）。每张配 `notes.json` 的一句话说明与闸口①读数，有硬伤的卡片点不动 |
 | `check_direct_svg.py` | 检查直接重绘的对象组、原生文字与 SVG 引用，禁止嵌位图；`--hide … --hidden-png …` 渲染隐藏组的试编辑。被遮挡形体是否完整需目检。 |
-| `check_svg_pair.py` | 核对几何/透明纹理两版的 viewBox、共同对象、原生文字和引用；试编辑只能改变声明的 transform/display，可选单对象 RGBA 整数平移验证。 |
+| `check_svg_pair.py` | 核对几何/透明纹理两版的 viewBox、共同对象、原生文字和引用；试编辑只允许指定命名对象或子组的 transform/display。可选顶层对象整数平移验证，`--rgba-report-only` 量化渲染差异。 |
 | `trace_rebuild.py` | **临摹备用：从临摹层重建（v4.0）**：从**临摹层**（`<g data-element=...>` 的掩膜）重建体积元素 —— 每个体积重做成 `clipPath`（精确可见轮廓）+ **真渐变网格**（每 BAND 一条 `linearGradient`）+ **线稿逐像素保留**。几何一律从掩膜取，**不重新走颜色阈值**。回归基线：v38 输入 MAE **1.946**、三体积像素数逐一对上 |
 | `shade_smooth.py` | **临摹备用 ③-B 档装配器（v4.11）**：`--src 位图 --trace 临摹.svg` → **光滑档 SVG**。几何只有临摹层一个来源（每个 `<g data-element>` 单独栅格化成掩膜，按文档顺序 back→front 叠成分区）；每个元素 = `clipPath`（Chaikin 轮廓）+ **逐行自适应 `linearGradient`**（颜色简化到最少 stop）+ 纵向 `<mask>` 插值；网格解释不了的线稿走**残差层**（`|src-base|>thr` 的细网格，按距离场羽化）。`background` 元素吞掉画布的白色空白，所以元素不会糊出边界。回归基线：喷注淬火图上火球 ROI `smooth_metric` **mean 1.16 / >8 0.000**（= 交付件读数；位图自己 1.19） |
 | `pick_layer.py` | **★★ 位图→矢量 第 ④ 档（v4.10）**：在成品上叠一层**不可见**的「每个物理结构一条闭合路径」（`fill-opacity="0" pointer-events="all"`）⇒ **点一下 = 一个物理结构**。顺序必须 = 图里的真实遮挡（back→front），因为**一次点击由最后画的那条路径决定**。`--sub` 支持**子物体**（如核里逐核子一条），子画在父之后 ⇒ 点球选球、点没被切开的区域选核 |

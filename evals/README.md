@@ -9,6 +9,7 @@ python3 evals/test_tools.py        # 47 个 case
 python3 evals/test_tools.py -v     # 显示每个 case 防的是什么坑
 python3 evals/test_tools.py geom   # 只跑名字含 geom 的
 python3 -m unittest discover -s evals -p test_ladder_modes.py  # 有草图 A→E 与旧账本 A→D
+python3 -m unittest discover -s evals -p test_svg_redraw.py  # 局部误差、子组试编辑与 RGBA 诊断
 ```
 
 **每个 case 对应一个真实踩过的坑。** 不加 pytest 依赖（要能在 ChatGPT 沙箱里跑）。

@@ -25,6 +25,8 @@ description: >-
 
 **最终 SVG 默认双版交付：原生几何版 + 独立透明纹理版。** 先读 [直接重绘](references/direct-svg-redraw.md)，再读 [双版流程](references/dual-svg.md)。默认同时交付 `<stem>_edit.svg`（原生几何重绘版）与 `<stem>_texture.svg`（独立透明纹理版），各附 PNG、源码和试编辑结果。两版使用同一对象表、viewBox 与原生文字；纹理版拖动仅改变组变换，不关闭纹理或切换重绘稿。
 
+**纯代码重绘复杂渐变**：给定参考图且要连续渐变与对象级编辑时，先用完整几何、透明原生渐变和独立物理对象重建。低像素差用于定位偏差，逐面板和前景报告。按 [连续渐变 SVG](references/continuous-gradient-svg.md) 做原尺寸对照、放大目检和真编辑。
+
 ### 架构（2026-09-26 定稿）
 
 **三条职责，各管一段：**
@@ -178,7 +180,7 @@ python3 scripts/ref_guard.py --run --post \
 
 交可编辑 SVG、回渲染的 PNG、所用绘制源码与「参考图 | SVG 回渲染」对照，记录一次试编辑结果。正式投稿继续按已有条件导出 PDF 并过相应门禁。 `check_direct_svg.py` 检查结构，并可输出一次隐藏对象后的回渲染；要看图确认露出的网格、喷注等是否完整。
 
-只有作者明确要像素级保真、对照旧算法或维护旧稿时，才走临摹备用。那条路线的掩膜、`--W`、MAE 与三联图要求不适用于直接重绘。 旧工具见 [临摹备用](references/bitmap-to-vector.md)；草图交接的 `sketch_to_vector.py` 照旧。
+只有作者明确要像素级保真、对照旧算法或维护旧稿时，才走临摹备用。直接重绘的像素指标用于诊断，按 [连续渐变指南](references/continuous-gradient-svg.md) 与外观和试编辑一同核对。旧工具见 [临摹备用](references/bitmap-to-vector.md)；草图交接的 `sketch_to_vector.py` 照旧。
 
 ### ★ 物理检查要在【最终矢量】上做
 
@@ -538,6 +540,7 @@ python3 scripts/auto_converge.py --ref 参考图.png \
 | **一张图要用多种工具** | `references/multi-tool.md` |
 | **最终 SVG：对象拆解、补画遮挡、3D 光影、试编辑及示例** | **`references/direct-svg-redraw.md`** ★ |
 | **双版交付：反混合、遮挡补全、独立纹理与拖动验收** | **`references/dual-svg.md`** ★ |
+| **连续渐变 SVG：纯代码、渲染兼容与局部保真** | **`references/continuous-gradient-svg.md`** ★ |
 | 临摹备用：amodal 补全、拾取层、光滑档 | `references/bitmap-to-vector.md` |
 | 硬物理 vs 画法偏好的完整规则 | `references/physics-vs-style.md` |
 

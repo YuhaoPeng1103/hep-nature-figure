@@ -14,6 +14,8 @@
 
 **A 若已有作者指定的成品目标且要 SVG，直接 [按对象重绘](direct-svg-redraw.md)；A 的风格复现与 B 的新图探索按需走生图主干。C 用 matplotlib；D 走拼版。**
 
+同时要求纯代码、对象级编辑和连续渐变时，按 [连续渐变 SVG](continuous-gradient-svg.md) 直接重绘，并用局部像素误差定位偏差。
+
 最终 SVG 按 [双版交付](dual-svg.md) 保留几何版，同时生成独立透明纹理版；不改变草图 A→E 档位。
 
 ## 1. 判定图型
