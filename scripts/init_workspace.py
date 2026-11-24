@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""init_workspace -- 在一个新工作区落地 skill 的硬规则（v4.26）
+"""init_workspace -- 在一个新工作区落地 skill 的硬规则（v4.31）
 
 做两件事：
   1) 写 <ws>/AGENTS.md —— 硬规则的入口版（新对话一进来就能看到，不依赖用户手抄）；
@@ -46,10 +46,11 @@ TARGET = Path(r"{target}")
 if not TARGET.exists():
     sys.exit("找不到 %s —— skill 路径变了？重跑 scripts/init_workspace.py" % TARGET)
 sys.argv[0] = str(TARGET)
+sys.path.insert(0, str(TARGET.parent))
 runpy.run_path(str(TARGET), run_name="__main__")
 '''
 
-AGENTS = """# AGENTS.md —— 配图工作硬规则（由 hep-nature-figure v4.26 生成）
+AGENTS = """# AGENTS.md —— 配图工作硬规则（由 hep-nature-figure v4.31 生成）
 
 > 完整规则与标定：`{skill}/references/hard_rules.md`
 > 本文件是入口版；两者冲突时**取更严的那条**。

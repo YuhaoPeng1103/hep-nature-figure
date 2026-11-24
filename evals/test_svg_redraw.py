@@ -1,6 +1,7 @@
 from contextlib import redirect_stdout
 from io import BytesIO, StringIO
 from pathlib import Path
+import subprocess
 import sys
 import tempfile
 import unittest
@@ -9,7 +10,8 @@ from xml.etree import ElementTree as ET
 
 from PIL import Image
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
+SCRIPTS = Path(__file__).resolve().parents[1] / "scripts"
+sys.path.insert(0, str(SCRIPTS))
 
 from check_svg_pair import named_objects, rgba_probe, validate_edit
 from compare_ref import measure
@@ -85,6 +87,17 @@ class SvgRedrawTests(unittest.TestCase):
             rgba_probe(root, original, moved, report_only=True)
         self.assertIn("Premultiplied RGBA MAE", out.getvalue())
         self.assertIn("Exact RGBA equality not met", out.getvalue())
+
+    def test_generated_compare_ref_shim_loads_sibling_imports(self):
+        with tempfile.TemporaryDirectory() as directory:
+            workspace = Path(directory)
+            python = [sys.executable, "-X", "utf8"]
+            subprocess.run(python + [str(SCRIPTS / "init_workspace.py"), "--dir", directory],
+                           check=True, capture_output=True, cwd=workspace, timeout=30)
+            shim = workspace / "tools" / "compare_ref.py"
+            result = subprocess.run(python + [str(shim), "--help"], check=True, capture_output=True,
+                                    encoding="utf-8", cwd=workspace, timeout=30)
+            self.assertIn("--metrics", result.stdout)
 
 
 if __name__ == "__main__":
