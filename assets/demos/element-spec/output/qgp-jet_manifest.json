@@ -1,0 +1,101 @@
+{
+  "schema": "hep-nature-figure/direct-svg-v1",
+  "spec": "F:\\HuaweiMoveData\\Users\\HUAWEI\\Desktop\\work\\dun\\_gh_push\\hep-nature-figure\\assets\\spec-examples\\qgp-jet-paper-3d.spec.yaml",
+  "spec_sha256": "9e3f52d3f785200b4f29307218fbb970426e3678acc08d4d510fd0c235d0d114",
+  "confirmation": "experimental",
+  "safe_mode": true,
+  "source_derived_only": true,
+  "renderer": "direct-svg",
+  "physics_checks": [
+    {
+      "id": "HP1",
+      "status": "pass",
+      "type": "opposite_rays",
+      "cosine": -1.0
+    },
+    {
+      "id": "HP2",
+      "status": "pass",
+      "type": "angle_between_rays",
+      "angle_deg": 150.823
+    },
+    {
+      "id": "HP3",
+      "status": "human-review",
+      "note": "Confirm visually that the quenched track remains inside the medium farther than the escaping track."
+    }
+  ],
+  "layout_checks": [
+    {
+      "id": "collision_scene",
+      "status": "pass"
+    },
+    {
+      "id": "incoming-horizontal",
+      "status": "pass"
+    },
+    {
+      "id": "incoming-symmetric",
+      "status": "pass"
+    },
+    {
+      "id": "jets-back-to-back",
+      "status": "pass"
+    },
+    {
+      "id": "labels-outside-objects",
+      "status": "pass"
+    }
+  ],
+  "sources": {
+    "nucleus": "article_t302_shape_06",
+    "medium": "article_t330_qgp_fireball",
+    "photon_jet_motif": "PRL125.122301-fig01"
+  },
+  "outputs": {
+    "svg": "F:\\HuaweiMoveData\\Users\\HUAWEI\\Desktop\\work\\dun\\_gh_push\\hep-nature-figure\\assets\\demos\\element-spec\\output\\qgp-jet.svg",
+    "png": "F:\\HuaweiMoveData\\Users\\HUAWEI\\Desktop\\work\\dun\\_gh_push\\hep-nature-figure\\assets\\demos\\element-spec\\output\\qgp-jet.png",
+    "pdf": "F:\\HuaweiMoveData\\Users\\HUAWEI\\Desktop\\work\\dun\\_gh_push\\hep-nature-figure\\assets\\demos\\element-spec\\output\\qgp-jet.pdf"
+  },
+  "nature_gate": {
+    "schema": "hep-nature-figure/nature-gate-v1",
+    "profile": "nature-2026",
+    "safe_mode": true,
+    "ok": true,
+    "errors": [],
+    "warnings": [],
+    "readings": {
+      "canvas_mm": [
+        183.0,
+        100.0
+      ],
+      "font_size_pt": {
+        "count": 10,
+        "min": 7.41,
+        "max": 8.03
+      },
+      "line_width_pt": {
+        "count": 0,
+        "min": null,
+        "max": null
+      },
+      "palette_families": [
+        "amber",
+        "blue",
+        "cyan",
+        "green",
+        "neutral",
+        "orange",
+        "red",
+        "violet"
+      ],
+      "png": {
+        "size": [
+          4323,
+          2362
+        ],
+        "expected_width_600dpi": 4323
+      }
+    }
+  }
+}

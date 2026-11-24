@@ -1,0 +1,24 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 260 360"
+     data-element-asset="article_t312_hadronic_medium" data-origin="article_vector_native">
+  <defs>
+    <radialGradient id="article-t312-hadronic-medium-hard" cx=".48" cy=".45" r=".6">
+      <stop offset="0" stop-color="#fff8da"/><stop offset=".45" stop-color="#efd9ad"/>
+      <stop offset=".85" stop-color="#c6ac86"/><stop offset="1" stop-color="#9e8665" stop-opacity=".15"/>
+    </radialGradient>
+  </defs>
+  
+    <marker id="article-t312-hadronic-medium-arrow" viewBox="0 0 10 10" refX="8.5" refY="5"
+            markerWidth="5" markerHeight="5" orient="auto-start-reverse">
+      <path d="M0 0 L10 5 L0 10 z" fill="#18212b"/>
+    </marker>
+    <marker id="article-t312-hadronic-medium-flow" viewBox="0 0 10 10" refX="8" refY="5"
+            markerWidth="5.5" markerHeight="5.5" orient="auto">
+      <path d="M0 0 L10 5 L0 10 z" fill="#84a3cf"/>
+    </marker>
+
+  <g id="hadronic-medium" data-element="article_t312_hadronic_medium">
+    <rect x="18" y="18" width="224" height="324" rx="36" fill="url(#article-t312-hadronic-medium-hard)" opacity=".72"/>
+    <path d="M82 90 l-28 30" stroke="#4a3b2d" stroke-width="2" fill="none" marker-end="url(#article-t312-hadronic-medium-arrow)"/><path d="M106 132 l28 -24" stroke="#4a3b2d" stroke-width="2" fill="none" marker-end="url(#article-t312-hadronic-medium-arrow)"/><path d="M130 174 l-28 -24" stroke="#4a3b2d" stroke-width="2" fill="none" marker-end="url(#article-t312-hadronic-medium-arrow)"/><path d="M154 216 l28 30" stroke="#4a3b2d" stroke-width="2" fill="none" marker-end="url(#article-t312-hadronic-medium-arrow)"/><path d="M178 258 l-28 -24" stroke="#4a3b2d" stroke-width="2" fill="none" marker-end="url(#article-t312-hadronic-medium-arrow)"/><path d="M202 90 l28 -24" stroke="#4a3b2d" stroke-width="2" fill="none" marker-end="url(#article-t312-hadronic-medium-arrow)"/><path d="M226 132 l-28 30" stroke="#4a3b2d" stroke-width="2" fill="none" marker-end="url(#article-t312-hadronic-medium-arrow)"/><path d="M250 174 l28 -24" stroke="#4a3b2d" stroke-width="2" fill="none" marker-end="url(#article-t312-hadronic-medium-arrow)"/><path d="M274 216 l-28 -24" stroke="#4a3b2d" stroke-width="2" fill="none" marker-end="url(#article-t312-hadronic-medium-arrow)"/><path d="M298 258 l28 30" stroke="#4a3b2d" stroke-width="2" fill="none" marker-end="url(#article-t312-hadronic-medium-arrow)"/><path d="M322 90 l-28 -24" stroke="#4a3b2d" stroke-width="2" fill="none" marker-end="url(#article-t312-hadronic-medium-arrow)"/><path d="M346 132 l28 -24" stroke="#4a3b2d" stroke-width="2" fill="none" marker-end="url(#article-t312-hadronic-medium-arrow)"/>
+    <circle cx="78" cy="86" r="3.2" fill="#429cc1"/><circle cx="119" cy="86" r="3.2" fill="#f4cf54"/><circle cx="160" cy="86" r="3.2" fill="#b75fc8"/><circle cx="201" cy="86" r="3.2" fill="#429cc1"/><circle cx="242" cy="86" r="3.2" fill="#f4cf54"/><circle cx="78" cy="130" r="3.2" fill="#b75fc8"/><circle cx="119" cy="130" r="3.2" fill="#429cc1"/><circle cx="160" cy="130" r="3.2" fill="#f4cf54"/><circle cx="201" cy="130" r="3.2" fill="#b75fc8"/><circle cx="242" cy="130" r="3.2" fill="#429cc1"/><circle cx="78" cy="174" r="3.2" fill="#f4cf54"/><circle cx="119" cy="174" r="3.2" fill="#b75fc8"/><circle cx="160" cy="174" r="3.2" fill="#429cc1"/><circle cx="201" cy="174" r="3.2" fill="#f4cf54"/><circle cx="242" cy="174" r="3.2" fill="#b75fc8"/>
+  </g>
+</svg>

@@ -1,0 +1,18 @@
+{
+  "schema_version": "1.0",
+  "updated": "2026-11-23",
+  "high_priority_figures": 408,
+  "objects_considered": 3599,
+  "objects_recorded": 3599,
+  "processed_this_run": 3599,
+  "failures_this_run": 0,
+  "status_counts": {
+    "needs-manual-separation": 3595,
+    "review-candidate": 4
+  },
+  "review_html": "assets/element-library/priority-review/index.html",
+  "review_sheets": [
+    "assets/element-library/priority-review/sheets/native-candidates-001.jpg"
+  ],
+  "promotion_policy": "review-only; native candidates require object review before ingestion"
+}

@@ -34,6 +34,12 @@ import tempfile
 from pathlib import Path
 
 try:
+    from _console import init_console
+    init_console()
+except Exception:
+    pass
+
+try:
     import yaml
 except ImportError:
     yaml = None

@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">
+<defs><radialGradient id="g" cx="36%" cy="32%" r="72%"><stop offset="0" stop-color="#ffffff"/><stop offset=".15" stop-color="#fff4a8"/><stop offset=".45" stop-color="#ff9d32"/><stop offset=".77" stop-color="#e04719"/><stop offset="1" stop-color="#8b1908" stop-opacity=".15"/></radialGradient><radialGradient id="halo"><stop offset="0" stop-color="#ffb540" stop-opacity=".45"/><stop offset="1" stop-color="#ff5924" stop-opacity="0"/></radialGradient></defs>
+<circle cx="50" cy="50" r="47" fill="url(#halo)"/><circle cx="50" cy="50" r="34" fill="url(#g)"/><ellipse cx="42" cy="38" rx="13" ry="8" fill="#fff" opacity=".34"/><path d="M22 55 Q31 46 39 55 T57 55 T75 55" fill="none" stroke="#fff3be" stroke-opacity=".36" stroke-width=".8"/>
+<path d="M50 8 L50 20 M91 50 L79 50 M50 91 L50 80 M9 50 L21 50 M79 21 L71 29 M79 79 L71 71 M21 21 L29 29 M21 79 L29 71" stroke="#fff5bb" stroke-width="1.5"/>
+</svg>

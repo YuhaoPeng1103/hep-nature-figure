@@ -1,0 +1,13 @@
+{
+  "spec": "qgp-jet-paper-storyboard.spec.yaml",
+  "sources": {
+    "nucleus": "article_t302_shape_06",
+    "medium": "article_t330_qgp_fireball",
+    "photon_jet_motif": "PRL125.122301-fig01"
+  },
+  "outputs": [
+    "qgp-jet.svg",
+    "qgp-jet.png",
+    "qgp-jet.pdf"
+  ]
+}

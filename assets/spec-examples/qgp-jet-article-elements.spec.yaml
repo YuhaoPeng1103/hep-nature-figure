@@ -1,0 +1,288 @@
+figure:
+  id: qgp-jet-article-elements
+  title: Partonic medium and back-to-back jet quenching
+  physics_claim: An energetic back-to-back parton pair traverses a dense partonic medium formed in the collision overlap; the longer path loses more energy.
+  target_journal: Nature
+  canvas:
+    width_mm: 183
+    height_mm: 105
+
+style:
+  mode: render3d
+  classification: 3D vector schematic
+  evidence: Native smooth paths and radial gradients encode volume, with a projected reaction-plane grid and a single lighting direction.
+  background: "#ffffff"
+  palette:
+    mode: semantic
+    families: [neutral, orange, red, blue, cyan, violet]
+  fonts:
+    family: "DejaVu Sans"
+    size_steps_pt: [6, 7, 8, 10]
+
+composition:
+  projection:
+    type: axonometric
+    类型: 轴测
+    axes_deg: {x: -17, y: -90, z: 24}
+    轴方向_deg: {x: -17, y: -90, z: 24}
+    foreshortening: {x: 1.0, y: 1.0, z: 0.72}
+    前缩: {x: 1.0, y: 1.0, z: 0.72}
+  coordinates:
+    handedness: right
+    beam_axis: z
+    reaction_plane: xy
+  坐标约定:
+    面内: [x, y]
+    法线: z
+    手性: 右手
+    束流轴: z
+  layout:
+    template: two-panel-storyboard
+    collision_center_mm: [43.5, 55]
+    regions:
+      - id: initial_state
+        x_range_mm: [4, 88]
+        y_range_mm: [20, 96]
+        objects: [incoming_left, incoming_right, initial_vertex]
+      - id: hard_scattering
+        x_range_mm: [98, 178]
+        y_range_mm: [20, 96]
+        objects: [vertex]
+      - id: final_state
+        x_range_mm: [90, 180]
+        y_range_mm: [16, 98]
+        objects: [medium, vertex, escaped_jet, quenched_jet]
+    alignment:
+      incoming_axis: horizontal
+      incoming_objects: [incoming_left, incoming_right]
+      incoming_symmetry_about: initial_vertex
+      jets: back_to_back_about_vertex
+      jet_objects: [escaped_jet, quenched_jet]
+      jet_origin: vertex
+      labels: outside_object_bbox
+    guides:
+      panels:
+        - rect_mm: [3, 20, 87, 78]
+          fill: "#fbfcfd"
+          stroke: "#cbd4dc"
+        - rect_mm: [93, 20, 88, 78]
+          fill: "#fbfcfd"
+          stroke: "#cbd4dc"
+      reaction_plane:
+        points_mm: [[101, 43], [166, 30], [177, 72], [112, 91]]
+        grid: [6, 5]
+        fill: "#e8edf1"
+        stroke: "#aab4be"
+        opacity: 0.22
+      beamline:
+        from_mm: [12, 55]
+        to_mm: [78, 55]
+        arrowheads: false
+      axis_triad:
+        origin_mm: [165, 90]
+        length_mm: 8.5
+        font_size_pt: 6
+
+elements:
+  - id: incoming_left
+    name: 左侧入射核
+    asset: article_t302_prolate_nucleus
+    render_mode: texture
+    physics_role: Nucleus moving toward the overlap region.
+    x_mm: 28
+    y_mm: 55
+    width_mm: 24
+    height_mm: 22
+    rotation_deg: -8
+    z: 3
+
+  - id: incoming_right
+    name: 右侧入射核
+    asset: article_t302_prolate_nucleus
+    render_mode: texture
+    physics_role: Second nucleus moving toward the overlap region.
+    x_mm: 59
+    y_mm: 55
+    width_mm: 24
+    height_mm: 22
+    rotation_deg: 8
+    z: 3
+
+  - id: initial_vertex
+    name: 初态碰撞中心
+    asset: article_pmc125_vertex
+    render_mode: edit
+    physics_role: Centre of the initial-state collision geometry.
+    x_mm: 43.5
+    y_mm: 55
+    width_mm: 9
+    height_mm: 9
+    z: 4
+
+  - id: medium
+    name: 文章图源的 QGP 部分子介质
+    asset: article_pmc130_medium_outer
+    render_mode: texture
+    physics_role: Hot partonic medium (QGP) formed in the collision overlap.
+    x_mm: 124
+    y_mm: 55
+    width_mm: 35
+    height_mm: 31
+    opacity: 0.96
+    z: 5
+
+  - id: vertex
+    name: 硬散射顶点
+    asset: article_pmc125_vertex
+    render_mode: edit
+    physics_role: Common production point of the back-to-back hard partons.
+    x_mm: 124
+    y_mm: 55
+    width_mm: 9
+    height_mm: 9
+    z: 7
+
+  - id: escaped_jet
+    name: 逃逸喷注
+    asset: article_pmc891_isotropic_cone
+    render_mode: texture
+    physics_role: Jet with a short in-medium path that retains most of its energy.
+    x_mm: 153
+    y_mm: 35
+    width_mm: 43
+    height_mm: 18
+    z: 6
+
+  - id: quenched_jet
+    name: 淬火喷注碎裂
+    asset: article_pmc130_pair_red_cyan_outgoing
+    render_mode: texture
+    physics_role: Jet that traverses more medium, loses energy and fragments broadly.
+    x_mm: 103
+    y_mm: 76
+    width_mm: 31
+    height_mm: 15
+    rotation_deg: 180
+    z: 6
+
+texts:
+  - id: label_initial
+    value: "a  Initial state"
+    x_mm: 12
+    y_mm: 15
+    font_size_pt: 8
+    anchor: start
+    color: "#26313d"
+
+  - id: label_final
+    value: "b  Jet quenching"
+    x_mm: 102
+    y_mm: 15
+    font_size_pt: 8
+    anchor: start
+    color: "#26313d"
+
+  - id: label_qgp
+    value: "QGP medium"
+    x_mm: 124
+    y_mm: 83
+    font_size_pt: 7
+    anchor: middle
+    color: "#c7431d"
+
+  - id: label_escape
+    value: "Escaping jet"
+    x_mm: 153
+    y_mm: 24
+    font_size_pt: 7
+    anchor: middle
+    color: "#17496b"
+
+  - id: label_quench
+    value: "Quenched jet"
+    x_mm: 103
+    y_mm: 90
+    font_size_pt: 7
+    anchor: middle
+    color: "#5d6570"
+
+connections:
+  - id: beam_left
+    type: arrow
+    from:
+      element: incoming_left
+      anchor: right
+    to:
+      element: initial_vertex
+      anchor: left
+    color: "#d88a2d"
+    line_width_pt: 1.0
+
+  - id: beam_right
+    type: arrow
+    from:
+      element: incoming_right
+      anchor: left
+    to:
+      element: initial_vertex
+      anchor: right
+    color: "#d88a2d"
+    line_width_pt: 1.0
+
+  - id: jet_axis
+    type: double_arrow
+    from:
+      element: escaped_jet
+      anchor: left
+    to:
+      element: quenched_jet
+      anchor: right
+    color: "#27384b"
+    line_width_pt: 0.8
+    dash: "2 2"
+
+relationships:
+  - id: R0
+    type: evolves-into
+    subject: initial_vertex
+    object: medium
+    statement: The initial collision produces the dense partonic medium shown in the right panel.
+
+  - id: R2
+    type: originates-from
+    subject: escaped_jet
+    object: vertex
+    statement: The escaping jet originates at the hard-scattering vertex.
+
+  - id: R3
+    type: originates-from
+    subject: quenched_jet
+    object: vertex
+    statement: The quenched jet originates at the same hard-scattering vertex.
+
+hard_physics:
+  - id: HP1
+    claim: The two incoming nuclei move toward each other.
+    measure: dot(v_left, v_right) < 0.
+    verification: machine
+    check:
+      type: opposite_rays
+      origin: initial_vertex
+      a: incoming_left
+      b: incoming_right
+  - id: HP2
+    claim: The two jets are back-to-back about the hard vertex.
+    measure: 165 deg <= angle(v_escape, v_quench) <= 195 deg.
+    verification: machine
+    check:
+      type: angle_between_rays
+      origin: vertex
+      a: escaped_jet
+      b: quenched_jet
+      min_deg: 150
+      max_deg: 210
+  - id: HP3
+    claim: The quenched jet traverses a longer medium path than the escaping jet.
+    measure: path_quenched / path_escape > 1.5.
+    verification: human
+    note: Path lengths depend on the rendered medium boundary and require visual review.

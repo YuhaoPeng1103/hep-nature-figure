@@ -1,0 +1,189 @@
+figure:
+  id: source-derived-elements
+  title: Article-derived HEP element composition
+  physics_claim: A representative set of collision, medium, hadronization, detector and nucleon elements can be assembled into one physically ordered HEP schematic.
+  target_journal: Nature
+  canvas:
+    width_mm: 183
+    height_mm: 92
+
+style:
+  mode: render3d
+  classification: 3D vector schematic
+  evidence: The selected article-derived assets use gradients, projected surfaces and directional shading.
+  background: "#ffffff"
+  palette:
+    mode: semantic
+    families: [neutral, orange, red, green, blue, violet]
+  fonts:
+    family: "DejaVu Sans"
+    size_steps_pt: [6, 7]
+
+composition:
+  projection:
+    type: axonometric
+    axes_deg: {x: -17, y: -90, z: 24}
+    foreshortening: {x: 1.0, y: 1.0, z: 0.72}
+  coordinates:
+    handedness: right
+    beam_axis: z
+    reaction_plane: xy
+
+elements:
+  - id: left_nucleus
+    name: Article-derived left nucleus
+    asset_family: nucleus
+    asset_variant: article_t302_prolate_nucleus
+    render_mode: edit
+    physics_role: Incoming deformed nucleus.
+    x_mm: 38
+    y_mm: 45
+    width_mm: 28
+    height_mm: 24
+    rotation_deg: -90
+    z: 2
+
+  - id: right_nucleus
+    name: Article-derived right nucleus
+    asset_family: nucleus
+    asset_variant: article_t302_prolate_nucleus
+    render_mode: edit
+    physics_role: Oppositely moving incoming nucleus.
+    x_mm: 73
+    y_mm: 45
+    width_mm: 28
+    height_mm: 24
+    rotation_deg: 90
+    z: 2
+
+  - id: medium
+    name: Article-derived partonic medium
+    asset_family: medium
+    asset_variant: article_pmc130_medium_outer
+    render_mode: edit
+    physics_role: Hot partonic medium formed in the overlap region.
+    x_mm: 56
+    y_mm: 45
+    width_mm: 34
+    height_mm: 33
+    z: 4
+
+  - id: hadronization
+    name: Article-derived hadronization shell
+    asset_family: qgp
+    asset_variant: article_t312_hadronizing_shell
+    render_mode: edit
+    physics_role: Hadronization and freeze-out at the medium surface.
+    x_mm: 119
+    y_mm: 45
+    width_mm: 25
+    height_mm: 55
+    z: 5
+
+  - id: detector
+    name: Article-derived detector cutaway
+    asset_family: detector-layer
+    asset_variant: article_t311_cms_detector
+    render_mode: edit
+    physics_role: Detector context around the collision region.
+    x_mm: 157
+    y_mm: 48
+    width_mm: 27
+    height_mm: 23
+    z: 3
+
+  - id: participant_nucleon
+    name: Article-derived nucleon slot
+    asset_family: nucleon
+    asset_variant: article_t335_red_nucleon_top
+    render_mode: edit
+    variant_options:
+      - article_t335_red_nucleon_top
+      - article_t335_red_nucleon_bottom
+      - article_t335_purple_nucleon
+      - article_t335_green_nucleon_top
+      - article_t335_green_nucleon_right
+      - article_t330_red_nucleon
+      - article_t330_gray_nucleon
+      - article_t330_red_nucleon_highlight
+      - article_t330_dark_gray_nucleon
+      - article_t360_proton_top
+      - article_t360_proton_left
+      - article_t360_proton_right
+      - article_t360_neutron_top
+      - article_t360_neutron_center
+      - article_t360_neutron_lower
+      - article_t360_neutron_back
+    physics_role: Representative participant nucleon.
+    x_mm: 96
+    y_mm: 70
+    width_mm: 12
+    height_mm: 12
+    z: 7
+
+texts:
+  - id: label_qgp
+    value: "partonic medium"
+    x_mm: 56
+    y_mm: 67
+    font_size_pt: 7
+    anchor: middle
+    color: "#c7431d"
+  - id: label_hadron
+    value: "hadronization"
+    x_mm: 119
+    y_mm: 78
+    font_size_pt: 6
+    anchor: middle
+    color: "#5f6872"
+  - id: label_detector
+    value: "detector"
+    x_mm: 157
+    y_mm: 66
+    font_size_pt: 6
+    anchor: middle
+    color: "#29455d"
+  - id: label_nucleon
+    value: "nucleon"
+    x_mm: 96
+    y_mm: 81
+    font_size_pt: 6
+    anchor: middle
+    color: "#2d4770"
+
+connections:
+  - id: beam_left
+    type: arrow
+    from: {element: left_nucleus, anchor: right}
+    to: {element: medium, anchor: left}
+    color: "#d88a2d"
+    line_width_pt: 0.8
+  - id: beam_right
+    type: arrow
+    from: {element: right_nucleus, anchor: left}
+    to: {element: medium, anchor: right}
+    color: "#d88a2d"
+    line_width_pt: 0.8
+
+relationships:
+  - id: R1
+    type: inside-overlap
+    subject: medium
+    object: left_nucleus
+    statement: The medium occupies the overlap of the incoming nuclei.
+  - id: R2
+    type: surface-emission
+    subject: hadronization
+    object: medium
+    statement: Hadrons emerge from the medium surface.
+
+hard_physics:
+  - id: HP1
+    claim: The two nuclei move toward each other.
+    measure: dot(v_left, v_right) < 0.
+    verification: machine
+    check:
+      type: opposite_rays
+      origin: medium
+      a: left_nucleus
+      b: right_nucleus

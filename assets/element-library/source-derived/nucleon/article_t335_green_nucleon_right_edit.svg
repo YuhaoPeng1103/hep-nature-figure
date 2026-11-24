@@ -1,0 +1,29 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128"
+     data-element-asset="article_t335_green_nucleon_right" data-origin="article_vector_native">
+  <defs>
+    <radialGradient id="article-t335-green-nucleon-right-ball" cx="0.73" cy="0.38" r=".72">
+      <stop offset="0" stop-color="#b8ff93"/>
+      <stop offset=".18" stop-color="#22cd45"/>
+      <stop offset=".76" stop-color="#22cd45"/>
+      <stop offset="1" stop-color="#075a1b"/>
+    </radialGradient>
+    <linearGradient id="article-t335-green-nucleon-right-rim" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#ffffff" stop-opacity=".52"/>
+      <stop offset=".4" stop-color="#ffffff" stop-opacity="0"/>
+      <stop offset="1" stop-color="#000000" stop-opacity=".26"/>
+    </linearGradient>
+  </defs>
+  <g id="nucleon" data-element="article_t335_green_nucleon_right">
+    <ellipse id="contact-shade" cx="65" cy="112" rx="34" ry="8"
+             fill="#0b1118" opacity=".13"/>
+    <circle id="volume" cx="64" cy="62" r="48" fill="url(#article-t335-green-nucleon-right-ball)"
+            stroke="#075a1b" stroke-width="1.1"/>
+    <path id="rim-light" d="M25 43 A48 48 0 0 1 91 22"
+          fill="none" stroke="url(#article-t335-green-nucleon-right-rim)" stroke-width="5"
+          stroke-linecap="round" opacity=".75"/>
+    <ellipse id="specular" cx="82" cy="34"
+             rx="10" ry="6" fill="#ffffff" opacity=".58"/>
+    <ellipse id="specular-soft" cx="80" cy="47"
+             rx="17" ry="9" fill="#ffffff" opacity=".13"/>
+  </g>
+</svg>

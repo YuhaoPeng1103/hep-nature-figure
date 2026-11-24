@@ -1,0 +1,87 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/YuhaoPeng1103/hep-nature-figure/assets/schematic-library/catalog.schema.json",
+  "title": "HEP schematic library catalog",
+  "type": "object",
+  "required": ["schema_version", "library_version", "updated", "entries"],
+  "properties": {
+    "schema_version": {"const": "5.1.0"},
+    "library_version": {"type": "string"},
+    "updated": {"type": "string", "format": "date"},
+    "entries": {
+      "type": "array",
+      "items": {"$ref": "#/$defs/entry"}
+    }
+  },
+  "$defs": {
+    "entry": {
+      "type": "object",
+      "required": [
+        "asset_id",
+        "status",
+        "kind",
+        "title",
+        "paper",
+        "topics",
+        "schematic_types",
+        "style",
+        "license",
+        "source",
+        "retrieved"
+      ],
+      "properties": {
+        "asset_id": {"type": "string", "minLength": 2},
+        "legacy_code": {"type": "string"},
+        "status": {
+          "enum": ["verified_figure", "metadata_only", "article_candidate"]
+        },
+        "kind": {"enum": ["figure", "paper"]},
+        "title": {"type": "string"},
+        "figure_label": {"type": "string"},
+        "figure_caption": {"type": "string"},
+        "paper": {
+          "type": "object",
+          "required": ["doi", "title"],
+          "properties": {
+            "doi": {"type": "string"},
+            "arxiv": {"type": "string"},
+            "title": {"type": "string"},
+            "authors": {"type": "array", "items": {"type": "string"}},
+            "year": {"type": ["integer", "null"]},
+            "journal": {"type": "string"},
+            "volume": {"type": "string"}
+          }
+        },
+        "topics": {"type": "array", "items": {"type": "string"}},
+        "schematic_types": {"type": "array", "items": {"type": "string"}},
+        "style": {
+          "type": "object",
+          "properties": {
+            "mode": {"type": "string"},
+            "projection": {"type": "string"},
+            "tags": {"type": "array", "items": {"type": "string"}}
+          },
+          "additionalProperties": true
+        },
+        "license": {
+          "type": "object",
+          "required": ["spdx", "redistributable", "source_url"],
+          "properties": {
+            "spdx": {"type": "string"},
+            "redistributable": {"type": "boolean"},
+            "source_url": {"type": "string"},
+            "attribution": {"type": "string"},
+            "note": {"type": "string"}
+          }
+        },
+        "local_file": {"type": ["string", "null"]},
+        "remote_image": {"type": ["string", "null"]},
+        "sha256": {"type": ["string", "null"]},
+        "source": {"type": "string"},
+        "retrieved": {"type": "string"},
+        "provenance": {"type": "object"},
+        "notes": {"type": "string"}
+      }
+    }
+  }
+}

@@ -19,7 +19,8 @@ v4.26：本脚本是**唯一入口**（先查后调）—— 除了参考图角�
 
 两条角色规则
 --------------------------------------------------------------------------------
-  --ref        （风格参考）只许取：skill 的 assets/t3-exemplars/、本工作区 _T3精选/
+  --ref        （风格参考）只许取：skill 的 assets/t3-exemplars/、
+               assets/schematic-library/redistributable/、本工作区 _T3精选/
   --content-ref（构图依据）sketch 阶段：只许作者手绘输入（.../sketches_in/、hand_sketch*.png）
                           render 阶段：只许本图上一步**已过闸口①**的草图
                           v4.13：**同一条阶梯上一轮的草图**也放行（LADDER_PREV；由 ladder_gate 的 L9 强制）
@@ -57,8 +58,15 @@ import subprocess
 import sys
 from pathlib import Path
 
+try:
+    from _console import init_console
+    init_console()
+except Exception:
+    pass
+
 # ── 角色 ────────────────────────────────────────────────────────────────────
 STYLE_LIB = "STYLE_LIB"        # 风格书：skill t3-exemplars / 本工作区 _T3精选
+RESTRICTED_ASSET = "RESTRICTED_ASSET"  # schematic-library 中未登记或不可再分发
 DEMO_FIG = "DEMO_FIG"          # skill assets/demos/**：成品示例图（永远不许当参考）
 OWN_FINAL = "OWN_FINAL"        # 本工作区成品：out/**、render_*、chosen*、svg/pdf...
 OWN_SKETCH = "OWN_SKETCH"      # 本工作区草图：**/sketch_*.png、*_clean.png
@@ -75,6 +83,7 @@ ALLOWED = {
 
 ROLE_CN = {
     STYLE_LIB: "风格书（库内风格参考，允许）",
+    RESTRICTED_ASSET: "素材库中未登记或不可再分发的图（不许）",
     DEMO_FIG: "skill 的成品示例图 assets/demos/**（任何阶段都不许）",
     OWN_FINAL: "本工作区成品（不许当草图参考）",
     OWN_SKETCH: "本工作区草图",
@@ -152,6 +161,21 @@ def classify(path: str, ws: str | None = None) -> str:
         tail = absolute[len(here):] if absolute.startswith(here) else low.split("/hep-nature-figure/", 1)[1]
         if tail.startswith("assets/demos/"):
             return DEMO_FIG
+        if tail.startswith("assets/schematic-library/redistributable/"):
+            cat = Path(__file__).resolve().parents[1] / "assets" / "schematic-library" / "catalog.json"
+            if cat.exists():
+                try:
+                    doc = json.load(io.open(cat, encoding="utf-8"))
+                    local = next(
+                        (e for e in doc.get("entries", [])
+                         if str(e.get("local_file", "")).replace("\\", "/") == tail),
+                        None,
+                    )
+                    if local and (local.get("license") or {}).get("redistributable"):
+                        return STYLE_LIB
+                except Exception:
+                    pass
+            return RESTRICTED_ASSET
         if tail.startswith("assets/t3-exemplars/") or tail.startswith("assets/style"):
             return STYLE_LIB
         if tail.startswith("assets/"):
@@ -190,9 +214,13 @@ def check(stage: str, style, content, ws: str | None = None, base: str | None = 
                                      "任何阶段都不许当参考 —— 否则出来就是那张 demo 的重绘"))
         elif r == OWN_FINAL:
             v.append(("--ref", p, r, "★ 不许拿自家成品当风格参考（作者 2026-09-29）。"
-                                     "风格参考只许取 skill 的 t3-exemplars/ 或 _T3精选/"))
+                                     "风格参考只许取 skill 的 t3-exemplars/、"
+                                     "schematic-library/redistributable/ 或 _T3精选/"))
         elif r == OWN_SKETCH:
             v.append(("--ref", p, r, "★ 自家草图也不许当风格参考（会把平涂风格原样带进去）；--ref 只收风格书"))
+        elif r == RESTRICTED_ASSET:
+            v.append(("--ref", p, r,
+                      "素材库中的这张图未登记为 CC0/CC BY，不能当风格参考"))
         elif r == AUTHOR_IN:
             w.append(("--ref", p, r, "作者手绘稿放进 --ref 会绕过 layout-only 降级；"
                                      "规范是只放 --content-ref，--ref 只放风格书"))

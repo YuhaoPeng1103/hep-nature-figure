@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 110 100"
+     data-element-asset="article_pmc891_z_target" data-origin="article_vector_native">
+  <g id="z-axis-symbol" data-element="article_pmc891_z_target">
+    <circle cx="42" cy="50" r="27" fill="#fff" stroke="#25313d" stroke-width="4"/>
+    <circle cx="42" cy="50" r="10" fill="#25313d"/>
+    <text x="78" y="64" font-family="DejaVu Serif, Times" font-size="42"
+          font-style="italic" fill="#111">z</text>
+  </g>
+</svg>

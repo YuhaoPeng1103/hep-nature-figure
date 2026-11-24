@@ -1,0 +1,41 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 360 360"
+     data-element-asset="article_pmc891_event_topology" data-origin="article_vector_native">
+  <defs>
+    
+    <marker id="article-pmc891-event-topology-arrow" viewBox="0 0 10 10" refX="8.5" refY="5"
+            markerWidth="5" markerHeight="5" orient="auto-start-reverse">
+      <path d="M0 0 L10 5 L0 10 z" fill="#18212b"/>
+    </marker>
+    <marker id="article-pmc891-event-topology-flow" viewBox="0 0 10 10" refX="8" refY="5"
+            markerWidth="5.5" markerHeight="5.5" orient="auto">
+      <path d="M0 0 L10 5 L0 10 z" fill="#84a3cf"/>
+    </marker>
+
+    <radialGradient id="article-pmc891-event-topology-event" cx=".42" cy=".38" r=".68">
+      <stop offset="0" stop-color="#bff4ef"/><stop offset="1" stop-color="#258f9c"/>
+    </radialGradient>
+    <linearGradient id="article-pmc891-event-topology-cone" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#f6d46c"/><stop offset="1" stop-color="#e28b43"/>
+    </linearGradient>
+  </defs>
+  <g id="event-topology" data-element="article_pmc891_event_topology">
+    <path d="M160 332 L160 35" stroke="#111" stroke-width="3" marker-end="url(#article-pmc891-event-topology-arrow)"/>
+    <path d="M40 248 L338 248" stroke="#111" stroke-width="3" marker-end="url(#article-pmc891-event-topology-arrow)"/>
+    <path d="M160 248 L246 184" stroke="#111" stroke-width="3"/>
+    <text x="148" y="22" font-family="DejaVu Serif, Times" font-size="24" font-style="italic">y</text>
+    <text x="342" y="278" font-family="DejaVu Serif, Times" font-size="24" font-style="italic">x</text>
+    <circle cx="160" cy="235" r="74" fill="url(#article-pmc891-event-topology-event)" opacity=".86"/>
+    <path d="M160 235 L286 92 L336 126 L222 257 Z"
+          fill="url(#article-pmc891-event-topology-cone)" opacity=".74"/>
+    <path d="M160 235 L30 326 L70 354 L207 270 Z"
+          fill="url(#article-pmc891-event-topology-cone)" opacity=".76"/>
+    <path d="M160 235 L223.0 235.0" stroke="#1c5e97" stroke-width="2.3" stroke-dasharray="7 6" marker-end="url(#article-pmc891-event-topology-arrow)"/><path d="M160 235 L204.5 279.5" stroke="#1c5e97" stroke-width="2.3" stroke-dasharray="7 6" marker-end="url(#article-pmc891-event-topology-arrow)"/><path d="M160 235 L160.0 298.0" stroke="#1c5e97" stroke-width="2.3" stroke-dasharray="7 6" marker-end="url(#article-pmc891-event-topology-arrow)"/><path d="M160 235 L115.5 279.5" stroke="#1c5e97" stroke-width="2.3" stroke-dasharray="7 6" marker-end="url(#article-pmc891-event-topology-arrow)"/><path d="M160 235 L97.0 235.0" stroke="#1c5e97" stroke-width="2.3" stroke-dasharray="7 6" marker-end="url(#article-pmc891-event-topology-arrow)"/><path d="M160 235 L115.5 190.5" stroke="#1c5e97" stroke-width="2.3" stroke-dasharray="7 6" marker-end="url(#article-pmc891-event-topology-arrow)"/><path d="M160 235 L160.0 172.0" stroke="#1c5e97" stroke-width="2.3" stroke-dasharray="7 6" marker-end="url(#article-pmc891-event-topology-arrow)"/><path d="M160 235 L204.5 190.5" stroke="#1c5e97" stroke-width="2.3" stroke-dasharray="7 6" marker-end="url(#article-pmc891-event-topology-arrow)"/>
+    <path d="M188 214 L285 111" stroke="#b4512d" stroke-width="3.2" stroke-dasharray="7 6" marker-end="url(#article-pmc891-event-topology-arrow)"/>
+    <path d="M135 250 L55 329" stroke="#b4512d" stroke-width="3.2" stroke-dasharray="7 6" marker-end="url(#article-pmc891-event-topology-arrow)"/>
+    <path d="M160 235 L300 105" stroke="#2f8f3b" stroke-width="3" stroke-dasharray="8 6" marker-end="url(#article-pmc891-event-topology-arrow)"/>
+    <text x="305" y="94" font-family="DejaVu Serif, Times" font-size="22" font-style="italic" fill="#236e23">n</text>
+    <circle cx="329" cy="36" r="13" fill="#fff" stroke="#111" stroke-width="3"/>
+    <circle cx="329" cy="36" r="4" fill="#111"/>
+    <text x="347" y="49" font-family="DejaVu Serif, Times" font-size="24" font-style="italic">z</text>
+  </g>
+</svg>

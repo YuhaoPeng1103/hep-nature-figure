@@ -1,0 +1,272 @@
+figure:
+  id: qgp-jet-element
+  title: Quark-gluon plasma and back-to-back jet quenching
+  physics_claim: A hard parton pair emerges back-to-back and traverses different path lengths in the dense medium.
+  target_journal: Nature
+  canvas:
+    width_mm: 183
+    height_mm: 105
+
+style:
+  mode: render3d
+  classification: 3D vector schematic
+  evidence: Native paths and gradients provide volume, contact shadows and one lighting direction.
+  background: "#ffffff"
+  palette:
+    mode: semantic
+    families: [neutral, orange, red, blue, cyan, violet]
+  fonts:
+    family: "DejaVu Sans"
+    size_steps_pt: [6, 7, 8, 10]
+
+composition:
+  projection:
+    type: axonometric
+    axes_deg: {x: -17, y: -90, z: 24}
+    foreshortening: {x: 1.0, y: 1.0, z: 0.72}
+  coordinates:
+    handedness: right
+    beam_axis: z
+    reaction_plane: xy
+
+elements:
+  - id: plane
+    name: Reaction plane
+    asset: reaction_plane
+    physics_role: Reference plane containing impact parameter and beam axis.
+    x_mm: 91.5
+    y_mm: 54
+    width_mm: 174
+    height_mm: 46
+    z: 1
+
+  - id: detector
+    name: Detector acceptance
+    asset: detector_ring
+    physics_role: Transverse detector layers surrounding the collision region.
+    x_mm: 91.5
+    y_mm: 55
+    width_mm: 116
+    height_mm: 58
+    z: 2
+
+  - id: incoming_left
+    name: Left nucleus
+    asset: nucleus_deformed
+    physics_role: Nucleus moving toward the interaction region.
+    x_mm: 43
+    y_mm: 54
+    width_mm: 29
+    height_mm: 27
+    rotation_deg: -8
+    z: 3
+
+  - id: incoming_right
+    name: Right nucleus
+    asset: nucleus_deformed
+    physics_role: Second nucleus moving in the opposite direction.
+    x_mm: 73
+    y_mm: 54
+    width_mm: 29
+    height_mm: 27
+    rotation_deg: 8
+    z: 3
+
+  - id: medium
+    name: QGP medium
+    asset: qgp_fireball
+    physics_role: Hot deconfined medium created by the collision.
+    x_mm: 58
+    y_mm: 54
+    width_mm: 45
+    height_mm: 42
+    opacity: 0.94
+    z: 5
+
+  - id: vertex
+    name: Hard scattering vertex
+    asset: hard_vertex
+    physics_role: Common origin of the back-to-back hard partons.
+    x_mm: 58
+    y_mm: 54
+    width_mm: 13
+    height_mm: 13
+    z: 7
+
+  - id: escaped_jet
+    name: Escaping jet
+    asset: jet_cone_hot
+    physics_role: Jet with a short in-medium path that escapes with most energy.
+    x_mm: 113
+    y_mm: 37
+    width_mm: 72
+    height_mm: 29
+    rotation_deg: -20
+    z: 6
+
+  - id: quenched_jet
+    name: Quenched jet
+    asset: jet_cone_quenched
+    physics_role: Jet traversing a long in-medium path and losing energy.
+    x_mm: 23
+    y_mm: 74
+    width_mm: 63
+    height_mm: 27
+    rotation_deg: 160
+    z: 6
+
+  - id: participant_nucleon
+    name: Participant nucleon slot
+    asset_family: nucleon
+    asset_variant: article_t335_red_nucleon_top
+    render_mode: edit
+    variant_options:
+      - article_t335_red_nucleon_top
+      - article_t335_red_nucleon_bottom
+      - article_t335_purple_nucleon
+      - article_t335_green_nucleon_top
+      - article_t335_green_nucleon_right
+      - article_t330_red_nucleon
+      - article_t330_gray_nucleon
+      - article_t330_red_nucleon_highlight
+      - article_t330_dark_gray_nucleon
+      - article_t360_proton_top
+      - article_t360_proton_left
+      - article_t360_proton_right
+      - article_t360_neutron_top
+      - article_t360_neutron_center
+      - article_t360_neutron_lower
+      - article_t360_neutron_back
+      - nucleon_proton
+      - nucleon_neutron
+      - nucleon_constituent
+      - nucleon_dressed
+      - nucleon_spin_up
+      - nucleon_spin_down
+      - nucleon_participant
+      - nucleon_spectator
+      - nucleon_wounded
+      - nucleon_valence_cluster
+      - nucleon_sea_cloud
+      - nucleon_high_q2
+      - nucleon_low_q2
+    physics_role: Representative participant nucleon in the collision.
+    x_mm: 137
+    y_mm: 73
+    width_mm: 15
+    height_mm: 15
+    z: 8
+
+texts:
+  - id: label_qgp
+    value: "Quark-gluon plasma"
+    x_mm: 58
+    y_mm: 82
+    font_size_pt: 7
+    anchor: middle
+    color: "#c7431d"
+
+  - id: label_escape
+    value: "Escaping jet"
+    x_mm: 116
+    y_mm: 22
+    font_size_pt: 7
+    anchor: middle
+    color: "#17496b"
+
+  - id: label_quench
+    value: "Quenched jet"
+    x_mm: 24
+    y_mm: 92
+    font_size_pt: 7
+    anchor: middle
+    color: "#5d6570"
+
+  - id: label_nucleon
+    value: "participant"
+    x_mm: 137
+    y_mm: 84
+    font_size_pt: 6
+    anchor: middle
+    color: "#214f73"
+
+connections:
+  - id: beam_left
+    type: arrow
+    from:
+      element: incoming_left
+      anchor: right
+    to:
+      element: medium
+      anchor: left
+    color: "#d88a2d"
+    line_width_pt: 1.0
+
+  - id: beam_right
+    type: arrow
+    from:
+      element: incoming_right
+      anchor: left
+    to:
+      element: medium
+      anchor: right
+    color: "#d88a2d"
+    line_width_pt: 1.0
+
+  - id: jet_axis
+    type: double_arrow
+    from:
+      element: escaped_jet
+      anchor: right
+    to:
+      element: quenched_jet
+      anchor: left
+    color: "#27384b"
+    line_width_pt: 0.8
+    dash: "2 2"
+
+relationships:
+  - id: R1
+    type: inside-overlap
+    subject: medium
+    object: plane
+    statement: The medium is formed in the overlap region on the reaction plane.
+
+  - id: R2
+    type: originates-from
+    subject: escaped_jet
+    object: vertex
+    statement: The escaping jet originates at the hard-scattering vertex.
+
+  - id: R3
+    type: originates-from
+    subject: quenched_jet
+    object: vertex
+    statement: The quenched jet originates at the same hard-scattering vertex.
+
+hard_physics:
+  - id: HP1
+    claim: The two incoming nuclei move toward each other.
+    measure: dot(v_left, v_right) < 0.
+    verification: machine
+    check:
+      type: opposite_rays
+      origin: medium
+      a: incoming_left
+      b: incoming_right
+  - id: HP2
+    claim: The two jets are back-to-back about the hard vertex.
+    measure: 165 deg <= angle(v_escape, v_quench) <= 195 deg.
+    verification: machine
+    check:
+      type: angle_between_rays
+      origin: vertex
+      a: escaped_jet
+      b: quenched_jet
+      min_deg: 150
+      max_deg: 210
+  - id: HP3
+    claim: The quenched jet traverses a longer medium path than the escaping jet.
+    measure: path_quenched / path_escape > 1.5.
+    verification: human
+    note: Path lengths depend on the rendered medium boundary and require visual review.

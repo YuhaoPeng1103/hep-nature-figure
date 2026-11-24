@@ -1,0 +1,71 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "HEP element-level vector library",
+  "type": "object",
+  "required": ["schema_version", "library_version", "assets"],
+  "properties": {
+    "schema_version": {"const": "1.0"},
+    "library_version": {"type": "string"},
+    "assets": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "id", "family", "variant", "file", "category", "tags", "physics_roles", "viewBox",
+          "dimensionality", "license", "generation", "review", "sha256"
+        ],
+        "properties": {
+          "id": {"type": "string"},
+          "family": {"type": "string"},
+          "variant": {"type": "string"},
+          "variant_description": {"type": "string"},
+          "file": {"type": "string"},
+          "category": {"type": "string"},
+          "tags": {"type": "array", "items": {"type": "string"}},
+          "physics_roles": {"type": "array", "items": {"type": "string"}},
+          "viewBox": {
+            "type": "array", "minItems": 4, "maxItems": 4,
+            "items": {"type": "number"}
+          },
+          "dimensionality": {"enum": ["3d", "mixed", "flat"]},
+          "license": {
+            "type": "object",
+            "required": ["spdx", "redistributable", "attribution"],
+            "properties": {
+              "spdx": {"enum": ["MIT", "CC0-1.0", "CC-BY-4.0"]},
+              "redistributable": {"const": true},
+              "attribution": {"type": "string"}
+            }
+          },
+          "generation": {
+            "type": "object",
+            "required": ["origin", "ai_generated", "contains_ai_pixels"],
+            "properties": {
+              "origin": {
+                "enum": [
+                  "software", "human_vector", "ai_assisted_redraw",
+                  "article_vector_native", "article_vector_trace",
+                  "ai_raster", "ai_generated_vector"
+                ]
+              },
+              "ai_generated": {"type": "boolean"},
+              "contains_ai_pixels": {"type": "boolean"},
+              "model": {"type": ["string", "null"]},
+              "prompt_sha256": {"type": ["string", "null"]}
+            }
+          },
+          "review": {
+            "type": "object",
+            "required": ["status", "reviewed_by", "reviewed_at"],
+            "properties": {
+              "status": {"type": "string"},
+              "reviewed_by": {"type": "string"},
+              "reviewed_at": {"type": "string"}
+            }
+          },
+          "sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"}
+        }
+      }
+    }
+  }
+}

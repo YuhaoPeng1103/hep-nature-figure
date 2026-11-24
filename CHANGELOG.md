@@ -1,5 +1,42 @@
 # 变更记录
 
+## v5.1 — 2026-11-25
+
+**在 v4.31 的原生几何与连续渐变重绘基础上，新增元素级 HEP 矢量素材库、作者确认 IR、确定性 SVG 编译器和投稿安全模式。**
+
+- 新增 `assets/element-library/`：181 个透明 SVG 元素变体，其中 74 个文章来源元素各有可无限缩放的原生 `_edit.svg` 和用于保真审计的 `_texture.svg`。107 个代码生成 system-primitives 继续单独标记。
+- 核子族扩到 30 种，其中 16 种为文章来源；新增 11 个来自形变核/碰撞几何图的红色质子、蓝色中子和核碎片核子照明变体，同一槽位可直接替换。
+- 新增 24 个 2020–2026 年论文元素：ALICE 部分子介质与多色部分子对、STAR 径迹探测器、涡旋环/涡旋嵌套、事件拓扑与发射锥；全部保留源 DOI、许可、源 SHA、crop box 与后处理说明。
+- 新增 `source_element_extract.py`：按授权源图、人工 bbox/椭圆/多边形掩膜去白底并用 `vtracer` 矢量化；记录源 DOI、许可、源 SHA、高清源图、缩放比例、crop box 与加工方法。
+- 新增 `article_element_harvester.py`：发现高能核物理论文，按 PMC OA S3 元数据选择可再分发的 CC BY 版本，下载原始媒体与可选 PDF；失败文章不进“完成”集合，可用 `--retry-failed` 重试。
+- PMC/JATS 图件改为按 graphic URL 去重；标题分类收紧，排除“heavy ion radiation / spin polarization / water-jet”等跨领域同词误收；永久许可失败与临时下载失败分开缓存。
+- 新增 `publisher_figure_harvester.py`：先核对 APS/PR landing page 的 CC BY 声明和题注第三方权利提示，再从 PDF 以 300 dpi 重建图区；题注缺失或含 permission/reprinted 等提示时只保留 metadata。arXiv PDF adapter 同样要求论文页明确 CC BY。首轮严格筛选得到 574 篇候选，处理 524 篇，保留 4,568 条图件记录，其中 3,557 张已下载高分辨率图区、1,011 条因题注无法核验只留 metadata。
+- 新增 `figure_element_candidates.py`：对全部合法本地图做哈希去重、HEP 相关性过滤、题注/视觉示意图排序、审查 HTML/拼图和 review-only 对象 crop；自动 crop 不直接进入 active element index。首轮把 4,695 条本地图件归并为 3,578 张唯一 HEP 图，生成 8,531 个对象候选和 199 张审查拼图。
+- 新增 `priority_element_rebuild.py`：对 408 张高优先级图逐对象去背景、审核并生成保守的原生 SVG candidate。首轮联合记录框与重新连通域分区，处理 3,599 个对象 proposal；3,595 个因多物体、文字、坐标或线图风险进入人工拆分，4 个生成平滑纯矢量 candidate；全部保持 `review-only`，不自动进入 active index。
+- 新增 canonical 纯文章来源单幅 3D QGP-jet `qgp-jet-paper-3d.spec.yaml`：Pb 核来自 Nature STAR 核形状图，QGP 火球来自 arXiv:2512.00739 图重建，喷注和辐射语言取自 PRL 125, 122301；共享同一斜二测相机、反应平面和硬散射顶点。旧的软件图元样例只保留为编译回归对照。
+- 核实 T3-30 QGP 素材来源为 CC BY 的 arXiv:2512.00739 论文图；去除上下文后的 native/texture 双版进入 canonical 3D QGP-jet。
+- 修正 T3-30 的语义切分：透视网格、紫色电磁场线和外部黑箭头不再烘进 QGP 元素；QGP 元素只保留火球体积、橙色谱线、部分子和螺旋。干净的 native/texture 两版均重新生成，纹理对干净 native 参考 `MAE 0.851 / >32 0.12%`。
+- 新增 `rebuild_article_vectors.py` 与 `element_texture_vectorize.py`：原生重建处理几何和材质，纹理版用平滑曲线、连续渐变网格生成可选的无位图保真对照；`index.json` 始终指向可无限缩放的 `_edit.svg`，纹理重跑不会把默认入口改回跟踪稿。
+- 修复透明裁切矢量化把 alpha=0 处的隐藏 RGB 当成可见颜色、从而在圆外漏出彩色晕圈的缺陷；光滑网格改用真实 alpha 轮廓，并保留透明背景。完整 T3-30 crop 上曾达到 `MAE 0.495 / >32 0.22%`；拆分掉网格与场线后，干净 QGP 元素对 clean native 参考为 `MAE 0.851 / >32 0.12%`。
+- `element_texture_vectorize.py` 新增 `smooth-gradient-mesh` 后端：二维连续渐变 + 细残差网格；不再把柔光压成 VTracer 平色阶。文章来源元素逐项以误差是否下降为替换条件，整图继续保持纯矢量、可编辑文字和 600 dpi 输出。
+- 新增 `assets/element-library/source-corpus/`：保留筛选出的开放获取论文、图注、PMC 版本、CC BY 许可、7 张已收候选图及高分辨率源图的来源链；订阅制与非 CC BY 内容仍只存元数据。
+- 新增 `element_variants.py`：固定同一元素的 `x_mm/y_mm/width_mm/height_mm`，逐一预览不同素材变体，生成 `pick.html`/拼图，记录客户选择并回写 `asset_variant`。
+- 新增 `spec_confirm.py`：把完整 spec 的元素、文字、连接、关系、画布与硬物理哈希绑定到作者回执；改动 spec 后自动失效。
+- 新增 `spec_compile.py`：从元素库确定性组装 SVG，代码生成箭头/连接/文字和 mm 布局，导出 SVG、PDF、600 dpi PNG 与 provenance manifest。
+- 新增 `visual_review.py`：把作者看最终预览的原话与 spec/SVG/PDF/PNG 哈希绑定；`spec_compile.py --final` 只有复核一致才进入最终导出。
+- `spec_compile.py` 在本机 Cairo PDF 后端报告内存错误时回退到 PyMuPDF 矢量 PDF 转换，避免已正确生成的 SVG 被渲染器环境阻断；PNG 仍由 CairoSVG 生成。
+- 新增 `nature_gate.py` 和 `assets/spec-profiles/nature-2026.json`：检查 89/183 mm、5–12 pt、0.25–3 pt、语义色族、字体和 600 dpi。
+- `--safe-mode` 排除 AI raster、AI generated vector、`data-ai-generated=true` 与嵌入位图；AI 元素可用 `element_library.py ingest-ai` 记录并入库。
+- 新增元素级示例 `assets/demos/element-spec/` 和规范 `references/element-spec-pipeline.md`。
+- 新增 `assets/schematic-library/`：统一按物理主题、图型、3D 风格、来源和许可检索。
+- 现有规模：63 条图件/出处记录，其中 20 张本地 CC BY 图可直接用于 `--ref`；43 条订阅制、默认 arXiv 许可或 NC/ND 记录只保留来源与访问入口。
+- 新增 16 个主题的候选发现：Nature 系列、Physical Review 系列、Science 系列、Reviews of Modern Physics、JHEP、EPJC、PLB、Nuclear Physics A 等共得到 5,245 篇 DOI 去重候选；OpenAlex 负责跨库种子，Crossref 分页扩展 APS、Nature 与核心 HEP 期刊，并剔除词面假阳性与重复记录。
+- 新增 `scripts/schematic_library.py`：目录校验、语义词检索、`--for-ref` 白名单、OpenAlex/Crossref 发现、Europe PMC/NCBI 全文回退和 CC BY 图件采集。
+- `ref_guard.py` 把 `assets/schematic-library/redistributable/` 纳入合法风格书；metadata-only 图不能进入 `--ref`。
+- `choice_gate.py`、`ir_layout_guard.py`、`ref_guard.py` 补上 Windows 管道 UTF-8 初始化，修复回归测试中输出乱码和闸门误报。
+- 新增 `catalog.schema.json`、`taxonomy.json`、`queries.json`、许可说明和素材库 README。
+- “全部”按可复现的查询覆盖和计数对账实现，不声称已经穷尽期刊创刊以来所有插图。
+
 ## v4.31 — 2026-11-25
 
 ### 纯代码重绘复杂连续渐变

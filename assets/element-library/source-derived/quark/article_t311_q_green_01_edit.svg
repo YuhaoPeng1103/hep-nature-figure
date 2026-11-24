@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"
+     data-element-asset="article_t311_q_green_01" data-origin="article_vector_native">
+  <defs>
+    <radialGradient id="article-t311-q-green-01-g" cx=".35" cy=".28" r=".75">
+      <stop offset="0" stop-color="#beff94"/>
+      <stop offset=".24" stop-color="#24c94a"/>
+      <stop offset="1" stop-color="#07551b"/>
+    </radialGradient>
+  </defs>
+  <g id="quark-marker" data-element="article_t311_q_green_01">
+    <circle cx="50" cy="50" r="34" fill="url(#article-t311-q-green-01-g)" stroke="#07551b"
+            stroke-width="1.2"/>
+    <ellipse cx="38" cy="34" rx="8" ry="4.5" fill="#fff" opacity=".42"/>
+    <text x="50" y="62" text-anchor="middle" font-family="DejaVu Sans, Arial"
+          font-size="34" font-weight="700" fill="#ffffff">q</text>
+    
+    
+  </g>
+</svg>

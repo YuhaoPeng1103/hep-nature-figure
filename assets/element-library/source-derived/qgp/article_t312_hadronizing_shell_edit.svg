@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 260 360"
+     data-element-asset="article_t312_hadronizing_shell" data-origin="article_vector_native">
+  <defs>
+    <radialGradient id="article-t312-hadronizing-shell-shell" cx=".45" cy=".42" r=".65">
+      <stop offset="0" stop-color="#d8dde2"/><stop offset=".72" stop-color="#9ea7b0"/>
+      <stop offset="1" stop-color="#747d85"/>
+    </radialGradient>
+  </defs>
+  <g id="hadronizing-shell" data-element="article_t312_hadronizing_shell">
+    <ellipse cx="130" cy="180" rx="89" ry="145" fill="url(#article-t312-hadronizing-shell-shell)"
+             stroke="#59636d" stroke-width="1.5"/>
+    <ellipse cx="130" cy="180" rx="65" ry="117" fill="#f4f5f6" opacity=".7"/>
+    <path d="M52 123 C105 94 129 164 126 244" fill="none" stroke="#63707b" stroke-width=".8" opacity=".7"/><path d="M65 123 C111 97 133 162 133 246" fill="none" stroke="#63707b" stroke-width=".8" opacity=".7"/><path d="M78 123 C117 100 137 160 140 248" fill="none" stroke="#63707b" stroke-width=".8" opacity=".7"/><path d="M91 123 C123 103 141 158 147 250" fill="none" stroke="#63707b" stroke-width=".8" opacity=".7"/><path d="M104 123 C129 106 145 156 154 252" fill="none" stroke="#63707b" stroke-width=".8" opacity=".7"/><path d="M117 123 C135 109 149 154 161 254" fill="none" stroke="#63707b" stroke-width=".8" opacity=".7"/><path d="M130 123 C141 112 153 152 168 256" fill="none" stroke="#63707b" stroke-width=".8" opacity=".7"/><path d="M143 123 C147 115 157 150 175 258" fill="none" stroke="#63707b" stroke-width=".8" opacity=".7"/><path d="M156 123 C153 118 161 148 182 260" fill="none" stroke="#63707b" stroke-width=".8" opacity=".7"/><path d="M169 123 C159 121 165 146 189 262" fill="none" stroke="#63707b" stroke-width=".8" opacity=".7"/><path d="M182 123 C165 124 169 144 196 264" fill="none" stroke="#63707b" stroke-width=".8" opacity=".7"/>
+  </g>
+</svg>

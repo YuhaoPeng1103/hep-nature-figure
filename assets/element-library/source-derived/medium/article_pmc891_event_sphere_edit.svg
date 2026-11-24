@@ -1,0 +1,22 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 300 300"
+     data-element-asset="article_pmc891_event_sphere" data-origin="article_vector_native">
+  <defs>
+    
+    <marker id="article-pmc891-event-sphere-arrow" viewBox="0 0 10 10" refX="8.5" refY="5"
+            markerWidth="5" markerHeight="5" orient="auto-start-reverse">
+      <path d="M0 0 L10 5 L0 10 z" fill="#18212b"/>
+    </marker>
+    <marker id="article-pmc891-event-sphere-flow" viewBox="0 0 10 10" refX="8" refY="5"
+            markerWidth="5.5" markerHeight="5.5" orient="auto">
+      <path d="M0 0 L10 5 L0 10 z" fill="#84a3cf"/>
+    </marker>
+
+    <radialGradient id="article-pmc891-event-sphere-event" cx=".4" cy=".35" r=".68">
+      <stop offset="0" stop-color="#c5f6ee"/><stop offset="1" stop-color="#2f969d"/>
+    </radialGradient>
+  </defs>
+  <g id="event-source" data-element="article_pmc891_event_sphere">
+    <circle cx="150" cy="154" r="104" fill="url(#article-pmc891-event-sphere-event)" opacity=".84"/>
+    <path d="M150 154 L241.0 154.0" stroke="#1d5d98" stroke-width="3" stroke-dasharray="8 7" marker-end="url(#article-pmc891-event-sphere-arrow)"/><path d="M150 154 L214.3 218.3" stroke="#1d5d98" stroke-width="3" stroke-dasharray="8 7" marker-end="url(#article-pmc891-event-sphere-arrow)"/><path d="M150 154 L150.0 245.0" stroke="#1d5d98" stroke-width="3" stroke-dasharray="8 7" marker-end="url(#article-pmc891-event-sphere-arrow)"/><path d="M150 154 L85.7 218.3" stroke="#1d5d98" stroke-width="3" stroke-dasharray="8 7" marker-end="url(#article-pmc891-event-sphere-arrow)"/><path d="M150 154 L59.0 154.0" stroke="#1d5d98" stroke-width="3" stroke-dasharray="8 7" marker-end="url(#article-pmc891-event-sphere-arrow)"/><path d="M150 154 L85.7 89.7" stroke="#1d5d98" stroke-width="3" stroke-dasharray="8 7" marker-end="url(#article-pmc891-event-sphere-arrow)"/><path d="M150 154 L150.0 63.0" stroke="#1d5d98" stroke-width="3" stroke-dasharray="8 7" marker-end="url(#article-pmc891-event-sphere-arrow)"/><path d="M150 154 L214.3 89.7" stroke="#1d5d98" stroke-width="3" stroke-dasharray="8 7" marker-end="url(#article-pmc891-event-sphere-arrow)"/>
+  </g>
+</svg>

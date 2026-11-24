@@ -1,0 +1,3016 @@
+{
+  "schema_version": "5.1.0",
+  "library_version": "5.1.0",
+  "updated": "2026-11-22",
+  "entries": [
+    {
+      "asset_id": "T3-01",
+      "legacy_code": "T3-01",
+      "status": "verified_figure",
+      "kind": "figure",
+      "title": "Jia2026 Fig1 QGP初态全流程 3D圆柱+火球",
+      "figure_label": "Fig. 1",
+      "figure_caption": "",
+      "paper": {
+        "doi": "",
+        "arxiv": "2405.08749",
+        "title": "Longitudinal structure of the quark-gluon plasma from differently shaped nuclei",
+        "authors": [
+          "Jiangyong Jia, Chunjian Zhang, Shengli Huang"
+        ],
+        "year": null,
+        "journal": "arXiv",
+        "volume": ""
+      },
+      "topics": [
+        "initial-state",
+        "qgp"
+      ],
+      "schematic_types": [
+        "3d-illustration",
+        "timeline",
+        "spacetime-evolution"
+      ],
+      "style": {
+        "mode": "render3d",
+        "projection": "axonometric",
+        "tags": [
+          "render3d"
+        ]
+      },
+      "license": {
+        "spdx": "CC-BY-4.0",
+        "redistributable": true,
+        "source_url": "https://creativecommons.org/licenses/by/4.0/",
+        "attribution": "Jiangyong Jia, Chunjian Zhang, Shengli Huang. Longitudinal structure of the quark-gluon plasma from differently shaped nuclei. arXiv",
+        "note": "从 PDF 按图框裁切（`extract_figures.py`）；内容未改动"
+      },
+      "local_file": "assets/t3-exemplars/T3-01_Jia2026_Fig1_QGP初态全流程_3D圆柱+火球.png",
+      "remote_image": null,
+      "sha256": "d82194c7ab79524afa29839889b9f95e45b850a8aef690b76bcfbde91ddf031f",
+      "source": "t3-exemplars",
+      "retrieved": "2026-11-22",
+      "provenance": {
+        "notice": "assets/t3-exemplars/NOTICE.md"
+      },
+      "notes": "Legacy verified exemplar."
+    },
+    {
+      "asset_id": "T3-02",
+      "legacy_code": "T3-02",
+      "status": "verified_figure",
+      "kind": "figure",
+      "title": "STAR2024 ED1 核形变到火球 全流程3D",
+      "figure_label": "Extended Data Fig. 1",
+      "figure_caption": "",
+      "paper": {
+        "doi": "10.1038/s41586-024-08097-2",
+        "arxiv": "",
+        "title": "Imaging shapes of atomic nuclei in high-energy nuclear collisions",
+        "authors": [
+          "STAR Collaboration"
+        ],
+        "year": 2024,
+        "journal": "Nature 635",
+        "volume": ""
+      },
+      "topics": [
+        "nuclear-structure",
+        "qgp"
+      ],
+      "schematic_types": [
+        "3d-illustration",
+        "timeline",
+        "spacetime-evolution"
+      ],
+      "style": {
+        "mode": "render3d",
+        "projection": "axonometric",
+        "tags": [
+          "render3d"
+        ]
+      },
+      "license": {
+        "spdx": "CC-BY-4.0",
+        "redistributable": true,
+        "source_url": "https://creativecommons.org/licenses/by/4.0/",
+        "attribution": "STAR Collaboration. Imaging shapes of atomic nuclei in high-energy nuclear collisions. Nature 635",
+        "note": "从 PDF 按图框裁切；内容未改动"
+      },
+      "local_file": "assets/t3-exemplars/T3-02_STAR2024_ED1_核形变到火球_全流程3D.png",
+      "remote_image": null,
+      "sha256": "4e054ec9635ca6ff08526745c999e8c62ad4a01e33316b24ae6310f166a689fc",
+      "source": "t3-exemplars",
+      "retrieved": "2026-11-22",
+      "provenance": {
+        "notice": "assets/t3-exemplars/NOTICE.md"
+      },
+      "notes": "Legacy verified exemplar."
+    },
+    {
+      "asset_id": "T3-03",
+      "legacy_code": "T3-03",
+      "status": "verified_figure",
+      "kind": "figure",
+      "title": "STAR2024 phi角示意 火球剖面",
+      "figure_label": "T3-03",
+      "figure_caption": "",
+      "paper": {
+        "doi": "10.1038/s41586-024-08097-2",
+        "arxiv": "",
+        "title": "Imaging shapes of atomic nuclei in high-energy nuclear collisions",
+        "authors": [
+          "STAR Collaboration"
+        ],
+        "year": 2024,
+        "journal": "Nature 635",
+        "volume": ""
+      },
+      "topics": [
+        "spin-polarization",
+        "qgp"
+      ],
+      "schematic_types": [
+        "3d-illustration",
+        "geometry-diagram"
+      ],
+      "style": {
+        "mode": "illustration",
+        "projection": "unspecified",
+        "tags": []
+      },
+      "license": {
+        "spdx": "CC-BY-4.0",
+        "redistributable": true,
+        "source_url": "https://creativecommons.org/licenses/by/4.0/",
+        "attribution": "STAR Collaboration. Imaging shapes of atomic nuclei in high-energy nuclear collisions. Nature 635",
+        "note": "从 PDF 按图框裁切；内容未改动"
+      },
+      "local_file": "assets/t3-exemplars/T3-03_STAR2024_phi角示意_火球剖面.png",
+      "remote_image": null,
+      "sha256": "ca4528fb4c39266e0fc24b4f6797a0a3cd74ffd9a60fceba301d77ff5046fbfc",
+      "source": "t3-exemplars",
+      "retrieved": "2026-11-22",
+      "provenance": {
+        "notice": "assets/t3-exemplars/NOTICE.md"
+      },
+      "notes": "Legacy verified exemplar."
+    },
+    {
+      "asset_id": "T3-04",
+      "legacy_code": "T3-04",
+      "status": "metadata_only",
+      "kind": "figure",
+      "title": "Kharzeev2021 3D螺旋能级面 手性磁场",
+      "figure_label": "T3-04",
+      "figure_caption": "",
+      "paper": {
+        "doi": "10.1038/s42254-020-00254-6",
+        "arxiv": "",
+        "title": "Chiral magnetic effect reveals the topology of gauge fields in heavy-ion collisions",
+        "authors": [
+          "Dmitri E. Kharzeev",
+          "Jinfeng Liao"
+        ],
+        "year": 2021,
+        "journal": "Nature Reviews Physics",
+        "volume": ""
+      },
+      "topics": [
+        "qgp"
+      ],
+      "schematic_types": [
+        "3d-illustration"
+      ],
+      "style": {
+        "mode": "render3d",
+        "projection": "axonometric",
+        "tags": [
+          "render3d"
+        ]
+      },
+      "license": {
+        "spdx": "publisher-copyright",
+        "redistributable": false,
+        "source_url": "https://doi.org/10.1038/s42254-020-00254-6",
+        "attribution": "NatureRevPhysics_2021_chiral-magnetic-effect | Nature Reviews Physics 3 (2021) | ❌ 订阅制，**仅本地** ⚠️",
+        "note": "metadata imported from local licence ledger; image intentionally not redistributed"
+      },
+      "local_file": null,
+      "remote_image": null,
+      "sha256": null,
+      "source": "legacy-index",
+      "retrieved": "2026-11-22",
+      "provenance": {
+        "local_license_log": "_T3精选/LICENSE_记录.md"
+      },
+      "notes": "Local-only image; obtain lawfully and verify the licence before reuse."
+    },
+    {
+      "asset_id": "T3-05",
+      "legacy_code": "T3-05",
+      "status": "metadata_only",
+      "kind": "figure",
+      "title": "Kharzeev2021 3D火球+B场+磁力线",
+      "figure_label": "T3-05",
+      "figure_caption": "",
+      "paper": {
+        "doi": "10.1038/s42254-020-00254-6",
+        "arxiv": "",
+        "title": "Chiral magnetic effect reveals the topology of gauge fields in heavy-ion collisions",
+        "authors": [
+          "Dmitri E. Kharzeev",
+          "Jinfeng Liao"
+        ],
+        "year": 2021,
+        "journal": "Nature Reviews Physics",
+        "volume": ""
+      },
+      "topics": [
+        "qgp"
+      ],
+      "schematic_types": [
+        "3d-illustration"
+      ],
+      "style": {
+        "mode": "render3d",
+        "projection": "axonometric",
+        "tags": [
+          "render3d"
+        ]
+      },
+      "license": {
+        "spdx": "publisher-copyright",
+        "redistributable": false,
+        "source_url": "https://doi.org/10.1038/s42254-020-00254-6",
+        "attribution": "同上 | 同上 | ❌ 订阅制，**仅本地** ⚠️",
+        "note": "metadata imported from local licence ledger; image intentionally not redistributed"
+      },
+      "local_file": null,
+      "remote_image": null,
+      "sha256": null,
+      "source": "legacy-index",
+      "retrieved": "2026-11-22",
+      "provenance": {
+        "local_license_log": "_T3精选/LICENSE_记录.md"
+      },
+      "notes": "Local-only image; obtain lawfully and verify the licence before reuse."
+    },
+    {
+      "asset_id": "T3-06",
+      "legacy_code": "T3-06",
+      "status": "metadata_only",
+      "kind": "figure",
+      "title": "Kharzeev2021 3D火球+箭头演化",
+      "figure_label": "T3-06",
+      "figure_caption": "",
+      "paper": {
+        "doi": "10.1038/s42254-020-00254-6",
+        "arxiv": "",
+        "title": "Chiral magnetic effect reveals the topology of gauge fields in heavy-ion collisions",
+        "authors": [
+          "Dmitri E. Kharzeev",
+          "Jinfeng Liao"
+        ],
+        "year": 2021,
+        "journal": "Nature Reviews Physics",
+        "volume": ""
+      },
+      "topics": [
+        "qgp"
+      ],
+      "schematic_types": [
+        "3d-illustration"
+      ],
+      "style": {
+        "mode": "render3d",
+        "projection": "axonometric",
+        "tags": [
+          "render3d"
+        ]
+      },
+      "license": {
+        "spdx": "publisher-copyright",
+        "redistributable": false,
+        "source_url": "https://doi.org/10.1038/s42254-020-00254-6",
+        "attribution": "同上 | 同上 | ❌ 订阅制，**仅本地** ⚠️",
+        "note": "metadata imported from local licence ledger; image intentionally not redistributed"
+      },
+      "local_file": null,
+      "remote_image": null,
+      "sha256": null,
+      "source": "legacy-index",
+      "retrieved": "2026-11-22",
+      "provenance": {
+        "local_license_log": "_T3精选/LICENSE_记录.md"
+      },
+      "notes": "Local-only image; obtain lawfully and verify the licence before reuse."
+    },
+    {
+      "asset_id": "T3-07",
+      "legacy_code": "T3-07",
+      "status": "metadata_only",
+      "kind": "figure",
+      "title": "STAR2023 3D火球+反应平面+坐标轴",
+      "figure_label": "T3-07",
+      "figure_caption": "",
+      "paper": {
+        "doi": "10.1038/s41586-022-05557-5",
+        "arxiv": "",
+        "title": "Pattern of global spin alignment of phi and K*0 mesons in heavy-ion collisions",
+        "authors": [
+          "STAR Collaboration"
+        ],
+        "year": 2023,
+        "journal": "Nature",
+        "volume": ""
+      },
+      "topics": [
+        "qgp"
+      ],
+      "schematic_types": [
+        "3d-illustration"
+      ],
+      "style": {
+        "mode": "render3d",
+        "projection": "axonometric",
+        "tags": [
+          "render3d"
+        ]
+      },
+      "license": {
+        "spdx": "publisher-copyright",
+        "redistributable": false,
+        "source_url": "https://doi.org/10.1038/s41586-022-05557-5",
+        "attribution": "Nature_2023_global-spin-alignment | Nature 614, 244–248 (2023) | ❌ 订阅制，**仅本地** ⚠️",
+        "note": "metadata imported from local licence ledger; image intentionally not redistributed"
+      },
+      "local_file": null,
+      "remote_image": null,
+      "sha256": null,
+      "source": "legacy-index",
+      "retrieved": "2026-11-22",
+      "provenance": {
+        "local_license_log": "_T3精选/LICENSE_记录.md"
+      },
+      "notes": "Local-only image; obtain lawfully and verify the licence before reuse."
+    },
+    {
+      "asset_id": "T3-08",
+      "legacy_code": "T3-08",
+      "status": "metadata_only",
+      "kind": "figure",
+      "title": "STAR2023 3D环形探测器+粒子径迹",
+      "figure_label": "T3-08",
+      "figure_caption": "",
+      "paper": {
+        "doi": "10.1038/s41586-022-05557-5",
+        "arxiv": "",
+        "title": "Pattern of global spin alignment of phi and K*0 mesons in heavy-ion collisions",
+        "authors": [
+          "STAR Collaboration"
+        ],
+        "year": 2023,
+        "journal": "Nature",
+        "volume": ""
+      },
+      "topics": [
+        "detectors"
+      ],
+      "schematic_types": [
+        "3d-illustration"
+      ],
+      "style": {
+        "mode": "render3d",
+        "projection": "axonometric",
+        "tags": [
+          "render3d"
+        ]
+      },
+      "license": {
+        "spdx": "publisher-copyright",
+        "redistributable": false,
+        "source_url": "https://doi.org/10.1038/s41586-022-05557-5",
+        "attribution": "同上 | 同上 | ❌ 订阅制，**仅本地** ⚠️",
+        "note": "metadata imported from local licence ledger; image intentionally not redistributed"
+      },
+      "local_file": null,
+      "remote_image": null,
+      "sha256": null,
+      "source": "legacy-index",
+      "retrieved": "2026-11-22",
+      "provenance": {
+        "local_license_log": "_T3精选/LICENSE_记录.md"
+      },
+      "notes": "Local-only image; obtain lawfully and verify the licence before reuse."
+    },
+    {
+      "asset_id": "T3-09",
+      "legacy_code": "T3-09",
+      "status": "metadata_only",
+      "kind": "figure",
+      "title": "STAR2017 3D碰撞余波 QGP涡旋+极化",
+      "figure_label": "T3-09",
+      "figure_caption": "",
+      "paper": {
+        "doi": "10.1038/nature23004",
+        "arxiv": "",
+        "title": "Global Lambda hyperon polarization in nuclear collisions",
+        "authors": [
+          "STAR Collaboration"
+        ],
+        "year": 2017,
+        "journal": "Nature",
+        "volume": ""
+      },
+      "topics": [
+        "qgp"
+      ],
+      "schematic_types": [
+        "3d-illustration"
+      ],
+      "style": {
+        "mode": "render3d",
+        "projection": "axonometric",
+        "tags": [
+          "render3d"
+        ]
+      },
+      "license": {
+        "spdx": "publisher-copyright",
+        "redistributable": false,
+        "source_url": "https://doi.org/10.1038/nature23004",
+        "attribution": "Nature_2017_Lambda-polarization | Nature 548, 62–65 (2017) | ❌ 订阅制，**仅本地** ⚠️",
+        "note": "metadata imported from local licence ledger; image intentionally not redistributed"
+      },
+      "local_file": null,
+      "remote_image": null,
+      "sha256": null,
+      "source": "legacy-index",
+      "retrieved": "2026-11-22",
+      "provenance": {
+        "local_license_log": "_T3精选/LICENSE_记录.md"
+      },
+      "notes": "Local-only image; obtain lawfully and verify the licence before reuse."
+    },
+    {
+      "asset_id": "T3-10",
+      "legacy_code": "T3-10",
+      "status": "metadata_only",
+      "kind": "figure",
+      "title": "STAR2017 STAR探测器3D剖视 标注",
+      "figure_label": "T3-10",
+      "figure_caption": "",
+      "paper": {
+        "doi": "10.1038/nature23004",
+        "arxiv": "",
+        "title": "Global Lambda hyperon polarization in nuclear collisions",
+        "authors": [
+          "STAR Collaboration"
+        ],
+        "year": 2017,
+        "journal": "Nature",
+        "volume": ""
+      },
+      "topics": [
+        "detectors"
+      ],
+      "schematic_types": [
+        "3d-illustration"
+      ],
+      "style": {
+        "mode": "render3d",
+        "projection": "axonometric",
+        "tags": [
+          "render3d"
+        ]
+      },
+      "license": {
+        "spdx": "publisher-copyright",
+        "redistributable": false,
+        "source_url": "https://doi.org/10.1038/nature23004",
+        "attribution": "Nature_2017_Lambda-polarization | Nature 548, 62–65 (2017) | ❌ 订阅制，**仅本地** ⚠️",
+        "note": "metadata imported from local licence ledger; image intentionally not redistributed"
+      },
+      "local_file": null,
+      "remote_image": null,
+      "sha256": null,
+      "source": "legacy-index",
+      "retrieved": "2026-11-22",
+      "provenance": {
+        "local_license_log": "_T3精选/LICENSE_记录.md"
+      },
+      "notes": "Local-only image; obtain lawfully and verify the licence before reuse."
+    },
+    {
+      "asset_id": "T3-11",
+      "legacy_code": "T3-11",
+      "status": "verified_figure",
+      "kind": "figure",
+      "title": "CMSCollab2025 夸克级火球+探测器剖视",
+      "figure_label": "T3-11",
+      "figure_caption": "",
+      "paper": {
+        "doi": "10.1038/s41467-025-56200-6",
+        "arxiv": "",
+        "title": "Elliptic anisotropy measurement of the f0(980) hadron in proton-lead collisions and evidence for its quark-antiquark composition",
+        "authors": [
+          "CMS Collaboration"
+        ],
+        "year": 2025,
+        "journal": "Nat. Commun. 16",
+        "volume": ""
+      },
+      "topics": [
+        "qgp",
+        "detectors"
+      ],
+      "schematic_types": [
+        "3d-illustration",
+        "detector-cutaway"
+      ],
+      "style": {
+        "mode": "illustration",
+        "projection": "unspecified",
+        "tags": []
+      },
+      "license": {
+        "spdx": "CC-BY-4.0",
+        "redistributable": true,
+        "source_url": "https://creativecommons.org/licenses/by/4.0/",
+        "attribution": "CMS Collaboration. Elliptic anisotropy measurement of the f0(980) hadron in proton-lead collisions and evidence for its quark-antiquark composition. Nat. Commun. 16",
+        "note": "从 PDF 按图框裁切；内容未改动"
+      },
+      "local_file": "assets/t3-exemplars/T3-11_CMSCollab2025_夸克级火球+探测器剖视.png",
+      "remote_image": null,
+      "sha256": "cfcf35115a17182dbb39633781f286c0ad09e64974c162395fd5f55172f39ef1",
+      "source": "t3-exemplars",
+      "retrieved": "2026-11-22",
+      "provenance": {
+        "notice": "assets/t3-exemplars/NOTICE.md"
+      },
+      "notes": "Legacy verified exemplar."
+    },
+    {
+      "asset_id": "T3-12",
+      "legacy_code": "T3-12",
+      "status": "verified_figure",
+      "kind": "figure",
+      "title": "ALICE2026 介质内部分子+表面强子化",
+      "figure_label": "T3-12",
+      "figure_caption": "",
+      "paper": {
+        "doi": "10.1038/s41467-025-67795-1",
+        "arxiv": "",
+        "title": "Observation of partonic flow in proton-proton and proton-nucleus collisions",
+        "authors": [
+          "ALICE Collaboration"
+        ],
+        "year": 2026,
+        "journal": "Nat. Commun. 17",
+        "volume": ""
+      },
+      "topics": [
+        "hadronization",
+        "qgp"
+      ],
+      "schematic_types": [
+        "3d-illustration"
+      ],
+      "style": {
+        "mode": "illustration",
+        "projection": "unspecified",
+        "tags": []
+      },
+      "license": {
+        "spdx": "CC-BY-4.0",
+        "redistributable": true,
+        "source_url": "https://creativecommons.org/licenses/by/4.0/",
+        "attribution": "ALICE Collaboration. Observation of partonic flow in proton-proton and proton-nucleus collisions. Nat. Commun. 17",
+        "note": "从 PDF 按图框裁切；内容未改动"
+      },
+      "local_file": "assets/t3-exemplars/T3-12_ALICE2026_介质内部分子+表面强子化.png",
+      "remote_image": null,
+      "sha256": "7673015eab4a6e8dcfba06ca6d36cddf4c48ffd82a96b3eeed51d46129516a7e",
+      "source": "t3-exemplars",
+      "retrieved": "2026-11-22",
+      "provenance": {
+        "notice": "assets/t3-exemplars/NOTICE.md"
+      },
+      "notes": "Legacy verified exemplar."
+    },
+    {
+      "asset_id": "T3-20",
+      "legacy_code": "T3-20",
+      "status": "verified_figure",
+      "kind": "figure",
+      "title": "NatComm2025 Fig1 QCD相图示意",
+      "figure_label": "Fig. 1",
+      "figure_caption": "",
+      "paper": {
+        "doi": "10.1038/s41467-025-63216-5",
+        "arxiv": "",
+        "title": "Temperature measurement of Quark-Gluon plasma at different stages",
+        "authors": [
+          "STAR Collaboration"
+        ],
+        "year": 2025,
+        "journal": "Nat. Commun. 16",
+        "volume": ""
+      },
+      "topics": [
+        "phase-transition",
+        "qgp"
+      ],
+      "schematic_types": [
+        "phase-diagram"
+      ],
+      "style": {
+        "mode": "illustration",
+        "projection": "unspecified",
+        "tags": []
+      },
+      "license": {
+        "spdx": "CC-BY-4.0",
+        "redistributable": true,
+        "source_url": "https://creativecommons.org/licenses/by/4.0/",
+        "attribution": "STAR Collaboration. Temperature measurement of Quark-Gluon plasma at different stages. Nat. Commun. 16",
+        "note": "原始 PDF 第 2 页 600 dpi 重渲染后裁出 Fig. 1 图形区（去页眉与图注）"
+      },
+      "local_file": "assets/t3-exemplars/T3-20_NatComm2025_Fig1_QCD相图示意.png",
+      "remote_image": null,
+      "sha256": "1c34e747af2b3081f7b013f478d60f3a0b406122062c931aad15d13cf94f380b",
+      "source": "t3-exemplars",
+      "retrieved": "2026-11-22",
+      "provenance": {
+        "notice": "assets/t3-exemplars/NOTICE.md"
+      },
+      "notes": "Legacy verified exemplar."
+    },
+    {
+      "asset_id": "T3-21",
+      "legacy_code": "T3-21",
+      "status": "verified_figure",
+      "kind": "figure",
+      "title": "NatComm2025 Fig2a 环形探测器示意",
+      "figure_label": "Fig. 2a",
+      "figure_caption": "",
+      "paper": {
+        "doi": "10.1038/s41467-025-63216-5",
+        "arxiv": "",
+        "title": "Temperature measurement of Quark-Gluon plasma at different stages",
+        "authors": [
+          "STAR Collaboration"
+        ],
+        "year": 2025,
+        "journal": "Nat. Commun. 16",
+        "volume": ""
+      },
+      "topics": [
+        "detectors",
+        "qgp"
+      ],
+      "schematic_types": [
+        "detector-cutaway"
+      ],
+      "style": {
+        "mode": "illustration",
+        "projection": "unspecified",
+        "tags": []
+      },
+      "license": {
+        "spdx": "CC-BY-4.0",
+        "redistributable": true,
+        "source_url": "https://creativecommons.org/licenses/by/4.0/",
+        "attribution": "STAR Collaboration. Temperature measurement of Quark-Gluon plasma at different stages. Nat. Commun. 16",
+        "note": "取该图 panel a（裁去下方 b/c 两张数据热图）"
+      },
+      "local_file": "assets/t3-exemplars/T3-21_NatComm2025_Fig2a_环形探测器示意.png",
+      "remote_image": null,
+      "sha256": "30a3040c2dec16f4a27dc81877efcc0cb0ee6517c921d9b4e8b05537b6bc969e",
+      "source": "t3-exemplars",
+      "retrieved": "2026-11-22",
+      "provenance": {
+        "notice": "assets/t3-exemplars/NOTICE.md"
+      },
+      "notes": "Legacy verified exemplar."
+    },
+    {
+      "asset_id": "T3-22",
+      "legacy_code": "T3-22",
+      "status": "verified_figure",
+      "kind": "figure",
+      "title": "NatComm2018 Fig1 QCD相图示意",
+      "figure_label": "Fig. 1",
+      "figure_caption": "",
+      "paper": {
+        "doi": "10.1038/s41467-017-02726-3",
+        "arxiv": "",
+        "title": "An equation-of-state-meter of quantum chromodynamics transition from deep learning",
+        "authors": [
+          "L.-G. Pang, K. Zhou, N. Su, H. Petersen, H. Stöcker, X.-N. Wang"
+        ],
+        "year": 2018,
+        "journal": "Nat. Commun. 9",
+        "volume": ""
+      },
+      "topics": [
+        "phase-transition",
+        "qgp"
+      ],
+      "schematic_types": [
+        "phase-diagram"
+      ],
+      "style": {
+        "mode": "illustration",
+        "projection": "unspecified",
+        "tags": []
+      },
+      "license": {
+        "spdx": "CC-BY-4.0",
+        "redistributable": true,
+        "source_url": "https://creativecommons.org/licenses/by/4.0/",
+        "attribution": "L.-G. Pang, K. Zhou, N. Su, H. Petersen, H. Stöcker, X.-N. Wang. An equation-of-state-meter of quantum chromodynamics transition from deep learning. Nat. Commun. 9",
+        "note": "原样复制，未加工（原图只有 414×348，是该篇能拿到的最高分辨率）"
+      },
+      "local_file": "assets/t3-exemplars/T3-22_NatComm2018_Fig1_QCD相图示意.png",
+      "remote_image": null,
+      "sha256": "47a1e3d380a60158035a65085b2a3fb8bfeab3b2740a8415d5fead2af410c5bf",
+      "source": "t3-exemplars",
+      "retrieved": "2026-11-22",
+      "provenance": {
+        "notice": "assets/t3-exemplars/NOTICE.md"
+      },
+      "notes": "Legacy verified exemplar."
+    },
+    {
+      "asset_id": "T3-23",
+      "legacy_code": "T3-23",
+      "status": "verified_figure",
+      "kind": "figure",
+      "title": "Nature2020 Fig1 关联函数方法流程示意",
+      "figure_label": "Fig. 1",
+      "figure_caption": "",
+      "paper": {
+        "doi": "10.1038/s41586-020-3001-6",
+        "arxiv": "",
+        "title": "Unveiling the strong interaction among hadrons at the LHC",
+        "authors": [
+          "ALICE Collaboration"
+        ],
+        "year": 2020,
+        "journal": "Nature 588",
+        "volume": ""
+      },
+      "topics": [
+        "observables",
+        "hadronization"
+      ],
+      "schematic_types": [
+        "timeline",
+        "geometry-diagram"
+      ],
+      "style": {
+        "mode": "illustration",
+        "projection": "unspecified",
+        "tags": []
+      },
+      "license": {
+        "spdx": "CC-BY-4.0",
+        "redistributable": true,
+        "source_url": "https://creativecommons.org/licenses/by/4.0/",
+        "attribution": "ALICE Collaboration. Unveiling the strong interaction among hadrons at the LHC. Nature 588",
+        "note": "整页 600 dpi 重渲染后裁出 Fig. 1 图形区（去图注）"
+      },
+      "local_file": "assets/t3-exemplars/T3-23_Nature2020_Fig1_关联函数方法流程示意.png",
+      "remote_image": null,
+      "sha256": "350298e19b04ee535f34370e46f3cd8e8a5d63495d735f4800451299172a1306",
+      "source": "t3-exemplars",
+      "retrieved": "2026-11-22",
+      "provenance": {
+        "notice": "assets/t3-exemplars/NOTICE.md"
+      },
+      "notes": "Legacy verified exemplar."
+    },
+    {
+      "asset_id": "T3-30",
+      "legacy_code": "T3-30",
+      "status": "verified_figure",
+      "kind": "figure",
+      "title": "Shen2025 3D碰撞几何 QGP火球+电磁场",
+      "figure_label": "T3-30",
+      "figure_caption": "",
+      "paper": {
+        "doi": "",
+        "arxiv": "2512.00739",
+        "title": "A Review on Intense Electromagnetic Fields in Heavy-Ion Collisions: Theoretical Predictions and Experimental Results",
+        "authors": [
+          "Diyu Shen, Jinhui Chen, Xu-Guang Huang, Yu-Gang Ma, Aihong Tang, Gang Wang"
+        ],
+        "year": null,
+        "journal": "arXiv",
+        "volume": ""
+      },
+      "topics": [
+        "initial-state",
+        "qgp",
+        "electromagnetic-fields"
+      ],
+      "schematic_types": [
+        "3d-illustration",
+        "geometry-diagram"
+      ],
+      "style": {
+        "mode": "render3d",
+        "projection": "axonometric",
+        "tags": [
+          "render3d"
+        ]
+      },
+      "license": {
+        "spdx": "CC-BY-4.0",
+        "redistributable": true,
+        "source_url": "https://creativecommons.org/licenses/by/4.0/",
+        "attribution": "Diyu Shen, Jinhui Chen, Xu-Guang Huang, Yu-Gang Ma, Aihong Tang, Gang Wang. A Review on Intense Electromagnetic Fields in Heavy-Ion Collisions: Theoretical Predictions and Experimental Results. arXiv",
+        "note": "按图框 600 dpi 重渲染"
+      },
+      "local_file": "assets/t3-exemplars/T3-30_Shen2025_3D碰撞几何_QGP火球+电磁场.png",
+      "remote_image": null,
+      "sha256": "f8fab42fd20501f5fb50801f91ca4f622e3ea197ea801a2c9c9c8b721a6f0296",
+      "source": "t3-exemplars",
+      "retrieved": "2026-11-22",
+      "provenance": {
+        "notice": "assets/t3-exemplars/NOTICE.md"
+      },
+      "notes": "Legacy verified exemplar."
+    },
+    {
+      "asset_id": "T3-31",
+      "legacy_code": "T3-31",
+      "status": "verified_figure",
+      "kind": "figure",
+      "title": "Shen2025 STAR探测器3D透视图",
+      "figure_label": "T3-31",
+      "figure_caption": "",
+      "paper": {
+        "doi": "",
+        "arxiv": "2512.00739",
+        "title": "A Review on Intense Electromagnetic Fields in Heavy-Ion Collisions: Theoretical Predictions and Experimental Results",
+        "authors": [
+          "Diyu Shen, Jinhui Chen, Xu-Guang Huang, Yu-Gang Ma, Aihong Tang, Gang Wang"
+        ],
+        "year": null,
+        "journal": "arXiv",
+        "volume": ""
+      },
+      "topics": [
+        "detectors"
+      ],
+      "schematic_types": [
+        "3d-illustration",
+        "detector-cutaway"
+      ],
+      "style": {
+        "mode": "render3d",
+        "projection": "axonometric",
+        "tags": [
+          "render3d"
+        ]
+      },
+      "license": {
+        "spdx": "CC-BY-4.0",
+        "redistributable": true,
+        "source_url": "https://creativecommons.org/licenses/by/4.0/",
+        "attribution": "Diyu Shen, Jinhui Chen, Xu-Guang Huang, Yu-Gang Ma, Aihong Tang, Gang Wang. A Review on Intense Electromagnetic Fields in Heavy-Ion Collisions: Theoretical Predictions and Experimental Results. arXiv",
+        "note": "按图框 600 dpi 重渲染"
+      },
+      "local_file": "assets/t3-exemplars/T3-31_Shen2025_STAR探测器3D透视图.png",
+      "remote_image": null,
+      "sha256": "7f56323ec7643b71c1c09ccc2b4a9de7ec20bfa94735df38315d22b4bbf22592",
+      "source": "t3-exemplars",
+      "retrieved": "2026-11-22",
+      "provenance": {
+        "notice": "assets/t3-exemplars/NOTICE.md"
+      },
+      "notes": "Legacy verified exemplar."
+    },
+    {
+      "asset_id": "T3-32",
+      "legacy_code": "T3-32",
+      "status": "metadata_only",
+      "kind": "figure",
+      "title": "Snellings2011 3D参与者与旁观者核子球",
+      "figure_label": "T3-32",
+      "figure_caption": "",
+      "paper": {
+        "doi": "",
+        "arxiv": "1102.3010",
+        "title": "Snellings2011 3D参与者与旁观者核子球",
+        "authors": [],
+        "year": 2011,
+        "journal": "arXiv",
+        "volume": ""
+      },
+      "topics": [
+        "qgp"
+      ],
+      "schematic_types": [
+        "3d-illustration"
+      ],
+      "style": {
+        "mode": "render3d",
+        "projection": "axonometric",
+        "tags": [
+          "render3d"
+        ]
+      },
+      "license": {
+        "spdx": "arXiv-default",
+        "redistributable": false,
+        "source_url": "https://arxiv.org/abs/1102.3010",
+        "attribution": "arXiv:1102.3010v2（Raimond Snellings, 2011, *Elliptic Flow: A Brief Review*） | arXiv 默认 ⚠️",
+        "note": "metadata imported from local licence ledger; image intentionally not redistributed"
+      },
+      "local_file": null,
+      "remote_image": null,
+      "sha256": null,
+      "source": "legacy-index",
+      "retrieved": "2026-11-22",
+      "provenance": {
+        "local_license_log": "_T3精选/LICENSE_记录.md"
+      },
+      "notes": "Local-only image; obtain lawfully and verify the licence before reuse."
+    },
+    {
+      "asset_id": "T3-33",
+      "legacy_code": "T3-33",
+      "status": "metadata_only",
+      "kind": "figure",
+      "title": "Snellings2011 3D双椭圆核+碰撞参数",
+      "figure_label": "T3-33",
+      "figure_caption": "",
+      "paper": {
+        "doi": "",
+        "arxiv": "1102.3010",
+        "title": "Snellings2011 3D双椭圆核+碰撞参数",
+        "authors": [],
+        "year": null,
+        "journal": "arXiv",
+        "volume": ""
+      },
+      "topics": [
+        "qgp"
+      ],
+      "schematic_types": [
+        "3d-illustration"
+      ],
+      "style": {
+        "mode": "render3d",
+        "projection": "axonometric",
+        "tags": [
+          "render3d"
+        ]
+      },
+      "license": {
+        "spdx": "arXiv-default",
+        "redistributable": false,
+        "source_url": "https://arxiv.org/abs/1102.3010",
+        "attribution": "同上 | arXiv 默认 ⚠️",
+        "note": "metadata imported from local licence ledger; image intentionally not redistributed"
+      },
+      "local_file": null,
+      "remote_image": null,
+      "sha256": null,
+      "source": "legacy-index",
+      "retrieved": "2026-11-22",
+      "provenance": {
+        "local_license_log": "_T3精选/LICENSE_记录.md"
+      },
+      "notes": "Local-only image; obtain lawfully and verify the licence before reuse."
+    },
+    {
+      "asset_id": "T3-34",
+      "legacy_code": "T3-34",
+      "status": "verified_figure",
+      "kind": "figure",
+      "title": "Huang2015 3D反应平面+磁场几何",
+      "figure_label": "T3-34",
+      "figure_caption": "",
+      "paper": {
+        "doi": "",
+        "arxiv": "1509.04073",
+        "title": "Electromagnetic fields and anomalous transports in heavy-ion collisions - A pedagogical review",
+        "authors": [
+          "Xu-Guang Huang"
+        ],
+        "year": null,
+        "journal": "arXiv",
+        "volume": ""
+      },
+      "topics": [
+        "initial-state",
+        "electromagnetic-fields"
+      ],
+      "schematic_types": [
+        "3d-illustration",
+        "geometry-diagram"
+      ],
+      "style": {
+        "mode": "render3d",
+        "projection": "axonometric",
+        "tags": [
+          "render3d"
+        ]
+      },
+      "license": {
+        "spdx": "CC-BY-4.0",
+        "redistributable": true,
+        "source_url": "https://creativecommons.org/licenses/by/4.0/",
+        "attribution": "Xu-Guang Huang. Electromagnetic fields and anomalous transports in heavy-ion collisions - A pedagogical review. arXiv",
+        "note": "按图框 600 dpi 重渲染"
+      },
+      "local_file": "assets/t3-exemplars/T3-34_Huang2015_3D反应平面+磁场几何.png",
+      "remote_image": null,
+      "sha256": "98da74823d0bfde50699122700c64cae8a4c17a910acd7edb8e5df18d0ad6681",
+      "source": "t3-exemplars",
+      "retrieved": "2026-11-22",
+      "provenance": {
+        "notice": "assets/t3-exemplars/NOTICE.md"
+      },
+      "notes": "Legacy verified exemplar."
+    },
+    {
+      "asset_id": "T3-35",
+      "legacy_code": "T3-35",
+      "status": "verified_figure",
+      "kind": "figure",
+      "title": "Huang2015 3D参与者核子+方位角",
+      "figure_label": "T3-35",
+      "figure_caption": "",
+      "paper": {
+        "doi": "",
+        "arxiv": "1509.04073",
+        "title": "Electromagnetic fields and anomalous transports in heavy-ion collisions - A pedagogical review",
+        "authors": [
+          "Xu-Guang Huang"
+        ],
+        "year": null,
+        "journal": "arXiv",
+        "volume": ""
+      },
+      "topics": [
+        "initial-state",
+        "spin-polarization"
+      ],
+      "schematic_types": [
+        "3d-illustration",
+        "geometry-diagram"
+      ],
+      "style": {
+        "mode": "render3d",
+        "projection": "axonometric",
+        "tags": [
+          "render3d"
+        ]
+      },
+      "license": {
+        "spdx": "CC-BY-4.0",
+        "redistributable": true,
+        "source_url": "https://creativecommons.org/licenses/by/4.0/",
+        "attribution": "Xu-Guang Huang. Electromagnetic fields and anomalous transports in heavy-ion collisions - A pedagogical review. arXiv",
+        "note": "按图框 600 dpi 重渲染"
+      },
+      "local_file": "assets/t3-exemplars/T3-35_Huang2015_3D参与者核子+方位角.png",
+      "remote_image": null,
+      "sha256": "9507ef6d94aa90b7d5a1919c3b5f6c0d1d6598c564704e59b8bd465d03adf468",
+      "source": "t3-exemplars",
+      "retrieved": "2026-11-22",
+      "provenance": {
+        "notice": "assets/t3-exemplars/NOTICE.md"
+      },
+      "notes": "Legacy verified exemplar."
+    },
+    {
+      "asset_id": "T3-36",
+      "legacy_code": "T3-36",
+      "status": "verified_figure",
+      "kind": "figure",
+      "title": "Huang2015 参与者平面+电磁场方向",
+      "figure_label": "T3-36",
+      "figure_caption": "",
+      "paper": {
+        "doi": "",
+        "arxiv": "1509.04073",
+        "title": "Electromagnetic fields and anomalous transports in heavy-ion collisions - A pedagogical review",
+        "authors": [
+          "Xu-Guang Huang"
+        ],
+        "year": null,
+        "journal": "arXiv",
+        "volume": ""
+      },
+      "topics": [
+        "initial-state",
+        "electromagnetic-fields"
+      ],
+      "schematic_types": [
+        "3d-illustration",
+        "geometry-diagram"
+      ],
+      "style": {
+        "mode": "illustration",
+        "projection": "unspecified",
+        "tags": []
+      },
+      "license": {
+        "spdx": "CC-BY-4.0",
+        "redistributable": true,
+        "source_url": "https://creativecommons.org/licenses/by/4.0/",
+        "attribution": "Xu-Guang Huang. Electromagnetic fields and anomalous transports in heavy-ion collisions - A pedagogical review. arXiv",
+        "note": "按图框 600 dpi 重渲染"
+      },
+      "local_file": "assets/t3-exemplars/T3-36_Huang2015_参与者平面+电磁场方向.png",
+      "remote_image": null,
+      "sha256": "d705c25841a7ced230ed2ee0d30616579808ffcae159fc7a8f1770cde890034d",
+      "source": "t3-exemplars",
+      "retrieved": "2026-11-22",
+      "provenance": {
+        "notice": "assets/t3-exemplars/NOTICE.md"
+      },
+      "notes": "Legacy verified exemplar."
+    },
+    {
+      "asset_id": "T3-37",
+      "legacy_code": "T3-37",
+      "status": "metadata_only",
+      "kind": "figure",
+      "title": "Valdre2018 FAZIA探测器阵列3D渲染",
+      "figure_label": "T3-37",
+      "figure_caption": "",
+      "paper": {
+        "doi": "",
+        "arxiv": "1809.09693",
+        "title": "Valdre2018 FAZIA探测器阵列3D渲染",
+        "authors": [],
+        "year": 2018,
+        "journal": "arXiv",
+        "volume": ""
+      },
+      "topics": [
+        "detectors"
+      ],
+      "schematic_types": [
+        "3d-illustration"
+      ],
+      "style": {
+        "mode": "render3d",
+        "projection": "axonometric",
+        "tags": [
+          "render3d"
+        ]
+      },
+      "license": {
+        "spdx": "CC-BY-NC-ND-4.0",
+        "redistributable": false,
+        "source_url": "https://arxiv.org/abs/1809.09693",
+        "attribution": "arXiv:1809.09693v2（S. Valdré 等, FAZIA, 2018） | **CC BY-NC-ND 4.0**（正文印有 accepted-manuscript 声明）⚠️",
+        "note": "metadata imported from local licence ledger; image intentionally not redistributed"
+      },
+      "local_file": null,
+      "remote_image": null,
+      "sha256": null,
+      "source": "legacy-index",
+      "retrieved": "2026-11-22",
+      "provenance": {
+        "local_license_log": "_T3精选/LICENSE_记录.md"
+      },
+      "notes": "Local-only image; obtain lawfully and verify the licence before reuse."
+    },
+    {
+      "asset_id": "T3-38",
+      "legacy_code": "T3-38",
+      "status": "metadata_only",
+      "kind": "figure",
+      "title": "Connors2017 3D双核碰撞+网格坐标",
+      "figure_label": "T3-38",
+      "figure_caption": "",
+      "paper": {
+        "doi": "",
+        "arxiv": "1705.01974",
+        "title": "Connors2017 3D双核碰撞+网格坐标",
+        "authors": [],
+        "year": 2017,
+        "journal": "arXiv",
+        "volume": ""
+      },
+      "topics": [
+        "qgp"
+      ],
+      "schematic_types": [
+        "3d-illustration"
+      ],
+      "style": {
+        "mode": "render3d",
+        "projection": "axonometric",
+        "tags": [
+          "render3d"
+        ]
+      },
+      "license": {
+        "spdx": "arXiv-default",
+        "redistributable": false,
+        "source_url": "https://arxiv.org/abs/1705.01974",
+        "attribution": "arXiv:1705.01974v2（Megan Connors 等, 2017, *Review of Jet Measurements in Heavy Ion Collisions*） | arXiv 默认 ⚠️",
+        "note": "metadata imported from local licence ledger; image intentionally not redistributed"
+      },
+      "local_file": null,
+      "remote_image": null,
+      "sha256": null,
+      "source": "legacy-index",
+      "retrieved": "2026-11-22",
+      "provenance": {
+        "local_license_log": "_T3精选/LICENSE_记录.md"
+      },
+      "notes": "Local-only image; obtain lawfully and verify the licence before reuse."
+    },
+    {
+      "asset_id": "T3-39",
+      "legacy_code": "T3-39",
+      "status": "metadata_only",
+      "kind": "figure",
+      "title": "Connors2017 3D火球+膨胀箭头",
+      "figure_label": "T3-39",
+      "figure_caption": "",
+      "paper": {
+        "doi": "",
+        "arxiv": "1705.01974",
+        "title": "Connors2017 3D火球+膨胀箭头",
+        "authors": [],
+        "year": null,
+        "journal": "arXiv",
+        "volume": ""
+      },
+      "topics": [
+        "qgp"
+      ],
+      "schematic_types": [
+        "3d-illustration"
+      ],
+      "style": {
+        "mode": "render3d",
+        "projection": "axonometric",
+        "tags": [
+          "render3d"
+        ]
+      },
+      "license": {
+        "spdx": "arXiv-default",
+        "redistributable": false,
+        "source_url": "https://arxiv.org/abs/1705.01974",
+        "attribution": "同上 | arXiv 默认 ⚠️",
+        "note": "metadata imported from local licence ledger; image intentionally not redistributed"
+      },
+      "local_file": null,
+      "remote_image": null,
+      "sha256": null,
+      "source": "legacy-index",
+      "retrieved": "2026-11-22",
+      "provenance": {
+        "local_license_log": "_T3精选/LICENSE_记录.md"
+      },
+      "notes": "Local-only image; obtain lawfully and verify the licence before reuse."
+    },
+    {
+      "asset_id": "T3-40",
+      "legacy_code": "T3-40",
+      "status": "metadata_only",
+      "kind": "figure",
+      "title": "Connors2017 碰撞阶段光锥时空图",
+      "figure_label": "T3-40",
+      "figure_caption": "",
+      "paper": {
+        "doi": "",
+        "arxiv": "1705.01974",
+        "title": "Connors2017 碰撞阶段光锥时空图",
+        "authors": [],
+        "year": null,
+        "journal": "arXiv",
+        "volume": ""
+      },
+      "topics": [
+        "qgp"
+      ],
+      "schematic_types": [
+        "flat-diagram"
+      ],
+      "style": {
+        "mode": "illustration",
+        "projection": "unspecified",
+        "tags": []
+      },
+      "license": {
+        "spdx": "arXiv-default",
+        "redistributable": false,
+        "source_url": "https://arxiv.org/abs/1705.01974",
+        "attribution": "同上 | arXiv 默认 ⚠️",
+        "note": "metadata imported from local licence ledger; image intentionally not redistributed"
+      },
+      "local_file": null,
+      "remote_image": null,
+      "sha256": null,
+      "source": "legacy-index",
+      "retrieved": "2026-11-22",
+      "provenance": {
+        "local_license_log": "_T3精选/LICENSE_记录.md"
+      },
+      "notes": "Local-only image; obtain lawfully and verify the licence before reuse."
+    },
+    {
+      "asset_id": "T3-41",
+      "legacy_code": "T3-41",
+      "status": "metadata_only",
+      "kind": "figure",
+      "title": "Connors2017 喷注锥内外区示意",
+      "figure_label": "T3-41",
+      "figure_caption": "",
+      "paper": {
+        "doi": "",
+        "arxiv": "1705.01974",
+        "title": "Connors2017 喷注锥内外区示意",
+        "authors": [],
+        "year": null,
+        "journal": "arXiv",
+        "volume": ""
+      },
+      "topics": [
+        "qgp"
+      ],
+      "schematic_types": [
+        "flat-diagram"
+      ],
+      "style": {
+        "mode": "illustration",
+        "projection": "unspecified",
+        "tags": []
+      },
+      "license": {
+        "spdx": "arXiv-default",
+        "redistributable": false,
+        "source_url": "https://arxiv.org/abs/1705.01974",
+        "attribution": "同上 | arXiv 默认 ⚠️",
+        "note": "metadata imported from local licence ledger; image intentionally not redistributed"
+      },
+      "local_file": null,
+      "remote_image": null,
+      "sha256": null,
+      "source": "legacy-index",
+      "retrieved": "2026-11-22",
+      "provenance": {
+        "local_license_log": "_T3精选/LICENSE_记录.md"
+      },
+      "notes": "Local-only image; obtain lawfully and verify the licence before reuse."
+    },
+    {
+      "asset_id": "T3-42",
+      "legacy_code": "T3-42",
+      "status": "metadata_only",
+      "kind": "figure",
+      "title": "Gelis2010 重离子碰撞阶段时空演化锥",
+      "figure_label": "T3-42",
+      "figure_caption": "",
+      "paper": {
+        "doi": "",
+        "arxiv": "1009.0093",
+        "title": "Gelis2010 重离子碰撞阶段时空演化锥",
+        "authors": [],
+        "year": 2010,
+        "journal": "arXiv",
+        "volume": ""
+      },
+      "topics": [
+        "qgp"
+      ],
+      "schematic_types": [
+        "flat-diagram"
+      ],
+      "style": {
+        "mode": "illustration",
+        "projection": "unspecified",
+        "tags": []
+      },
+      "license": {
+        "spdx": "arXiv-default",
+        "redistributable": false,
+        "source_url": "https://arxiv.org/abs/1009.0093",
+        "attribution": "arXiv:1009.0093v2（Francois Gelis, 2010, *Color Glass Condensate and Glasma*） | arXiv 默认 ⚠️",
+        "note": "metadata imported from local licence ledger; image intentionally not redistributed"
+      },
+      "local_file": null,
+      "remote_image": null,
+      "sha256": null,
+      "source": "legacy-index",
+      "retrieved": "2026-11-22",
+      "provenance": {
+        "local_license_log": "_T3精选/LICENSE_记录.md"
+      },
+      "notes": "Local-only image; obtain lawfully and verify the licence before reuse."
+    },
+    {
+      "asset_id": "T3-43",
+      "legacy_code": "T3-43",
+      "status": "metadata_only",
+      "kind": "figure",
+      "title": "Gelis2012 IPGlasma模型3D解剖",
+      "figure_label": "T3-43",
+      "figure_caption": "",
+      "paper": {
+        "doi": "",
+        "arxiv": "1211.3327",
+        "title": "Gelis2012 IPGlasma模型3D解剖",
+        "authors": [],
+        "year": 2012,
+        "journal": "arXiv",
+        "volume": ""
+      },
+      "topics": [
+        "qgp"
+      ],
+      "schematic_types": [
+        "3d-illustration"
+      ],
+      "style": {
+        "mode": "render3d",
+        "projection": "axonometric",
+        "tags": [
+          "render3d"
+        ]
+      },
+      "license": {
+        "spdx": "arXiv-default",
+        "redistributable": false,
+        "source_url": "https://arxiv.org/abs/1211.3327",
+        "attribution": "arXiv:1211.3327v2（F. Gelis, 2012, 同名综述） | arXiv 默认 ⚠️",
+        "note": "metadata imported from local licence ledger; image intentionally not redistributed"
+      },
+      "local_file": null,
+      "remote_image": null,
+      "sha256": null,
+      "source": "legacy-index",
+      "retrieved": "2026-11-22",
+      "provenance": {
+        "local_license_log": "_T3精选/LICENSE_记录.md"
+      },
+      "notes": "Local-only image; obtain lawfully and verify the licence before reuse."
+    },
+    {
+      "asset_id": "T3-44",
+      "legacy_code": "T3-44",
+      "status": "metadata_only",
+      "kind": "figure",
+      "title": "Gelis2012 时空分区图",
+      "figure_label": "T3-44",
+      "figure_caption": "",
+      "paper": {
+        "doi": "",
+        "arxiv": "1211.3327",
+        "title": "Gelis2012 时空分区图",
+        "authors": [],
+        "year": null,
+        "journal": "arXiv",
+        "volume": ""
+      },
+      "topics": [
+        "qgp"
+      ],
+      "schematic_types": [
+        "flat-diagram"
+      ],
+      "style": {
+        "mode": "illustration",
+        "projection": "unspecified",
+        "tags": []
+      },
+      "license": {
+        "spdx": "arXiv-default",
+        "redistributable": false,
+        "source_url": "https://arxiv.org/abs/1211.3327",
+        "attribution": "同上 | arXiv 默认 ⚠️",
+        "note": "metadata imported from local licence ledger; image intentionally not redistributed"
+      },
+      "local_file": null,
+      "remote_image": null,
+      "sha256": null,
+      "source": "legacy-index",
+      "retrieved": "2026-11-22",
+      "provenance": {
+        "local_license_log": "_T3精选/LICENSE_记录.md"
+      },
+      "notes": "Local-only image; obtain lawfully and verify the licence before reuse."
+    },
+    {
+      "asset_id": "T3-45",
+      "legacy_code": "T3-45",
+      "status": "metadata_only",
+      "kind": "figure",
+      "title": "Szczurek2011 碰撞几何+碰撞参数",
+      "figure_label": "T3-45",
+      "figure_caption": "",
+      "paper": {
+        "doi": "",
+        "arxiv": "1110.4741",
+        "title": "Szczurek2011 碰撞几何+碰撞参数",
+        "authors": [],
+        "year": 2011,
+        "journal": "arXiv",
+        "volume": ""
+      },
+      "topics": [
+        "initial-state"
+      ],
+      "schematic_types": [
+        "flat-diagram"
+      ],
+      "style": {
+        "mode": "illustration",
+        "projection": "unspecified",
+        "tags": []
+      },
+      "license": {
+        "spdx": "arXiv-default",
+        "redistributable": false,
+        "source_url": "https://arxiv.org/abs/1110.4741",
+        "attribution": "arXiv:1110.4741v1（Antoni Szczurek 等, 2011, *Photon-photon production of lepton, quark and meson pairs in relativistic heavy ion collisions*） | arXiv 默认 ⚠️",
+        "note": "metadata imported from local licence ledger; image intentionally not redistributed"
+      },
+      "local_file": null,
+      "remote_image": null,
+      "sha256": null,
+      "source": "legacy-index",
+      "retrieved": "2026-11-22",
+      "provenance": {
+        "local_license_log": "_T3精选/LICENSE_记录.md"
+      },
+      "notes": "Local-only image; obtain lawfully and verify the licence before reuse."
+    },
+    {
+      "asset_id": "T3-46",
+      "legacy_code": "T3-46",
+      "status": "metadata_only",
+      "kind": "figure",
+      "title": "Qin2015 介质内喷注修正示意",
+      "figure_label": "T3-46",
+      "figure_caption": "",
+      "paper": {
+        "doi": "",
+        "arxiv": "1511.00790",
+        "title": "Qin2015 介质内喷注修正示意",
+        "authors": [],
+        "year": 2015,
+        "journal": "arXiv",
+        "volume": ""
+      },
+      "topics": [
+        "qgp"
+      ],
+      "schematic_types": [
+        "flat-diagram"
+      ],
+      "style": {
+        "mode": "illustration",
+        "projection": "unspecified",
+        "tags": []
+      },
+      "license": {
+        "spdx": "arXiv-default",
+        "redistributable": false,
+        "source_url": "https://arxiv.org/abs/1511.00790",
+        "attribution": "arXiv:1511.00790v2（Guang-You Qin & Xin-Nian Wang, 2015, *Jet quenching in high-energy heavy-ion collisions*） | arXiv 默认 ⚠️",
+        "note": "metadata imported from local licence ledger; image intentionally not redistributed"
+      },
+      "local_file": null,
+      "remote_image": null,
+      "sha256": null,
+      "source": "legacy-index",
+      "retrieved": "2026-11-22",
+      "provenance": {
+        "local_license_log": "_T3精选/LICENSE_记录.md"
+      },
+      "notes": "Local-only image; obtain lawfully and verify the licence before reuse."
+    },
+    {
+      "asset_id": "T3-47",
+      "legacy_code": "T3-47",
+      "status": "metadata_only",
+      "kind": "figure",
+      "title": "Qin2015 QGP内完整喷注演化",
+      "figure_label": "T3-47",
+      "figure_caption": "",
+      "paper": {
+        "doi": "",
+        "arxiv": "1511.00790",
+        "title": "Qin2015 QGP内完整喷注演化",
+        "authors": [],
+        "year": null,
+        "journal": "arXiv",
+        "volume": ""
+      },
+      "topics": [
+        "qgp"
+      ],
+      "schematic_types": [
+        "flat-diagram"
+      ],
+      "style": {
+        "mode": "illustration",
+        "projection": "unspecified",
+        "tags": []
+      },
+      "license": {
+        "spdx": "arXiv-default",
+        "redistributable": false,
+        "source_url": "https://arxiv.org/abs/1511.00790",
+        "attribution": "同上 | arXiv 默认 ⚠️",
+        "note": "metadata imported from local licence ledger; image intentionally not redistributed"
+      },
+      "local_file": null,
+      "remote_image": null,
+      "sha256": null,
+      "source": "legacy-index",
+      "retrieved": "2026-11-22",
+      "provenance": {
+        "local_license_log": "_T3精选/LICENSE_记录.md"
+      },
+      "notes": "Local-only image; obtain lawfully and verify the licence before reuse."
+    },
+    {
+      "asset_id": "T3-48",
+      "legacy_code": "T3-48",
+      "status": "metadata_only",
+      "kind": "figure",
+      "title": "Chen2024 QCD相图草图",
+      "figure_label": "T3-48",
+      "figure_caption": "",
+      "paper": {
+        "doi": "",
+        "arxiv": "2407.02935",
+        "title": "Chen2024 QCD相图草图",
+        "authors": [],
+        "year": 2024,
+        "journal": "arXiv",
+        "volume": ""
+      },
+      "topics": [
+        "phase-transition"
+      ],
+      "schematic_types": [
+        "flat-diagram"
+      ],
+      "style": {
+        "mode": "illustration",
+        "projection": "unspecified",
+        "tags": []
+      },
+      "license": {
+        "spdx": "arXiv-default",
+        "redistributable": false,
+        "source_url": "https://arxiv.org/abs/2407.02935",
+        "attribution": "arXiv:2407.02935v1（Jinhui Chen 等, 2024, *Properties of the QCD Matter — An Experimental Review of Selected Results from RHIC BES Program*） | arXiv 默认 ⚠️",
+        "note": "metadata imported from local licence ledger; image intentionally not redistributed"
+      },
+      "local_file": null,
+      "remote_image": null,
+      "sha256": null,
+      "source": "legacy-index",
+      "retrieved": "2026-11-22",
+      "provenance": {
+        "local_license_log": "_T3精选/LICENSE_记录.md"
+      },
+      "notes": "Local-only image; obtain lawfully and verify the licence before reuse."
+    },
+    {
+      "asset_id": "T3-49",
+      "legacy_code": "T3-49",
+      "status": "metadata_only",
+      "kind": "figure",
+      "title": "Chen2024 MRPC探测器结构剖面",
+      "figure_label": "T3-49",
+      "figure_caption": "",
+      "paper": {
+        "doi": "",
+        "arxiv": "2407.02935",
+        "title": "Chen2024 MRPC探测器结构剖面",
+        "authors": [],
+        "year": null,
+        "journal": "arXiv",
+        "volume": ""
+      },
+      "topics": [
+        "detectors"
+      ],
+      "schematic_types": [
+        "flat-diagram"
+      ],
+      "style": {
+        "mode": "illustration",
+        "projection": "unspecified",
+        "tags": []
+      },
+      "license": {
+        "spdx": "arXiv-default",
+        "redistributable": false,
+        "source_url": "https://arxiv.org/abs/2407.02935",
+        "attribution": "同上 | arXiv 默认 ⚠️",
+        "note": "metadata imported from local licence ledger; image intentionally not redistributed"
+      },
+      "local_file": null,
+      "remote_image": null,
+      "sha256": null,
+      "source": "legacy-index",
+      "retrieved": "2026-11-22",
+      "provenance": {
+        "local_license_log": "_T3精选/LICENSE_记录.md"
+      },
+      "notes": "Local-only image; obtain lawfully and verify the licence before reuse."
+    },
+    {
+      "asset_id": "T3-50",
+      "legacy_code": "T3-50",
+      "status": "metadata_only",
+      "kind": "figure",
+      "title": "Iancu2009 五阶段演化条 CGC到强子气 渲染斑块",
+      "figure_label": "T3-50",
+      "figure_caption": "",
+      "paper": {
+        "doi": "",
+        "arxiv": "0812.4989",
+        "title": "Iancu2009 五阶段演化条 CGC到强子气 渲染斑块",
+        "authors": [],
+        "year": null,
+        "journal": "arXiv",
+        "volume": ""
+      },
+      "topics": [
+        "qgp"
+      ],
+      "schematic_types": [
+        "flat-diagram"
+      ],
+      "style": {
+        "mode": "illustration",
+        "projection": "unspecified",
+        "tags": []
+      },
+      "license": {
+        "spdx": "arXiv-default",
+        "redistributable": false,
+        "source_url": "https://arxiv.org/abs/0812.4989",
+        "attribution": "arXiv:0812.4989（Iancu & Venugopalan） | `figs/fig-p02-1.png`",
+        "note": "metadata imported from local licence ledger; image intentionally not redistributed"
+      },
+      "local_file": null,
+      "remote_image": null,
+      "sha256": null,
+      "source": "legacy-index",
+      "retrieved": "2026-11-22",
+      "provenance": {
+        "local_license_log": "_T3精选/LICENSE_记录.md"
+      },
+      "notes": "Local-only image; obtain lawfully and verify the licence before reuse."
+    },
+    {
+      "asset_id": "T3-51",
+      "legacy_code": "T3-51",
+      "status": "metadata_only",
+      "kind": "figure",
+      "title": "Iancu2009 3D漏斗势 Glasma到完美流体时空图",
+      "figure_label": "T3-51",
+      "figure_caption": "",
+      "paper": {
+        "doi": "",
+        "arxiv": "0812.4989",
+        "title": "Iancu2009 3D漏斗势 Glasma到完美流体时空图",
+        "authors": [],
+        "year": null,
+        "journal": "arXiv",
+        "volume": ""
+      },
+      "topics": [
+        "qgp"
+      ],
+      "schematic_types": [
+        "3d-illustration"
+      ],
+      "style": {
+        "mode": "render3d",
+        "projection": "axonometric",
+        "tags": [
+          "render3d"
+        ]
+      },
+      "license": {
+        "spdx": "arXiv-default",
+        "redistributable": false,
+        "source_url": "https://arxiv.org/abs/0812.4989",
+        "attribution": "arXiv:0812.4989 | `figs/fig-p02-2.png`",
+        "note": "metadata imported from local licence ledger; image intentionally not redistributed"
+      },
+      "local_file": null,
+      "remote_image": null,
+      "sha256": null,
+      "source": "legacy-index",
+      "retrieved": "2026-11-22",
+      "provenance": {
+        "local_license_log": "_T3精选/LICENSE_记录.md"
+      },
+      "notes": "Local-only image; obtain lawfully and verify the licence before reuse."
+    },
+    {
+      "asset_id": "T3-52",
+      "legacy_code": "T3-52",
+      "status": "metadata_only",
+      "kind": "figure",
+      "title": "Venugopalan2008 双核3D光影+胶子通量管",
+      "figure_label": "T3-52",
+      "figure_caption": "",
+      "paper": {
+        "doi": "",
+        "arxiv": "0806.1356",
+        "title": "Venugopalan2008 双核3D光影+胶子通量管",
+        "authors": [],
+        "year": null,
+        "journal": "arXiv",
+        "volume": ""
+      },
+      "topics": [
+        "qgp"
+      ],
+      "schematic_types": [
+        "3d-illustration"
+      ],
+      "style": {
+        "mode": "render3d",
+        "projection": "axonometric",
+        "tags": [
+          "render3d"
+        ]
+      },
+      "license": {
+        "spdx": "arXiv-default",
+        "redistributable": false,
+        "source_url": "https://arxiv.org/abs/0806.1356",
+        "attribution": "arXiv:0806.1356（Venugopalan） | `figs/fig-p08-1.png`",
+        "note": "metadata imported from local licence ledger; image intentionally not redistributed"
+      },
+      "local_file": null,
+      "remote_image": null,
+      "sha256": null,
+      "source": "legacy-index",
+      "retrieved": "2026-11-22",
+      "provenance": {
+        "local_license_log": "_T3精选/LICENSE_记录.md"
+      },
+      "notes": "Local-only image; obtain lawfully and verify the licence before reuse."
+    },
+    {
+      "asset_id": "T3-53",
+      "legacy_code": "T3-53",
+      "status": "metadata_only",
+      "kind": "figure",
+      "title": "Iancu2011 Glasma色通量管 双核示意",
+      "figure_label": "T3-53",
+      "figure_caption": "",
+      "paper": {
+        "doi": "",
+        "arxiv": "1011.3204",
+        "title": "Iancu2011 Glasma色通量管 双核示意",
+        "authors": [],
+        "year": null,
+        "journal": "arXiv",
+        "volume": ""
+      },
+      "topics": [
+        "qgp"
+      ],
+      "schematic_types": [
+        "flat-diagram"
+      ],
+      "style": {
+        "mode": "illustration",
+        "projection": "unspecified",
+        "tags": []
+      },
+      "license": {
+        "spdx": "arXiv-default",
+        "redistributable": false,
+        "source_url": "https://arxiv.org/abs/1011.3204",
+        "attribution": "arXiv:1011.3204（Iancu & Venugopalan） | `figs/fig-p10-1.png`",
+        "note": "metadata imported from local licence ledger; image intentionally not redistributed"
+      },
+      "local_file": null,
+      "remote_image": null,
+      "sha256": null,
+      "source": "legacy-index",
+      "retrieved": "2026-11-22",
+      "provenance": {
+        "local_license_log": "_T3精选/LICENSE_记录.md"
+      },
+      "notes": "Local-only image; obtain lawfully and verify the licence before reuse."
+    },
+    {
+      "asset_id": "T3-54",
+      "legacy_code": "T3-54",
+      "status": "metadata_only",
+      "kind": "figure",
+      "title": "Iancu2011 双椭圆部分子 能量升高示意",
+      "figure_label": "T3-54",
+      "figure_caption": "",
+      "paper": {
+        "doi": "",
+        "arxiv": "1011.3204",
+        "title": "Iancu2011 双椭圆部分子 能量升高示意",
+        "authors": [],
+        "year": null,
+        "journal": "arXiv",
+        "volume": ""
+      },
+      "topics": [
+        "qgp"
+      ],
+      "schematic_types": [
+        "flat-diagram"
+      ],
+      "style": {
+        "mode": "illustration",
+        "projection": "unspecified",
+        "tags": []
+      },
+      "license": {
+        "spdx": "arXiv-default",
+        "redistributable": false,
+        "source_url": "https://arxiv.org/abs/1011.3204",
+        "attribution": "arXiv:1011.3204 | `figs/fig-p06-1.png`",
+        "note": "metadata imported from local licence ledger; image intentionally not redistributed"
+      },
+      "local_file": null,
+      "remote_image": null,
+      "sha256": null,
+      "source": "legacy-index",
+      "retrieved": "2026-11-22",
+      "provenance": {
+        "local_license_log": "_T3精选/LICENSE_记录.md"
+      },
+      "notes": "Local-only image; obtain lawfully and verify the licence before reuse."
+    },
+    {
+      "asset_id": "T3-55",
+      "legacy_code": "T3-55",
+      "status": "metadata_only",
+      "kind": "figure",
+      "title": "Huang2020 双金环3D涡旋 坐标轴",
+      "figure_label": "T3-55",
+      "figure_caption": "",
+      "paper": {
+        "doi": "",
+        "arxiv": "2010.08937",
+        "title": "Huang2020 双金环3D涡旋 坐标轴",
+        "authors": [],
+        "year": 2010,
+        "journal": "arXiv",
+        "volume": ""
+      },
+      "topics": [
+        "qgp"
+      ],
+      "schematic_types": [
+        "3d-illustration"
+      ],
+      "style": {
+        "mode": "render3d",
+        "projection": "axonometric",
+        "tags": [
+          "render3d"
+        ]
+      },
+      "license": {
+        "spdx": "arXiv-default",
+        "redistributable": false,
+        "source_url": "https://arxiv.org/abs/2010.08937",
+        "attribution": "arXiv:2010.08937（Huang, Liao, Wang, Xia） | `figs/fig-p19-1.png`",
+        "note": "metadata imported from local licence ledger; image intentionally not redistributed"
+      },
+      "local_file": null,
+      "remote_image": null,
+      "sha256": null,
+      "source": "legacy-index",
+      "retrieved": "2026-11-22",
+      "provenance": {
+        "local_license_log": "_T3精选/LICENSE_记录.md"
+      },
+      "notes": "Local-only image; obtain lawfully and verify the licence before reuse."
+    },
+    {
+      "asset_id": "T3-56",
+      "legacy_code": "T3-56",
+      "status": "metadata_only",
+      "kind": "figure",
+      "title": "Huang2020 碰撞几何 双核交叠+碰撞参数",
+      "figure_label": "T3-56",
+      "figure_caption": "",
+      "paper": {
+        "doi": "",
+        "arxiv": "2010.08937",
+        "title": "Huang2020 碰撞几何 双核交叠+碰撞参数",
+        "authors": [],
+        "year": 2010,
+        "journal": "arXiv",
+        "volume": ""
+      },
+      "topics": [
+        "initial-state"
+      ],
+      "schematic_types": [
+        "flat-diagram"
+      ],
+      "style": {
+        "mode": "illustration",
+        "projection": "unspecified",
+        "tags": []
+      },
+      "license": {
+        "spdx": "arXiv-default",
+        "redistributable": false,
+        "source_url": "https://arxiv.org/abs/2010.08937",
+        "attribution": "arXiv:2010.08937 | `figs/fig-p11-1.png`",
+        "note": "metadata imported from local licence ledger; image intentionally not redistributed"
+      },
+      "local_file": null,
+      "remote_image": null,
+      "sha256": null,
+      "source": "legacy-index",
+      "retrieved": "2026-11-22",
+      "provenance": {
+        "local_license_log": "_T3精选/LICENSE_记录.md"
+      },
+      "notes": "Local-only image; obtain lawfully and verify the licence before reuse."
+    },
+    {
+      "asset_id": "T3-57",
+      "legacy_code": "T3-57",
+      "status": "metadata_only",
+      "kind": "figure",
+      "title": "Huang2020 涡旋四象限 环流示意",
+      "figure_label": "T3-57",
+      "figure_caption": "",
+      "paper": {
+        "doi": "",
+        "arxiv": "2010.08937",
+        "title": "Huang2020 涡旋四象限 环流示意",
+        "authors": [],
+        "year": 2010,
+        "journal": "arXiv",
+        "volume": ""
+      },
+      "topics": [
+        "qgp"
+      ],
+      "schematic_types": [
+        "flat-diagram"
+      ],
+      "style": {
+        "mode": "illustration",
+        "projection": "unspecified",
+        "tags": []
+      },
+      "license": {
+        "spdx": "arXiv-default",
+        "redistributable": false,
+        "source_url": "https://arxiv.org/abs/2010.08937",
+        "attribution": "arXiv:2010.08937 | `figs/fig-p17-1.png`",
+        "note": "metadata imported from local licence ledger; image intentionally not redistributed"
+      },
+      "local_file": null,
+      "remote_image": null,
+      "sha256": null,
+      "source": "legacy-index",
+      "retrieved": "2026-11-22",
+      "provenance": {
+        "local_license_log": "_T3精选/LICENSE_记录.md"
+      },
+      "notes": "Local-only image; obtain lawfully and verify the licence before reuse."
+    },
+    {
+      "asset_id": "T3-58",
+      "legacy_code": "T3-58",
+      "status": "metadata_only",
+      "kind": "figure",
+      "title": "Carrington2024 3D柱状Glasma电磁场配置",
+      "figure_label": "T3-58",
+      "figure_caption": "",
+      "paper": {
+        "doi": "",
+        "arxiv": "2401.13705",
+        "title": "Carrington2024 3D柱状Glasma电磁场配置",
+        "authors": [],
+        "year": null,
+        "journal": "arXiv",
+        "volume": ""
+      },
+      "topics": [
+        "electromagnetic-fields"
+      ],
+      "schematic_types": [
+        "3d-illustration"
+      ],
+      "style": {
+        "mode": "render3d",
+        "projection": "axonometric",
+        "tags": [
+          "render3d"
+        ]
+      },
+      "license": {
+        "spdx": "arXiv-default",
+        "redistributable": false,
+        "source_url": "https://arxiv.org/abs/2401.13705",
+        "attribution": "arXiv:2401.13705（Carrington & Mrówczyński） | `figs/fig-p43-1.png`",
+        "note": "metadata imported from local licence ledger; image intentionally not redistributed"
+      },
+      "local_file": null,
+      "remote_image": null,
+      "sha256": null,
+      "source": "legacy-index",
+      "retrieved": "2026-11-22",
+      "provenance": {
+        "local_license_log": "_T3精选/LICENSE_记录.md"
+      },
+      "notes": "Local-only image; obtain lawfully and verify the licence before reuse."
+    },
+    {
+      "asset_id": "T3-59",
+      "legacy_code": "T3-59",
+      "status": "metadata_only",
+      "kind": "figure",
+      "title": "Dumitru2011 宇宙到小爆炸 演化序列",
+      "figure_label": "T3-59",
+      "figure_caption": "",
+      "paper": {
+        "doi": "",
+        "arxiv": "1112.3081",
+        "title": "Dumitru2011 宇宙到小爆炸 演化序列",
+        "authors": [],
+        "year": null,
+        "journal": "arXiv",
+        "volume": ""
+      },
+      "topics": [
+        "qgp"
+      ],
+      "schematic_types": [
+        "flat-diagram"
+      ],
+      "style": {
+        "mode": "illustration",
+        "projection": "unspecified",
+        "tags": []
+      },
+      "license": {
+        "spdx": "arXiv-default",
+        "redistributable": false,
+        "source_url": "https://arxiv.org/abs/1112.3081",
+        "attribution": "arXiv:1112.3081（Dumitru） | `figs/fig-p07-1.png`（已裁掉右侧数据小图）",
+        "note": "metadata imported from local licence ledger; image intentionally not redistributed"
+      },
+      "local_file": null,
+      "remote_image": null,
+      "sha256": null,
+      "source": "legacy-index",
+      "retrieved": "2026-11-22",
+      "provenance": {
+        "local_license_log": "_T3精选/LICENSE_记录.md"
+      },
+      "notes": "Local-only image; obtain lawfully and verify the licence before reuse."
+    },
+    {
+      "asset_id": "T3-60",
+      "legacy_code": "T3-60",
+      "status": "verified_figure",
+      "kind": "figure",
+      "title": "Zhang2026 核结构+双缝干涉仪方法示意",
+      "figure_label": "T3-60",
+      "figure_caption": "",
+      "paper": {
+        "doi": "",
+        "arxiv": "2606.23353",
+        "title": "Ultra-Peripheral Collisions as a Nuclear-Structure Interferometer with Interpretable Multitask Deep Learning",
+        "authors": [
+          "Jing-Zong Zhang, Wang-Mei Zha, Lingxiao Wang, Guo-Liang Ma"
+        ],
+        "year": null,
+        "journal": "arXiv",
+        "volume": ""
+      },
+      "topics": [
+        "upc",
+        "nuclear-structure"
+      ],
+      "schematic_types": [
+        "3d-illustration",
+        "geometry-diagram"
+      ],
+      "style": {
+        "mode": "illustration",
+        "projection": "unspecified",
+        "tags": []
+      },
+      "license": {
+        "spdx": "CC-BY-4.0",
+        "redistributable": true,
+        "source_url": "https://creativecommons.org/licenses/by/4.0/",
+        "attribution": "Jing-Zong Zhang, Wang-Mei Zha, Lingxiao Wang, Guo-Liang Ma. Ultra-Peripheral Collisions as a Nuclear-Structure Interferometer with Interpretable Multitask Deep Learning. arXiv",
+        "note": "按图框 600 dpi 重渲染"
+      },
+      "local_file": "assets/t3-exemplars/T3-60_Zhang2026_核结构+双缝干涉仪方法示意.png",
+      "remote_image": null,
+      "sha256": "e66ca8c08e78c91b3479ad7298c809a84194abc6060cc8b99fe0235a0242a986",
+      "source": "t3-exemplars",
+      "retrieved": "2026-11-22",
+      "provenance": {
+        "notice": "assets/t3-exemplars/NOTICE.md"
+      },
+      "notes": "Legacy verified exemplar."
+    },
+    {
+      "asset_id": "T3-61",
+      "legacy_code": "T3-61",
+      "status": "metadata_only",
+      "kind": "figure",
+      "title": "Lappi2015 彩色椭圆核+胶子方向+1overQs",
+      "figure_label": "T3-61",
+      "figure_caption": "",
+      "paper": {
+        "doi": "",
+        "arxiv": "1509.04503",
+        "title": "Lappi2015 彩色椭圆核+胶子方向+1overQs",
+        "authors": [],
+        "year": null,
+        "journal": "arXiv",
+        "volume": ""
+      },
+      "topics": [
+        "qgp"
+      ],
+      "schematic_types": [
+        "flat-diagram"
+      ],
+      "style": {
+        "mode": "illustration",
+        "projection": "unspecified",
+        "tags": []
+      },
+      "license": {
+        "spdx": "arXiv-default",
+        "redistributable": false,
+        "source_url": "https://arxiv.org/abs/1509.04503",
+        "attribution": "arXiv:1509.04503（Lappi） | `figs/fig-p05-1.png`",
+        "note": "metadata imported from local licence ledger; image intentionally not redistributed"
+      },
+      "local_file": null,
+      "remote_image": null,
+      "sha256": null,
+      "source": "legacy-index",
+      "retrieved": "2026-11-22",
+      "provenance": {
+        "local_license_log": "_T3精选/LICENSE_记录.md"
+      },
+      "notes": "Local-only image; obtain lawfully and verify the licence before reuse."
+    },
+    {
+      "asset_id": "T3-62",
+      "legacy_code": "T3-62",
+      "status": "metadata_only",
+      "kind": "figure",
+      "title": "Heinz2024 六边形碰撞阶段流程示意",
+      "figure_label": "T3-62",
+      "figure_caption": "",
+      "paper": {
+        "doi": "",
+        "arxiv": "2412.19393",
+        "title": "Heinz2024 六边形碰撞阶段流程示意",
+        "authors": [],
+        "year": null,
+        "journal": "arXiv",
+        "volume": ""
+      },
+      "topics": [
+        "qgp"
+      ],
+      "schematic_types": [
+        "flat-diagram"
+      ],
+      "style": {
+        "mode": "illustration",
+        "projection": "unspecified",
+        "tags": []
+      },
+      "license": {
+        "spdx": "arXiv-default",
+        "redistributable": false,
+        "source_url": "https://arxiv.org/abs/2412.19393",
+        "attribution": "arXiv:2412.19393（Heinz & Schenke） | `figs/fig-p10-1.png`",
+        "note": "metadata imported from local licence ledger; image intentionally not redistributed"
+      },
+      "local_file": null,
+      "remote_image": null,
+      "sha256": null,
+      "source": "legacy-index",
+      "retrieved": "2026-11-22",
+      "provenance": {
+        "local_license_log": "_T3精选/LICENSE_记录.md"
+      },
+      "notes": "Local-only image; obtain lawfully and verify the licence before reuse."
+    },
+    {
+      "asset_id": "T3-63",
+      "legacy_code": "T3-63",
+      "status": "metadata_only",
+      "kind": "figure",
+      "title": "Fabjan2011 ALICE探测器3D剖视 全标注",
+      "figure_label": "T3-63",
+      "figure_caption": "",
+      "paper": {
+        "doi": "",
+        "arxiv": "1101.1257",
+        "title": "Fabjan2011 ALICE探测器3D剖视 全标注",
+        "authors": [],
+        "year": null,
+        "journal": "arXiv",
+        "volume": ""
+      },
+      "topics": [
+        "detectors"
+      ],
+      "schematic_types": [
+        "3d-illustration"
+      ],
+      "style": {
+        "mode": "render3d",
+        "projection": "axonometric",
+        "tags": [
+          "render3d"
+        ]
+      },
+      "license": {
+        "spdx": "arXiv-default",
+        "redistributable": false,
+        "source_url": "https://arxiv.org/abs/1101.1257",
+        "attribution": "arXiv:1101.1257（Fabjan & Schukraft） | `figs/fig-p03-1.png`",
+        "note": "metadata imported from local licence ledger; image intentionally not redistributed"
+      },
+      "local_file": null,
+      "remote_image": null,
+      "sha256": null,
+      "source": "legacy-index",
+      "retrieved": "2026-11-22",
+      "provenance": {
+        "local_license_log": "_T3精选/LICENSE_记录.md"
+      },
+      "notes": "Local-only image; obtain lawfully and verify the licence before reuse."
+    },
+    {
+      "asset_id": "T3-64",
+      "legacy_code": "T3-64",
+      "status": "metadata_only",
+      "kind": "figure",
+      "title": "Fabjan2011 ALICE探测器3D剖视 切面 510cm",
+      "figure_label": "T3-64",
+      "figure_caption": "",
+      "paper": {
+        "doi": "",
+        "arxiv": "1101.1257",
+        "title": "Fabjan2011 ALICE探测器3D剖视 切面 510cm",
+        "authors": [],
+        "year": null,
+        "journal": "arXiv",
+        "volume": ""
+      },
+      "topics": [
+        "detectors"
+      ],
+      "schematic_types": [
+        "3d-illustration"
+      ],
+      "style": {
+        "mode": "render3d",
+        "projection": "axonometric",
+        "tags": [
+          "render3d"
+        ]
+      },
+      "license": {
+        "spdx": "arXiv-default",
+        "redistributable": false,
+        "source_url": "https://arxiv.org/abs/1101.1257",
+        "attribution": "arXiv:1101.1257 | `figs/fig-p07-1.png`",
+        "note": "metadata imported from local licence ledger; image intentionally not redistributed"
+      },
+      "local_file": null,
+      "remote_image": null,
+      "sha256": null,
+      "source": "legacy-index",
+      "retrieved": "2026-11-22",
+      "provenance": {
+        "local_license_log": "_T3精选/LICENSE_记录.md"
+      },
+      "notes": "Local-only image; obtain lawfully and verify the licence before reuse."
+    },
+    {
+      "asset_id": "T3-65",
+      "legacy_code": "T3-65",
+      "status": "metadata_only",
+      "kind": "figure",
+      "title": "Kolesnikov2013 NICA-MPD探测器3D剖视 标注",
+      "figure_label": "T3-65",
+      "figure_caption": "",
+      "paper": {
+        "doi": "",
+        "arxiv": "1312.1091",
+        "title": "Kolesnikov2013 NICA-MPD探测器3D剖视 标注",
+        "authors": [],
+        "year": null,
+        "journal": "arXiv",
+        "volume": ""
+      },
+      "topics": [
+        "detectors"
+      ],
+      "schematic_types": [
+        "3d-illustration"
+      ],
+      "style": {
+        "mode": "render3d",
+        "projection": "axonometric",
+        "tags": [
+          "render3d"
+        ]
+      },
+      "license": {
+        "spdx": "arXiv-default",
+        "redistributable": false,
+        "source_url": "https://arxiv.org/abs/1312.1091",
+        "attribution": "arXiv:1312.1091（Kolesnikov & Zinchenko, MPD） | `figs/fig-p02-1.png`",
+        "note": "metadata imported from local licence ledger; image intentionally not redistributed"
+      },
+      "local_file": null,
+      "remote_image": null,
+      "sha256": null,
+      "source": "legacy-index",
+      "retrieved": "2026-11-22",
+      "provenance": {
+        "local_license_log": "_T3精选/LICENSE_记录.md"
+      },
+      "notes": "Local-only image; obtain lawfully and verify the licence before reuse."
+    },
+    {
+      "asset_id": "T3-66",
+      "legacy_code": "T3-66",
+      "status": "metadata_only",
+      "kind": "figure",
+      "title": "ALICEITS3 2024 探测器3D分解 标注",
+      "figure_label": "T3-66",
+      "figure_caption": "",
+      "paper": {
+        "doi": "",
+        "arxiv": "2401.04629",
+        "title": "ALICEITS3 2024 探测器3D分解 标注",
+        "authors": [],
+        "year": null,
+        "journal": "arXiv",
+        "volume": ""
+      },
+      "topics": [
+        "detectors"
+      ],
+      "schematic_types": [
+        "3d-illustration"
+      ],
+      "style": {
+        "mode": "render3d",
+        "projection": "axonometric",
+        "tags": [
+          "render3d"
+        ]
+      },
+      "license": {
+        "spdx": "arXiv-default",
+        "redistributable": false,
+        "source_url": "https://arxiv.org/abs/2401.04629",
+        "attribution": "arXiv:2401.04629（ALICE ITS3） | `figs/fig-p02-1.png`",
+        "note": "metadata imported from local licence ledger; image intentionally not redistributed"
+      },
+      "local_file": null,
+      "remote_image": null,
+      "sha256": null,
+      "source": "legacy-index",
+      "retrieved": "2026-11-22",
+      "provenance": {
+        "local_license_log": "_T3精选/LICENSE_记录.md"
+      },
+      "notes": "Local-only image; obtain lawfully and verify the licence before reuse."
+    },
+    {
+      "asset_id": "T3-67",
+      "legacy_code": "T3-67",
+      "status": "metadata_only",
+      "kind": "figure",
+      "title": "ALICEITS3 2024 半桶3D结构 束流管",
+      "figure_label": "T3-67",
+      "figure_caption": "",
+      "paper": {
+        "doi": "",
+        "arxiv": "2401.04629",
+        "title": "ALICEITS3 2024 半桶3D结构 束流管",
+        "authors": [],
+        "year": null,
+        "journal": "arXiv",
+        "volume": ""
+      },
+      "topics": [
+        "qgp"
+      ],
+      "schematic_types": [
+        "3d-illustration"
+      ],
+      "style": {
+        "mode": "render3d",
+        "projection": "axonometric",
+        "tags": [
+          "render3d"
+        ]
+      },
+      "license": {
+        "spdx": "arXiv-default",
+        "redistributable": false,
+        "source_url": "https://arxiv.org/abs/2401.04629",
+        "attribution": "arXiv:2401.04629 | `figs/fig-p04-1.png`（已裁掉页眉残字）",
+        "note": "metadata imported from local licence ledger; image intentionally not redistributed"
+      },
+      "local_file": null,
+      "remote_image": null,
+      "sha256": null,
+      "source": "legacy-index",
+      "retrieved": "2026-11-22",
+      "provenance": {
+        "local_license_log": "_T3精选/LICENSE_记录.md"
+      },
+      "notes": "Local-only image; obtain lawfully and verify the licence before reuse."
+    },
+    {
+      "asset_id": "T3-68",
+      "legacy_code": "T3-68",
+      "status": "metadata_only",
+      "kind": "figure",
+      "title": "Shih2025 sPHENIX-INTT 径迹楔形几何",
+      "figure_label": "T3-68",
+      "figure_caption": "",
+      "paper": {
+        "doi": "",
+        "arxiv": "2508.06536",
+        "title": "Shih2025 sPHENIX-INTT 径迹楔形几何",
+        "authors": [],
+        "year": null,
+        "journal": "arXiv",
+        "volume": ""
+      },
+      "topics": [
+        "qgp"
+      ],
+      "schematic_types": [
+        "flat-diagram"
+      ],
+      "style": {
+        "mode": "illustration",
+        "projection": "unspecified",
+        "tags": []
+      },
+      "license": {
+        "spdx": "arXiv-default",
+        "redistributable": false,
+        "source_url": "https://arxiv.org/abs/2508.06536",
+        "attribution": "arXiv:2508.06536（Shih, sPHENIX） | `figs/fig-p03-1.png`（已裁掉右侧两张数据小图）",
+        "note": "metadata imported from local licence ledger; image intentionally not redistributed"
+      },
+      "local_file": null,
+      "remote_image": null,
+      "sha256": null,
+      "source": "legacy-index",
+      "retrieved": "2026-11-22",
+      "provenance": {
+        "local_license_log": "_T3精选/LICENSE_记录.md"
+      },
+      "notes": "Local-only image; obtain lawfully and verify the licence before reuse."
+    },
+    {
+      "asset_id": "T3-69",
+      "legacy_code": "T3-69",
+      "status": "metadata_only",
+      "kind": "figure",
+      "title": "Shih2025 sPHENIX-INTT 硅传感器几何",
+      "figure_label": "T3-69",
+      "figure_caption": "",
+      "paper": {
+        "doi": "",
+        "arxiv": "2508.06536",
+        "title": "Shih2025 sPHENIX-INTT 硅传感器几何",
+        "authors": [],
+        "year": null,
+        "journal": "arXiv",
+        "volume": ""
+      },
+      "topics": [
+        "qgp"
+      ],
+      "schematic_types": [
+        "flat-diagram"
+      ],
+      "style": {
+        "mode": "illustration",
+        "projection": "unspecified",
+        "tags": []
+      },
+      "license": {
+        "spdx": "arXiv-default",
+        "redistributable": false,
+        "source_url": "https://arxiv.org/abs/2508.06536",
+        "attribution": "arXiv:2508.06536 | `figs/fig-p05-2.png`（已裁掉左侧直方图）",
+        "note": "metadata imported from local licence ledger; image intentionally not redistributed"
+      },
+      "local_file": null,
+      "remote_image": null,
+      "sha256": null,
+      "source": "legacy-index",
+      "retrieved": "2026-11-22",
+      "provenance": {
+        "local_license_log": "_T3精选/LICENSE_记录.md"
+      },
+      "notes": "Local-only image; obtain lawfully and verify the licence before reuse."
+    },
+    {
+      "asset_id": "T3-70",
+      "legacy_code": "T3-70",
+      "status": "metadata_only",
+      "kind": "figure",
+      "title": "sPHENIX2020 探测器3D剖视 标注",
+      "figure_label": "T3-70",
+      "figure_caption": "",
+      "paper": {
+        "doi": "",
+        "arxiv": "2007.00771",
+        "title": "sPHENIX2020 探测器3D剖视 标注",
+        "authors": [],
+        "year": 2007,
+        "journal": "arXiv",
+        "volume": ""
+      },
+      "topics": [
+        "detectors"
+      ],
+      "schematic_types": [
+        "3d-illustration"
+      ],
+      "style": {
+        "mode": "render3d",
+        "projection": "axonometric",
+        "tags": [
+          "render3d"
+        ]
+      },
+      "license": {
+        "spdx": "arXiv-default",
+        "redistributable": false,
+        "source_url": "https://arxiv.org/abs/2007.00771",
+        "attribution": "arXiv:2007.00771（sPHENIX, CTD 2020） | `figs/fig-p03-1.png`",
+        "note": "metadata imported from local licence ledger; image intentionally not redistributed"
+      },
+      "local_file": null,
+      "remote_image": null,
+      "sha256": null,
+      "source": "legacy-index",
+      "retrieved": "2026-11-22",
+      "provenance": {
+        "local_license_log": "_T3精选/LICENSE_记录.md"
+      },
+      "notes": "Local-only image; obtain lawfully and verify the licence before reuse."
+    },
+    {
+      "asset_id": "T3-71",
+      "legacy_code": "T3-71",
+      "status": "metadata_only",
+      "kind": "figure",
+      "title": "sPHENIX2020 探测器3D线框+径迹",
+      "figure_label": "T3-71",
+      "figure_caption": "",
+      "paper": {
+        "doi": "",
+        "arxiv": "2007.00771",
+        "title": "sPHENIX2020 探测器3D线框+径迹",
+        "authors": [],
+        "year": 2007,
+        "journal": "arXiv",
+        "volume": ""
+      },
+      "topics": [
+        "detectors"
+      ],
+      "schematic_types": [
+        "3d-illustration"
+      ],
+      "style": {
+        "mode": "render3d",
+        "projection": "axonometric",
+        "tags": [
+          "render3d"
+        ]
+      },
+      "license": {
+        "spdx": "arXiv-default",
+        "redistributable": false,
+        "source_url": "https://arxiv.org/abs/2007.00771",
+        "attribution": "arXiv:2007.00771 | `figs/fig-p05-1.png`",
+        "note": "metadata imported from local licence ledger; image intentionally not redistributed"
+      },
+      "local_file": null,
+      "remote_image": null,
+      "sha256": null,
+      "source": "legacy-index",
+      "retrieved": "2026-11-22",
+      "provenance": {
+        "local_license_log": "_T3精选/LICENSE_记录.md"
+      },
+      "notes": "Local-only image; obtain lawfully and verify the licence before reuse."
+    },
+    {
+      "asset_id": "T3-72",
+      "legacy_code": "T3-72",
+      "status": "verified_figure",
+      "kind": "figure",
+      "title": "Chang2025 EIC谱仪束线3D 探测器标注",
+      "figure_label": "T3-72",
+      "figure_caption": "",
+      "paper": {
+        "doi": "",
+        "arxiv": "2511.05638",
+        "title": "Opportunities for Imaging Light Nuclei with a Second Interaction Region at the Electron-Ion Collider",
+        "authors": [
+          "Wan Chang, Elke-Caroline Aschenauer, Alexander Jentsch, Arjun Kumar, Zhoudunming Tu, Zhongbao Yin"
+        ],
+        "year": null,
+        "journal": "arXiv",
+        "volume": ""
+      },
+      "topics": [
+        "eic",
+        "detectors"
+      ],
+      "schematic_types": [
+        "3d-illustration",
+        "detector-cutaway"
+      ],
+      "style": {
+        "mode": "render3d",
+        "projection": "axonometric",
+        "tags": [
+          "render3d"
+        ]
+      },
+      "license": {
+        "spdx": "CC-BY-4.0",
+        "redistributable": true,
+        "source_url": "https://creativecommons.org/licenses/by/4.0/",
+        "attribution": "Wan Chang, Elke-Caroline Aschenauer, Alexander Jentsch, Arjun Kumar, Zhoudunming Tu, Zhongbao Yin. Opportunities for Imaging Light Nuclei with a Second Interaction Region at the Electron-Ion Collider. arXiv",
+        "note": "按图框 600 dpi 重渲染"
+      },
+      "local_file": "assets/t3-exemplars/T3-72_Chang2025_EIC谱仪束线3D_探测器标注.png",
+      "remote_image": null,
+      "sha256": "bf9d298fb6f8ea92b2d74a5b0ddec8727cebf428f37825c70dd893cfac89a309",
+      "source": "t3-exemplars",
+      "retrieved": "2026-11-22",
+      "provenance": {
+        "notice": "assets/t3-exemplars/NOTICE.md"
+      },
+      "notes": "Legacy verified exemplar."
+    },
+    {
+      "asset_id": "T3-73",
+      "legacy_code": "T3-73",
+      "status": "verified_figure",
+      "kind": "figure",
+      "title": "Akiba2025 sPHENIX 探测器3D剖视 标注",
+      "figure_label": "T3-73",
+      "figure_caption": "",
+      "paper": {
+        "doi": "",
+        "arxiv": "2503.09105",
+        "title": "The Ladder and Readout Cables of Intermediate Silicon Strip Detector for sPHENIX",
+        "authors": [
+          "Y. Akiba et al. (sPHENIX Collaboration)"
+        ],
+        "year": null,
+        "journal": "arXiv",
+        "volume": ""
+      },
+      "topics": [
+        "detectors"
+      ],
+      "schematic_types": [
+        "3d-illustration",
+        "detector-cutaway"
+      ],
+      "style": {
+        "mode": "render3d",
+        "projection": "axonometric",
+        "tags": [
+          "render3d"
+        ]
+      },
+      "license": {
+        "spdx": "CC-BY-4.0",
+        "redistributable": true,
+        "source_url": "https://creativecommons.org/licenses/by/4.0/",
+        "attribution": "Y. Akiba et al. (sPHENIX Collaboration). The Ladder and Readout Cables of Intermediate Silicon Strip Detector for sPHENIX. arXiv",
+        "note": "按图框 600 dpi 重渲染 + 裁去底部子探测器名称表格"
+      },
+      "local_file": "assets/t3-exemplars/T3-73_Akiba2025_sPHENIX_探测器3D剖视_标注.png",
+      "remote_image": null,
+      "sha256": "7885bc01149fb4a1adbe4ebdb402fefb878e55e36ed5066cd7f095db7b180812",
+      "source": "t3-exemplars",
+      "retrieved": "2026-11-22",
+      "provenance": {
+        "notice": "assets/t3-exemplars/NOTICE.md"
+      },
+      "notes": "Legacy verified exemplar."
+    },
+    {
+      "asset_id": "epmc-pmc11541211-fig1",
+      "status": "verified_figure",
+      "kind": "figure",
+      "title": "Fig. 1: Imaging shapes of atomic nuclei in high-energy nuclear collisions",
+      "figure_label": "Fig. 1",
+      "figure_caption": "Methods for determining the nuclear shape in low and high energies.a, Cartoon of a well-deformed prolate-shaped nucleus. b, Quantum fluctuations over Euler angles for this nucleus and associated overall timescale. c, Quantum mechanical manifestation of the deformation in terms of the first rotational band of 238U. d, Aligning the two nuclei in the head-on body–body configuration (top) and tip–tip configuration (bottom). e, High-energy collision of two Lorentz-contracted nuclei and resulting 3D profile of the initially produced quark–gluon plasma (QGP), in which the arrows indicate the pressure gradients. f, The 3D profile of the QGP at the end of the hydrodynamic expansion before it freezes out into particles, in which the arrows indicate the velocities of fluid cells. g, Charged particle tracks measured in the detector. The timescales shown are in units of fm/c—the time for light to travel 1 femtometre. The body–body configuration has large eccentricity ε2 and small gradient d⊥, leading to large elliptic flow v2 and smaller average transverse momentum [pT] and vice versa for tip–tip configuration (see main text).",
+      "paper": {
+        "doi": "10.1038/s41586-024-08097-2",
+        "arxiv": "",
+        "title": "Imaging shapes of atomic nuclei in high-energy nuclear collisions",
+        "authors": [
+          "STAR Collaboration"
+        ],
+        "year": 2024,
+        "journal": "Nature",
+        "volume": ""
+      },
+      "topics": [
+        "qgp",
+        "collective-flow",
+        "nuclear-structure",
+        "detectors"
+      ],
+      "schematic_types": [
+        "3d-illustration",
+        "detector-cutaway"
+      ],
+      "style": {
+        "mode": "render3d",
+        "projection": "axonometric",
+        "tags": [
+          "render3d",
+          "plasma",
+          "detector"
+        ]
+      },
+      "license": {
+        "spdx": "CC-BY-4.0",
+        "redistributable": true,
+        "source_url": "https://creativecommons.org/licenses/by/4.0/",
+        "attribution": "STAR Collaboration. Imaging shapes of atomic nuclei in high-energy nuclear collisions. Nature (2024).",
+        "note": "full-size publisher figure downloaded; no crop or pixel edit"
+      },
+      "local_file": "assets/schematic-library/redistributable/europepmc/epmc-pmc11541211-fig1.png",
+      "remote_image": "https://media.springernature.com/full/springer-static/image/art%3A10.1038%2Fs41586-024-08097-2/MediaObjects/41586_2024_8097_Fig1_HTML.png",
+      "sha256": "08a6dee4f39fe014d2bca90730cd516a3774b4212f29aa0d59b7056f3ff67bb5",
+      "source": "europepmc",
+      "retrieved": "2026-11-22",
+      "provenance": {
+        "pmcid": "PMC11541211",
+        "europepmc_query_id": "qgp",
+        "fulltext_xml": "https://www.ebi.ac.uk/europepmc/webservices/rest/PMC11541211/fullTextXML",
+        "fulltext_fallback": "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/efetch.fcgi?db=pmc&id=11541211&retmode=xml",
+        "graphic_href": "41586_2024_8097_Fig1_HTML.jpg"
+      },
+      "notes": "Caption matched schematic-language heuristic; visually review before use."
+    },
+    {
+      "asset_id": "epmc-pmc12695630-fig1",
+      "status": "verified_figure",
+      "kind": "figure",
+      "title": "Fig. 1: Observation of deuteron and antideuteron formation from resonance-decay nucleons",
+      "figure_label": "Fig. 1",
+      "figure_caption": "(Anti)deuteron production scenarios.Illustration of three scenarios for deuteron production and interaction with pions (left) and the resulting π±–d correlation functions (right). All scenarios include Coulomb attraction between π−–d (green curves) and Coulomb repulsion between the π+–d (red curves). The dashed lines always show the correlation function using Coulomb interaction. a,b, Thermally produced deuterons with only Coulomb (a) and Coulomb + elastic + inelastic (b) interactions, respectively. c, Deuteron formation by nuclear binding following Δ-resonance decays. All the simulations include the charge conjugates ( $${{\\rm{\\pi }}}^{+}-{\\rm{d}}\\equiv {{\\rm{\\pi }}}^{+}-{\\rm{d}}\\oplus {{\\rm{\\pi }}}^{-}-\\overline{{\\rm{d}}}$$ π+−d≡π+−d⊕π−−d¯ and $${{\\rm{\\pi }}}^{-}-{\\rm{d}}\\equiv {{\\rm{\\pi }}}^{-}-{\\rm{d}}\\oplus {{\\rm{\\pi }}}^{+}-\\overline{{\\rm{d}}}$$ π−−d≡π−−d⊕π+−d¯). The bandwidths corresponds to the statistical uncertainties of the models.",
+      "paper": {
+        "doi": "10.1038/s41586-025-09775-5",
+        "arxiv": "",
+        "title": "Observation of deuteron and antideuteron formation from resonance-decay nucleons",
+        "authors": [
+          "The ALICE Collaboration"
+        ],
+        "year": 2025,
+        "journal": "Nature",
+        "volume": ""
+      },
+      "topics": [
+        "qgp",
+        "observables"
+      ],
+      "schematic_types": [
+        "multi-panel"
+      ],
+      "style": {
+        "mode": "illustration",
+        "projection": "unspecified",
+        "tags": []
+      },
+      "license": {
+        "spdx": "CC-BY-4.0",
+        "redistributable": true,
+        "source_url": "https://creativecommons.org/licenses/by/4.0/",
+        "attribution": "The ALICE Collaboration. Observation of deuteron and antideuteron formation from resonance-decay nucleons. Nature (2025).",
+        "note": "full-size publisher figure downloaded; no crop or pixel edit"
+      },
+      "local_file": "assets/schematic-library/redistributable/europepmc/epmc-pmc12695630-fig1.png",
+      "remote_image": "https://media.springernature.com/full/springer-static/image/art%3A10.1038%2Fs41586-025-09775-5/MediaObjects/41586_2025_9775_Fig1_HTML.png",
+      "sha256": "be9a076eff1494d283b81e3088d5bbbe3909362c548cc48044cbbac2ea1ac9ed",
+      "source": "europepmc",
+      "retrieved": "2026-11-22",
+      "provenance": {
+        "pmcid": "PMC12695630",
+        "europepmc_query_id": "qgp",
+        "fulltext_xml": "https://www.ebi.ac.uk/europepmc/webservices/rest/PMC12695630/fullTextXML",
+        "fulltext_fallback": "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/efetch.fcgi?db=pmc&id=12695630&retmode=xml",
+        "graphic_href": "41586_2025_9775_Fig1_HTML.jpg"
+      },
+      "notes": "Caption matched schematic-language heuristic; visually review before use."
+    },
+    {
+      "asset_id": "epmc-pmc13004930-fig1",
+      "status": "verified_figure",
+      "kind": "figure",
+      "title": "Fig. 1: Observation of partonic flow in proton—proton and proton—nucleus collisions",
+      "figure_label": "Fig. 1",
+      "figure_caption": "Illustration of the overlap region67.A schematic representation of the overlap region in a collision is shown in gray, along with overall particle emission patterns in the transverse (x-y) plane, represented by large arrows. a Non-flow sources: These are independent emissions, such as those from resonance decays or jets, where jets are collimated streams of hadrons created when a high-energy quark or gluon fragments after a collision. These effects lead to few-particle correlations but are not related to collective behavior in the system and have been subtracted from the final anisotropic flow measurements (see Correlation function and template fit method in the methods subsection for details). b Anisotropic flow: This illustrates the development of anisotropic flow in a partonic system, propagated to the level of hadrons via the quark coalescence process, which describes the experimental measurements in the intermediate pT range (~3-8 GeV/c). In this process, two or three flowing partons coalesce to form mesons or baryons, which then interact with each other. The large arrows represent the overall anisotropy of particle emission in the transverse plane, with stronger expansion along the short (x) axis.",
+      "paper": {
+        "doi": "10.1038/s41467-025-67795-1",
+        "arxiv": "",
+        "title": "Observation of partonic flow in proton—proton and proton—nucleus collisions",
+        "authors": [
+          "The ALICE Collaboration"
+        ],
+        "year": 2026,
+        "journal": "Nature Communications",
+        "volume": ""
+      },
+      "topics": [
+        "qgp",
+        "collective-flow",
+        "jet-quenching",
+        "hadronization",
+        "observables"
+      ],
+      "schematic_types": [
+        "flat-diagram"
+      ],
+      "style": {
+        "mode": "illustration",
+        "projection": "unspecified",
+        "tags": []
+      },
+      "license": {
+        "spdx": "CC-BY-4.0",
+        "redistributable": true,
+        "source_url": "https://creativecommons.org/licenses/by/4.0/",
+        "attribution": "The ALICE Collaboration. Observation of partonic flow in proton—proton and proton—nucleus collisions. Nature Communications (2026).",
+        "note": "full-size publisher figure downloaded; no crop or pixel edit"
+      },
+      "local_file": "assets/schematic-library/redistributable/europepmc/epmc-pmc13004930-fig1.png",
+      "remote_image": "https://media.springernature.com/full/springer-static/image/art%3A10.1038%2Fs41467-025-67795-1/MediaObjects/41467_2025_67795_Fig1_HTML.png",
+      "sha256": "107ac5b3b3b4fdcbecb2c6738f667ba2bdf090463c40663d8da1e899e14ca4d8",
+      "source": "europepmc",
+      "retrieved": "2026-11-22",
+      "provenance": {
+        "pmcid": "PMC13004930",
+        "europepmc_query_id": "qgp",
+        "fulltext_xml": "https://www.ebi.ac.uk/europepmc/webservices/rest/PMC13004930/fullTextXML",
+        "fulltext_fallback": "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/efetch.fcgi?db=pmc&id=13004930&retmode=xml",
+        "graphic_href": "41467_2025_67795_Fig1_HTML.jpg"
+      },
+      "notes": "Caption matched schematic-language heuristic; visually review before use."
+    }
+  ]
+}

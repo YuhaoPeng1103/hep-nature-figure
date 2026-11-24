@@ -1,11 +1,11 @@
 # hep-nature-figure
 
-> **最终 SVG 默认同时交付两版**。先做原生几何 `_edit.svg`，再做独立透明纹理 `_texture.svg`，见 [几何重绘](references/direct-svg-redraw.md) 与 [双版制作与验收](references/dual-svg.md)。
-> 复杂渐变且要纯代码、可编辑对象时，按 [连续渐变 SVG](references/continuous-gradient-svg.md) 建模与验收。
+> **最终 SVG 默认同时交付两版（2026-11-19）：原生几何 `_edit.svg` + 独立透明纹理 `_texture.svg`。** `_edit.svg` 是默认且投稿用的无限缩放版本；`_texture.svg` 只作可选保真对照，放大后的色阶块不应当成新增几何。原来的 [几何重绘](references/direct-svg-redraw.md) 保留，双版验收见 [双版制作与验收](references/dual-svg.md)。
+> 复杂渐变且要纯代码、可编辑对象时，按 [连续渐变 SVG](references/continuous-gradient-svg.md) 建模与验收。旧临摹保留为像素级保真与维护旧稿的备用。
 
 **面向高能核物理 3D 示意图的配图 Skill。** 从手绘草图或物理描述出发，在草图和成品上核对几何关系，保留复杂的光照与渐变，并交付零嵌入位图的 SVG 与按物理对象分层的编辑稿。
 
-当前主线为 [v4.31](CHANGELOG.md#v431--2026-11-25)，新装请用 `main`。早期的 `route-a`、`route-b1`、`route-b2` 仅作历史保留。
+当前主线为 [v5.1](CHANGELOG.md#v51--2026-11-25)，新装请用 `main`。V5.1 基于 V4.31 的原生几何与连续渐变流程扩充元素级素材库。早期的 `route-a`、`route-b1`、`route-b2` 仅作历史保留。
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
@@ -40,6 +40,88 @@
 - "用最新的 skill 再跑一次自旋关联的示意图。"（→ 默认走路线③）
 - "这张图除了文字都必须是矢量，渐变和阴影要保住。"
 - "查一下这张图的 PDF 合不合投稿要求（矢量 / 字号 / 嵌入位图）。"
+- "从 Nature / Physical Review 素材库找一张 QGP 或探测器风格的参考图。"
+
+---
+
+## 5.1 示意图素材库
+
+5.1 的核心是**元素级矢量生产链**：结构化 IR（元素、文字、连接关系、画布与物理关系）先由作者确认，再由代码从带许可与生成来源标记的矢量素材库中精确组装。
+
+- **181 个**元素级 SVG 变体：**74 个文章来源素材均为双版**——默认 `_edit.svg` 是可无限缩放的原生几何/渐变/文字版本，`_texture.svg` 是用于逐像素保真审计的独立透明矢量纹理。`article_t330_qgp_fireball` 已去除透视网格、紫色场线和外部箭头，只保留 QGP 火球、辐射、部分子与螺旋；native/texture 对干净参考的误差为 `MAE 0.851 / >32 0.12%`；
+- 核子族共 **30 种**，其中 16 种从 CC BY 论文图裁取；同一 `participant_nucleon` 槽位可在原图位置逐一预览和选择；
+- 新增 24 个 2020–2026 年论文元素（多色部分子对、部分子介质、涡旋环、事件拓扑、STAR 径迹探测器），并从形变核/碰撞几何图补充 11 个红色质子、蓝色中子和核碎片核子外观；
+- `article_element_harvester.py` 从 PMC Open Access S3 取原始媒体与 CC BY PDF；失败文章可重试，许可、PMC 版本、DOI、源 SHA 与 crop box 全部落盘；
+- `publisher_figure_harvester.py` 的 APS/PR 与 arXiv 合法来源首轮覆盖 574 篇严格 HEP + CC BY 候选；524 篇成功处理，4,568 条图件记录，其中 3,557 张下载为 300 dpi PDF 图区，余下 1,011 条因题注无法核验保持 metadata-only；
+- `figure_element_candidates.py` 对 4,695 条本地图件记录做哈希/HEP 过滤后，得到 3,578 张唯一高能核物理图；其中 408 张高优先级、2,769 张中优先级，生成 8,531 个 review-only 对象候选和 199 张审查拼图，自动 crop 不直接进入 active element index；
+- `priority_element_rebuild.py` 已对 408 张高优先级图生成并审核 3,599 个对象 proposal：3,595 个因多物体/文字/坐标/线图风险进入人工拆分；2 张图中的 4 个对象通过保守单对象规则并生成平滑原生 SVG candidate。这 4 个仍需作者确认，均未自动入库；
+- 每个元素带授权、署名、SHA-256、物理角色、3D/平面属性和 generation provenance；
+- `spec_confirm.py` 将完整 spec 哈希绑定到作者回执，任何元素/文字/连接/尺寸修改都会要求重新确认；
+- `spec_compile.py` 确定性组装 SVG，原生 `<text>`、代码生成箭头与连接、固定画布毫米尺寸；
+- 同一元素槽位可设置 `asset_family + asset_variant + variant_options`，位置/尺寸不变，只让作者选择形体；
+- `nature_gate.py` 检查 89/183 mm 画布、5–12 pt 字号、0.25–3 pt 线宽、语义色板和 600 dpi 输出；
+- AI 补充元素必须用 `element_library.py ingest-ai` 登记模型、提示词哈希和审核人；
+- `--safe-mode` 排除 AI 像素、AI 生成矢量与嵌入式位图，可直接生成投稿安全版本；
+- `--source-derived-only` 进一步排除全部 `software` 占位图元；文章来源素材同时保留 `_texture.svg` 与原生 `_edit.svg`；
+- 两版都保留论文 crop、源 SHA 和署名。`_texture.svg` 使用平滑路径、基础色与明度/渐变层匹配原图；`_edit.svg` 用可编辑圆/路径/渐变/原生文字表达同一物体；
+- 默认编译使用 `render_mode: edit`；需要与来源 crop 做保真对照时显式设 `render_mode: texture`；元素槽位默认 `fit: contain`，禁止静默拉伸论文裁切；
+- 同一 spec 修改后重新编译即可迭代，导出 SVG、PDF、600 dpi PNG 和 provenance manifest。
+
+完整流程见 [`references/element-spec-pipeline.md`](references/element-spec-pipeline.md)，可运行示例见
+[`assets/demos/element-spec/`](assets/demos/element-spec/)。
+
+![article-derived element composition](assets/demos/element-spec/source-derived-output/source-elements.png)
+
+QGP-jet 的 canonical 示例为
+`assets/spec-examples/qgp-jet-paper-3d.spec.yaml`：Pb 核来自 Nature STAR 核形状图，
+QGP 火球来自 arXiv:2512.00739 图重建，喷注运动与辐射语言取自 PRL 125, 122301。
+整张图使用一个斜二测相机、一个反应平面和一套共享硬散射顶点；区域、核对称、背向
+喷注、标签避让和投影声明均进入 IR。旧的软件图元样例只保留为编译回归对照。
+
+示例默认使用每个文章来源元素的 `_edit.svg` 原生几何版；`render_mode: texture` 只用于与来源 crop 做可选的保真对照。
+
+```bash
+python scripts/spec_confirm.py figure.spec.yaml --show
+python scripts/spec_confirm.py figure.spec.yaml --record \
+  --by client --reply "元素和关系可以，开始编译"
+python scripts/spec_compile.py figure.spec.yaml \
+  --outdir out --stem figure --safe-mode
+python scripts/visual_review.py --spec figure.spec.yaml \
+  --svg out/figure.svg --png out/figure.png --pdf out/figure.pdf \
+  --record --by client --reply "图和物理关系通过"
+python scripts/spec_compile.py figure.spec.yaml \
+  --outdir out --stem figure --safe-mode --final
+```
+
+另保留整图检索层 `assets/schematic-library/`，把“找图”和“能不能再分发”分开：
+
+- **63 条**已核验的示意图 / 出处记录；
+- **20 张**可在本地直接用于 `--ref` 的 CC0 / CC BY 图像；
+- **43 条**订阅制、arXiv 默认许可或 NC/ND 的 metadata-only 记录；
+- **5,245 篇**由 16 个 HEP 主题在 Nature 系列、APS、Science 系列与核心 HEP 期刊中检索、DOI 去重并剔除词面假阳性后得到的候选论文；OpenAlex 提供跨库种子，Crossref 扩展 Physical Review、Nature 系列与核心 HEP 期刊；
+- 覆盖 QGP、初态、集体流、相图、喷注淬火、重味、手征效应、自旋极化、电磁场、UPC、核形变、强子化、小系统、EIC、探测器与观测量。
+
+```bash
+python scripts/schematic_library.py stats
+python scripts/schematic_library.py search --topic jet-quenching --local-only
+python scripts/schematic_library.py search --q detector --for-ref
+python scripts/schematic_library.py validate
+python scripts/schematic_library.py discover --max-per-query 50
+python scripts/schematic_library.py discover-crossref --max-per-query 1000
+python scripts/schematic_library.py prune-candidates
+python scripts/schematic_library.py harvest-europepmc --query-id qgp --max-records 5
+python scripts/article_element_harvester.py discover
+python scripts/article_element_harvester.py harvest --retry-failed --download-pdf
+python scripts/article_element_harvester.py status
+python scripts/article_element_harvester.py harvest-catalog --all-figures --workers 4
+python scripts/publisher_figure_harvester.py --dry-run
+python scripts/publisher_figure_harvester.py --workers 12
+python scripts/figure_element_candidates.py
+```
+
+订阅制、默认 arXiv 许可、NC、ND 图**只存 DOI / arXiv / 题目 / 许可 / 获取入口**，不把图片放进仓库。`--for-ref` 只返回本地、可再分发的图像。
+
+PMC 采集按 graphic URL 去重；APS/PR 采集核对 landing page 的 CC BY 声明，并从 PDF 以 300 dpi 重建图区。题注含 `reprinted/adapted/permission/all rights reserved` 或题注无法提取时只留 metadata。`figure_element_candidates.py` 再把所有合法本地图按哈希去重、按 HEP 相关性过滤、按题注和视觉平坦度排序，生成审查拼图与对象候选 crop；自动 crop 不会直接进入元素库，必须经对象审查和原生 SVG 重建。
 
 ---
 
@@ -332,6 +414,21 @@ python3 scripts/demo_combined.py
 │   ├── check_tools.py           工具能力探测 + 装机指引
 │   ├── check_render.py          渲染静默失败检测（渐变失效 / 字体丢失都不报错）
 │   ├── check_delivery.py        投稿检查（矢量？文字可编辑？字号达标？）
+│   ├── schematic_library.py     5.1 素材库：校验 / 检索 / OpenAlex+Crossref 发现
+│   ├── article_element_harvester.py PMC OA 文章、图件与 CC BY PDF 的可重试采集
+│   ├── publisher_figure_harvester.py APS/PR 与 arXiv CC BY 图件采集、题注权利筛查、PDF 300 dpi 图区
+│   ├── figure_element_candidates.py 全图库去重、HEP 过滤、示意图排序与 review-only 对象 candidate
+│   ├── priority_element_rebuild.py 408 张 high 图的逐对象去背景、审核与 SVG candidate
+│   ├── build_element_library.py 生成 107 个可复现 system-primitives
+│   ├── source_element_extract.py 从 CC BY 论文图裁取并矢量化 source-derived 元素
+│   ├── rebuild_article_vectors.py 将高频文章来源元素按对象重建为原生 SVG
+│   ├── element_texture_vectorize.py 生成可选平滑矢量纹理对照并记录 MAE（不改默认 `_edit.svg`）
+│   ├── element_variants.py      同一语义槽位的多方案预览、客户选择与 spec 回写
+│   ├── element_library.py       元素校验 / 检索 / AI 补充素材入库
+│   ├── spec_confirm.py          作者确认完整 spec 并绑定 SHA-256
+│   ├── spec_compile.py          spec → SVG / PDF / 600 dpi PNG
+│   ├── visual_review.py         最终看图回执与 SVG/PNG 哈希绑定
+│   ├── nature_gate.py           Nature 尺寸 / 字号 / 线宽 / 色板 / 安全模式
 │   ├── delivery_gate.py         风格档案门禁（偏离超限 → 阻断）
 │   ├── audit_composition.py     构图审计（文字重叠 / 线穿文字 / 出界 / 留白）
 │   ├── audit_panels.py          多面板对齐审计
@@ -344,11 +441,15 @@ python3 scripts/demo_combined.py
 │   ├── repair_brief.py          返修单（归一化坐标 + 具体改多少）
 │   └── demo_*.py                多工具联合 / 喷注淬火 / 时间线 示范
 ├── evals/
-│   ├── test_tools.py            31 个回归 case（每个对应一个真实踩过的坑）
+│   ├── test_tools.py            87 个回归 case（每个对应一个真实踩过的坑）
 │   └── evals.json / README.md   评测清单
 └── assets/
     ├── style-profiles.json      风格档案（门禁用；存**区间**不存点值）
-    ├── t3-exemplars/            参考图库（17 张 CC BY 4.0 图 + `NOTICE.md` 逐张署名与出处）
+    ├── t3-exemplars/            旧版 CC BY 参考图（17 张 + `NOTICE.md`）
+    ├── schematic-library/       5.1 许可分级图库、候选索引、分类与采集报告
+    ├── element-library/         元素级 SVG、授权/AI provenance、哈希与校验
+    ├── spec-profiles/           Nature 2026 尺寸、字体、线宽、色板与 DPI 档
+    ├── spec-examples/           元素级 IR schema 与完整示例
     ├── ir/                      8 套 IR 标准答案（含 UPC / 自旋关联 / 形变核→火球 三个完整算例）
     └── demos/
         ├── upc_semantic/        UPC 完整算例（词表 / 元素表 / 源图 / 并排预览）
@@ -368,6 +469,7 @@ python3 scripts/demo_combined.py
 |---|---|
 | `references/routing.md` | 判任务 / 图型、写 IR、选后端、验证、选择草图阶梯之前 |
 | `references/generate-flow.md` | 走路线 B、出草图 / 位图、位图→矢量七步之前 |
+| `references/element-spec-pipeline.md` | 做元素级 IR、作者确认、矢量素材调用、Nature 规范导出和投稿安全模式时 |
 | `references/scripts.md` | 查完整脚本表 / 某个脚本干什么 |
 | `references/ir-spec.md` | 写 IR 之前 —— 六层规范（物理 / 元素 / 构图 / 风格 / 执行 / 验收） |
 | `references/tool-selection.md` | 不确定该用哪个后端时（内容轴 × 风格轴） |
@@ -384,6 +486,7 @@ python3 scripts/demo_combined.py
 | `assets/demos/evo3d_fireball_spec/` | 想知道「图看着很'AI'、火球像颗光滑糖球」怎么救：IR 的 `material` 进简报前后的 5 方对照 + 内部结构量化 |
 | `assets/demos/jet_quenching/` | 想知道「IR 的几何要自洽」怎么落地：一个**被机器闸口量出写反了**的IR（弦长比 0.09W vs 0.30W），修好后 4.00x；顺带量到「路径数由 `--q` 定不是 `--R`」和「`--shade` 在羽化边缘上会碎」 |
 | `assets/demos/flow_semantic/` | 想知道「位图→矢量到底有几种做法、重画和临摹该怎么选」：同一个末态火球的重画 / 混合临摹 / 真渐变开关三者对照 + 三条判据 |
+| `assets/schematic-library/` | 按物理主题、图型、3D 风格或许可层级找参考图；先看素材库 README，再运行 `schematic_library.py search` |
 
 ---
 
@@ -423,6 +526,14 @@ python3 scripts/demo_combined.py
 [`assets/t3-exemplars/NOTICE.md`](assets/t3-exemplars/NOTICE.md)）。
 另有 **42 张**因版权原因**未随仓库分发**（订阅制 / arXiv 默认许可 / CC BY-NC-ND）——
 同一份 NOTICE 里列了它们的出处与自行获取方式。
+
+5.1 的 `assets/schematic-library/redistributable/` 同样只放 CC0 / CC BY 图；订阅制和
+metadata-only 条目不含图片。使用前运行：
+
+```bash
+python scripts/schematic_library.py validate
+python scripts/schematic_library.py search --topic <topic> --for-ref
+```
 
 自己建库：
 

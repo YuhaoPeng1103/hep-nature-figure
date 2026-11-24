@@ -1,0 +1,140 @@
+figure:
+  id: qgp-jet-sketch
+  title: Jet quenching in the quark-gluon plasma
+  physics_claim: A hard parton pair is produced in a QGP; the short-path jet escapes while the long-path jet loses energy and radiates.
+  target_journal: Nature
+  canvas: {width_mm: 183, height_mm: 100}
+
+style:
+  mode: render3d
+  classification: 3D vector jet-quenching schematic
+  evidence: Projected medium, directional jet fans, shared hard vertex, depth shading and native labels.
+  background: "#ffffff"
+  palette:
+    mode: semantic
+    families: [orange, red, neutral, blue, cyan, green]
+  fonts:
+    family: "DejaVu Sans"
+    size_steps_pt: [5.5, 6.5, 8]
+
+composition:
+  renderer:
+    type: direct-svg
+    script: assets/examples/direct-svg/qgp_jet_sketch.py
+  projection:
+    type: 斜二测
+    类型: 斜二测
+    axes_deg: {x: 30, y: -90, z: 0}
+    轴方向_deg: {x: 30, y: -90, z: 0}
+    foreshortening: {x: 0.72, y: 1.0, z: 1.0}
+    前缩: {x: 0.72, y: 1.0, z: 1.0}
+  coordinates:
+    handedness: right
+    beam_axis: z
+    reaction_plane: xz
+  坐标约定:
+    面内: [x, z]
+    法线: y
+    手性: 右手
+    束流轴: z
+  layout:
+    template: single-panel-qgp-jet
+    regions:
+      - id: jet_quenching
+        x_range_mm: [5, 179]
+        y_range_mm: [10, 96]
+        objects: [qgp_medium, escaped_jet, quenched_jet, hard_vertex]
+    alignment:
+      jets: back_to_back_about_vertex
+      jet_objects: [escaped_jet, quenched_jet]
+      jet_origin: hard_vertex
+
+elements:
+  - id: qgp_medium
+    name: QGP volume
+    asset: article_t330_qgp_fireball
+    render_mode: edit
+    fit: contain
+    physics_role: Deconfined medium crossed by the hard-parton pair.
+    x_mm: 91.7
+    y_mm: 51.2
+    width_mm: 103.7
+    height_mm: 85.0
+    z: 3
+
+  - id: escaped_jet
+    name: Escaping jet
+    asset: article_prl125_qgp_jet_scene
+    render_mode: edit
+    fit: contain
+    physics_role: Short-path jet leaving the medium with most of its energy.
+    x_mm: 154
+    y_mm: 30
+    width_mm: 46
+    height_mm: 23
+    rotation_deg: -21
+    z: 5
+
+  - id: quenched_jet
+    name: Quenched jet
+    asset: article_prl125_qgp_jet_scene
+    render_mode: edit
+    fit: contain
+    physics_role: Long-path jet that loses energy and fragments inside the medium.
+    x_mm: 74
+    y_mm: 63
+    width_mm: 108
+    height_mm: 35
+    rotation_deg: 156
+    z: 5
+
+  - id: hard_vertex
+    name: Hard-scattering vertex
+    asset: article_pmc125_vertex
+    render_mode: edit
+    fit: contain
+    physics_role: Common production point of the back-to-back partons.
+    x_mm: 132.2
+    y_mm: 38.3
+    width_mm: 4
+    height_mm: 4
+    z: 6
+
+texts:
+  - {id: label_qgp, value: "QGP", x_mm: 91.5, y_mm: 23, font_size_pt: 7, anchor: middle, color: "#5d4e41"}
+  - {id: label_hard, value: "Hard scattering", x_mm: 144.7, y_mm: 22.7, font_size_pt: 6, anchor: middle, color: "#36424b"}
+  - {id: label_escape, value: "Escaping jet", x_mm: 160.1, y_mm: 18.1, font_size_pt: 7, anchor: middle, color: "#246b91"}
+  - {id: label_short, value: "short path", x_mm: 160.1, y_mm: 21.5, font_size_pt: 5.5, anchor: middle, color: "#66717b"}
+  - {id: label_quench, value: "Quenched jet", x_mm: 64.2, y_mm: 73.8, font_size_pt: 7, anchor: middle, color: "#38536a"}
+  - {id: label_long, value: "long path", x_mm: 64.2, y_mm: 77.5, font_size_pt: 5.5, anchor: middle, color: "#66717b"}
+  - {id: label_radiation, value: "Medium-induced radiation", x_mm: 86.7, y_mm: 93, font_size_pt: 6.5, anchor: middle, color: "#6e4c2e"}
+
+relationships:
+  - id: R1
+    type: contains
+    subject: quenched_jet
+    object: qgp_medium
+    statement: The quenched branch traverses the long chord of the medium.
+  - id: R2
+    type: contains
+    subject: escaped_jet
+    object: qgp_medium
+    statement: The escaping branch exits through the short chord.
+
+hard_physics:
+  - id: HP1
+    claim: Both jets originate from the same hard-scattering vertex.
+    measure: the two jet centerlines intersect at one common vertex.
+    verification: human
+    note: Inspect the common origin of the fan centers.
+  - id: HP2
+    claim: The two jets are back-to-back around the hard vertex.
+    measure: 150 deg <= angle(v_escape, v_quench) <= 210 deg.
+    verification: machine
+    check:
+      type: angle_between_rays
+      origin: hard_vertex
+      a: escaped_jet
+      b: quenched_jet
+      min_deg: 150
+      max_deg: 210

@@ -1,0 +1,158 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Confirmed element-level HEP figure spec",
+  "type": "object",
+  "required": ["figure", "style", "composition", "elements", "hard_physics"],
+  "properties": {
+    "figure": {
+      "type": "object",
+      "required": ["id", "target_journal", "canvas"],
+      "properties": {
+        "id": {"type": "string"},
+        "title": {"type": "string"},
+        "physics_claim": {"type": "string"},
+        "target_journal": {"type": "string"},
+        "canvas": {
+          "type": "object",
+          "required": ["width_mm", "height_mm"],
+          "properties": {
+            "width_mm": {"type": "number"},
+            "height_mm": {"type": "number"}
+          }
+        }
+      }
+    },
+    "style": {
+      "type": "object",
+      "required": ["mode"],
+      "properties": {
+        "mode": {"const": "render3d"},
+        "classification": {"type": "string"},
+        "evidence": {"type": "string"}
+      }
+    },
+    "composition": {
+      "type": "object",
+      "required": ["projection", "coordinates"],
+      "properties": {
+        "projection": {
+          "type": "object",
+          "required": ["type"],
+          "properties": {"type": {"type": "string"}}
+        },
+        "coordinates": {
+          "type": "object",
+          "required": ["handedness", "beam_axis"],
+          "properties": {
+            "handedness": {"enum": ["right", "右手"]},
+            "beam_axis": {"type": "string"}
+          }
+        },
+        "layout": {
+          "type": "object",
+          "properties": {
+            "template": {"type": "string"},
+            "regions": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "required": ["id", "x_range_mm", "y_range_mm", "objects"],
+                "properties": {
+                  "id": {"type": "string"},
+                  "x_range_mm": {
+                    "type": "array",
+                    "prefixItems": [{"type": "number"}, {"type": "number"}],
+                    "minItems": 2,
+                    "maxItems": 2
+                  },
+                  "y_range_mm": {
+                    "type": "array",
+                    "prefixItems": [{"type": "number"}, {"type": "number"}],
+                    "minItems": 2,
+                    "maxItems": 2
+                  },
+                  "objects": {"type": "array", "items": {"type": "string"}}
+                }
+              }
+            },
+            "alignment": {"type": "object"},
+            "guides": {"type": "object"}
+          }
+        }
+      }
+    },
+    "elements": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": [
+          "id", "physics_role", "x_mm", "y_mm",
+          "width_mm", "height_mm"
+        ],
+        "anyOf": [
+          {"required": ["asset"]},
+          {"required": ["asset_family", "asset_variant"]}
+        ],
+        "properties": {
+          "id": {"type": "string"},
+          "asset": {"type": "string"},
+          "asset_family": {"type": "string"},
+          "asset_variant": {"type": "string"},
+          "render_mode": {"enum": ["texture", "edit"]},
+          "fit": {"enum": ["contain", "stretch"]},
+          "variant_options": {"type": "array", "items": {"type": "string"}},
+          "physics_role": {"type": "string"},
+          "x_mm": {"type": "number"},
+          "y_mm": {"type": "number"},
+          "width_mm": {"type": "number"},
+          "height_mm": {"type": "number"},
+          "rotation_deg": {"type": "number"},
+          "opacity": {"type": "number", "minimum": 0, "maximum": 1},
+          "z": {"type": "number"}
+        }
+      }
+    },
+    "texts": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["id", "value", "x_mm", "y_mm", "font_size_pt"],
+        "properties": {
+          "id": {"type": "string"},
+          "value": {"type": "string"},
+          "x_mm": {"type": "number"},
+          "y_mm": {"type": "number"},
+          "font_size_pt": {"type": "number", "minimum": 5}
+        }
+      }
+    },
+    "connections": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["id", "type"],
+        "properties": {
+          "id": {"type": "string"},
+          "type": {"enum": ["line", "arrow", "double_arrow", "elbow", "freeform"]}
+        }
+      }
+    },
+    "relationships": {"type": "array"},
+    "hard_physics": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": ["id", "claim", "measure", "verification"],
+        "properties": {
+          "id": {"type": "string"},
+          "claim": {"type": "string"},
+          "measure": {"type": "string"},
+          "verification": {"enum": ["machine", "human"]},
+          "check": {"type": "object"}
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 360 300"
+     data-element-asset="article_t72_eic_detector" data-origin="article_vector_native">
+  <g id="eic-spectrometer" data-element="article_t72_eic_detector">
+    <path d="M20 168 L340 168" stroke="#46515c" stroke-width="7"/>
+    <path d="M20 145 C115 145 145 154 182 166 C215 176 272 174 335 139"
+          fill="none" stroke="#68a9d2" stroke-width="3" opacity=".75"/>
+    <path d="M20 191 C115 191 145 181 182 168 C215 158 272 160 335 198"
+          fill="none" stroke="#d07b56" stroke-width="3" opacity=".75"/>
+    <ellipse cx="72" cy="168" rx="13" ry="38" fill="none" stroke="#b35b63" stroke-width="8" opacity=".92"/><path d="M72 130 L72 206" stroke="#b35b63" stroke-width="5"/><ellipse cx="115" cy="168" rx="17" ry="46" fill="none" stroke="#d3a83f" stroke-width="8" opacity=".92"/><path d="M115 122 L115 214" stroke="#d3a83f" stroke-width="5"/><ellipse cx="158" cy="168" rx="13" ry="54" fill="none" stroke="#4e80bd" stroke-width="8" opacity=".92"/><path d="M158 114 L158 222" stroke="#4e80bd" stroke-width="5"/><ellipse cx="201" cy="168" rx="17" ry="62" fill="none" stroke="#6f8e83" stroke-width="8" opacity=".92"/><path d="M201 106 L201 230" stroke="#6f8e83" stroke-width="5"/><ellipse cx="244" cy="168" rx="13" ry="70" fill="none" stroke="#b35b63" stroke-width="8" opacity=".92"/><path d="M244 98 L244 238" stroke="#b35b63" stroke-width="5"/><ellipse cx="287" cy="168" rx="17" ry="78" fill="none" stroke="#d3a83f" stroke-width="8" opacity=".92"/><path d="M287 90 L287 246" stroke="#d3a83f" stroke-width="5"/><ellipse cx="330" cy="168" rx="13" ry="86" fill="none" stroke="#4e80bd" stroke-width="8" opacity=".92"/><path d="M330 82 L330 254" stroke="#4e80bd" stroke-width="5"/>
+    <circle cx="183" cy="167" r="6" fill="#f1c84b"/>
+  </g>
+</svg>

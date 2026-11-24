@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 340 100"
+     data-element-asset="article_pmc125_tof_arc" data-origin="article_vector_native">
+  <g id="tof-arc" data-element="article_pmc125_tof_arc">
+    <path d="M20 86 A180 180 0 0 1 320 86" stroke="#805e18" stroke-width="36" fill="none"/>
+    <path d="M25 66 A150 150 0 0 1 55 18" stroke="#d5aa24" stroke-width="26" fill="none"/><path d="M59 66 A150 150 0 0 1 89 18" stroke="#d5aa24" stroke-width="26" fill="none"/><path d="M93 66 A150 150 0 0 1 123 18" stroke="#d5aa24" stroke-width="26" fill="none"/><path d="M127 66 A150 150 0 0 1 157 18" stroke="#d5aa24" stroke-width="26" fill="none"/><path d="M161 66 A150 150 0 0 1 191 18" stroke="#d5aa24" stroke-width="26" fill="none"/><path d="M195 66 A150 150 0 0 1 225 18" stroke="#d5aa24" stroke-width="26" fill="none"/><path d="M229 66 A150 150 0 0 1 259 18" stroke="#d5aa24" stroke-width="26" fill="none"/><path d="M263 66 A150 150 0 0 1 293 18" stroke="#d5aa24" stroke-width="26" fill="none"/><path d="M297 66 A150 150 0 0 1 327 18" stroke="#d5aa24" stroke-width="26" fill="none"/>
+  </g>
+</svg>

@@ -1,0 +1,22 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 300 220"
+     data-element-asset="article_pmc891_jetty_cone" data-origin="article_vector_native">
+  <defs>
+    <marker id="article-pmc891-jetty-cone-arrow" viewBox="0 0 10 10" refX="8.5" refY="5"
+            markerWidth="5" markerHeight="5" orient="auto-start-reverse">
+      <path d="M0 0 L10 5 L0 10 z" fill="#18212b"/>
+    </marker>
+    <marker id="article-pmc891-jetty-cone-flow" viewBox="0 0 10 10" refX="8" refY="5"
+            markerWidth="5.5" markerHeight="5.5" orient="auto">
+      <path d="M0 0 L10 5 L0 10 z" fill="#84a3cf"/>
+    </marker>
+</defs>
+  <g id="jetty-cone" data-element="article_pmc891_jetty_cone">
+    <circle cx="62" cy="164" r="46" fill="#66c8c6" opacity=".72"/>
+    <path d="M62 164 L212 62 L262 98 Z" fill="#f4be48" opacity=".82"/>
+    <path d="M62 164 L205 67" stroke="#b6572c" stroke-width="4" stroke-dasharray="8 6"/>
+    <path d="M83 147 L226 70" stroke="#b6572c" stroke-width="4" stroke-dasharray="8 6" marker-end="url(#article-pmc891-jetty-cone-arrow)"/>
+    <path d="M100 171 L245 103" stroke="#b6572c" stroke-width="4" stroke-dasharray="8 6" marker-end="url(#article-pmc891-jetty-cone-arrow)"/>
+    <path d="M62 164 L270 41" stroke="#31963d" stroke-width="3" stroke-dasharray="9 7"/>
+    <text x="275" y="35" font-family="DejaVu Serif, Times" font-size="22" font-style="italic" fill="#236e23">n</text>
+  </g>
+</svg>

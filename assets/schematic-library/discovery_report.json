@@ -1,0 +1,136 @@
+{
+  "schema_version": "5.1.0",
+  "retrieved": "2026-11-22",
+  "source": "OpenAlex",
+  "journal_groups": [
+    "nature_portfolio",
+    "aps",
+    "hep",
+    "general_science"
+  ],
+  "issns": [
+    "0028-0836",
+    "1745-2473",
+    "2041-1723",
+    "2399-3650",
+    "2045-2322",
+    "2522-5820",
+    "0031-9007",
+    "2469-9985",
+    "2470-0010",
+    "2643-1564",
+    "2469-9888",
+    "0034-6861",
+    "2160-3308",
+    "1029-8479",
+    "1434-6044",
+    "0370-2693",
+    "0375-9474",
+    "0146-6410",
+    "0370-1573",
+    "0036-8075",
+    "2375-2548"
+  ],
+  "queries": [
+    {
+      "id": "initial-state",
+      "query": "relativistic heavy-ion collisions initial state collision geometry reaction plane",
+      "reported_total": 1048,
+      "retrieved": 49
+    },
+    {
+      "id": "collective-flow",
+      "query": "quark gluon plasma collective flow elliptic flow hydrodynamic evolution",
+      "reported_total": 1473,
+      "retrieved": 50
+    },
+    {
+      "id": "qgp",
+      "query": "quark gluon plasma strongly interacting matter heavy-ion collisions",
+      "reported_total": 4901,
+      "retrieved": 50
+    },
+    {
+      "id": "phase-transition",
+      "query": "QCD phase diagram deconfinement critical point heavy-ion collisions",
+      "reported_total": 1220,
+      "retrieved": 50
+    },
+    {
+      "id": "jet-quenching",
+      "query": "jet quenching parton energy loss quark gluon plasma",
+      "reported_total": 1679,
+      "retrieved": 50
+    },
+    {
+      "id": "quarkonia",
+      "query": "quarkonium suppression heavy quark heavy-ion collisions",
+      "reported_total": 1369,
+      "retrieved": 50
+    },
+    {
+      "id": "chiral-effects",
+      "query": "chiral magnetic effect axial anomaly relativistic heavy-ion collisions",
+      "reported_total": 743,
+      "retrieved": 46
+    },
+    {
+      "id": "spin-polarization",
+      "query": "global spin polarization Lambda hyperon vorticity heavy-ion collisions",
+      "reported_total": 131,
+      "retrieved": 48
+    },
+    {
+      "id": "electromagnetic-fields",
+      "query": "electromagnetic fields heavy-ion collisions magnetic field QGP",
+      "reported_total": 1158,
+      "retrieved": 50
+    },
+    {
+      "id": "upc",
+      "query": "ultra-peripheral collisions photonuclear two-photon heavy ions",
+      "reported_total": 181,
+      "retrieved": 47
+    },
+    {
+      "id": "nuclear-deformation",
+      "query": "nuclear deformation high-energy nuclear collisions shape imaging",
+      "reported_total": 497,
+      "retrieved": 42
+    },
+    {
+      "id": "hadronization",
+      "query": "hadronization fragmentation strong interaction heavy-ion collisions",
+      "reported_total": 1778,
+      "retrieved": 50
+    },
+    {
+      "id": "small-systems",
+      "query": "small systems collectivity proton-proton proton-lead collisions",
+      "reported_total": 3796,
+      "retrieved": 44
+    },
+    {
+      "id": "eic",
+      "query": "electron ion collider nuclear structure parton distribution schematic",
+      "reported_total": 431,
+      "retrieved": 50
+    },
+    {
+      "id": "detectors",
+      "query": "heavy-ion detector spectrometer beamline schematic",
+      "reported_total": 440,
+      "retrieved": 21
+    },
+    {
+      "id": "observables",
+      "query": "correlation function anisotropic flow Bayesian inference heavy-ion collisions",
+      "reported_total": 110,
+      "retrieved": 50
+    }
+  ],
+  "unique_candidates": 671,
+  "crossref_expanded_unique_candidates": 5245,
+  "crossref_report": "crossref_report.json",
+  "coverage_note": "Counts are reported per query; unique-candidate total is lower after DOI deduplication."
+}

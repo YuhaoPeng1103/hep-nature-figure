@@ -1,0 +1,527 @@
+{
+  "schema_version": "1.0",
+  "updated": "2026-11-23",
+  "count": 74,
+  "median_mae": 4.002,
+  "max_mae": 19.877,
+  "elements": {
+    "article_pmc130_pair_red_cyan_outgoing": {
+      "mae": 4.1853,
+      "gt8": 0.039369,
+      "gt32": 0.022001,
+      "psnr": 19.0,
+      "method": "smooth-mesh"
+    },
+    "article_pmc125_detector_ring": {
+      "mae": 7.6036,
+      "gt8": 0.277021,
+      "gt32": 0.1219,
+      "psnr": 23.666,
+      "method": "shade"
+    },
+    "article_pmc125_tof_arc": {
+      "mae": 5.4834,
+      "gt8": 0.187456,
+      "gt32": 0.077496,
+      "psnr": 22.583,
+      "method": "shade"
+    },
+    "article_pmc125_track_bundle": {
+      "mae": 5.4907,
+      "gt8": 0.232934,
+      "gt32": 0.052564,
+      "psnr": 26.108,
+      "method": "shade"
+    },
+    "article_pmc125_vertex": {
+      "mae": 0.6073,
+      "gt8": 0.010672,
+      "gt32": 0.003035,
+      "psnr": 35.275,
+      "method": "smooth-mesh"
+    },
+    "article_pmc130_flow_arrow_right": {
+      "mae": 1.0547,
+      "gt8": 0.023416,
+      "gt32": 0.008319,
+      "psnr": 30.835,
+      "method": "vtracer"
+    },
+    "article_pmc130_flow_arrow_up": {
+      "mae": 1.8794,
+      "gt8": 0.071689,
+      "gt32": 0.023375,
+      "psnr": 29.28,
+      "method": "vtracer"
+    },
+    "article_pmc130_medium_left": {
+      "mae": 1.0387,
+      "gt8": 0.025374,
+      "gt32": 0.001132,
+      "psnr": 38.409,
+      "method": "shade"
+    },
+    "article_pmc130_medium_outer": {
+      "mae": 2.6955,
+      "gt8": 0.101685,
+      "gt32": 0.019936,
+      "psnr": 29.347,
+      "method": "shade"
+    },
+    "article_pmc130_pair_magenta_green": {
+      "mae": 8.0631,
+      "gt8": 0.087123,
+      "gt32": 0.066367,
+      "psnr": 16.892,
+      "method": "vtracer"
+    },
+    "article_pmc130_pair_red_green": {
+      "mae": 4.0015,
+      "gt8": 0.046452,
+      "gt32": 0.030863,
+      "psnr": 20.204,
+      "method": "vtracer"
+    },
+    "article_pmc130_pair_yellow_blue": {
+      "mae": 4.7832,
+      "gt8": 0.052863,
+      "gt32": 0.039612,
+      "psnr": 19.15,
+      "method": "vtracer"
+    },
+    "article_pmc130_pair_yellow_blue_lower": {
+      "mae": 6.3877,
+      "gt8": 0.069192,
+      "gt32": 0.052542,
+      "psnr": 17.883,
+      "method": "vtracer"
+    },
+    "article_pmc130_qbar_pair_red_cyan": {
+      "mae": 7.0987,
+      "gt8": 0.150674,
+      "gt32": 0.122125,
+      "psnr": 18.807,
+      "method": "shade"
+    },
+    "article_pmc130_triplet_cyan_magenta": {
+      "mae": 7.4465,
+      "gt8": 0.079862,
+      "gt32": 0.060117,
+      "psnr": 17.242,
+      "method": "vtracer"
+    },
+    "article_pmc701_b_arrow": {
+      "mae": 0.0604,
+      "gt8": 0.0,
+      "gt32": 0.0,
+      "psnr": 59.002,
+      "method": "vtracer"
+    },
+    "article_pmc701_charged_disk": {
+      "mae": 2.1614,
+      "gt8": 0.02856,
+      "gt32": 0.013859,
+      "psnr": 23.302,
+      "method": "vtracer"
+    },
+    "article_pmc701_vortex_nest": {
+      "mae": 0.6806,
+      "gt8": 0.039883,
+      "gt32": 0.007341,
+      "psnr": 37.839,
+      "method": "vtracer"
+    },
+    "article_pmc701_vortex_ring": {
+      "mae": 0.4735,
+      "gt8": 0.007023,
+      "gt32": 0.001239,
+      "psnr": 42.356,
+      "method": "vtracer"
+    },
+    "article_pmc891_event_sphere": {
+      "mae": 5.4045,
+      "gt8": 0.253768,
+      "gt32": 0.067115,
+      "psnr": 25.609,
+      "method": "shade"
+    },
+    "article_pmc891_event_topology": {
+      "mae": 1.8264,
+      "gt8": 0.070149,
+      "gt32": 0.017109,
+      "psnr": 30.399,
+      "method": "shade"
+    },
+    "article_pmc891_isotropic_cone": {
+      "mae": 2.3163,
+      "gt8": 0.098949,
+      "gt32": 0.010121,
+      "psnr": 30.319,
+      "method": "smooth-mesh"
+    },
+    "article_pmc891_jetty_cone": {
+      "mae": 1.7573,
+      "gt8": 0.067265,
+      "gt32": 0.016198,
+      "psnr": 31.387,
+      "method": "shade"
+    },
+    "article_pmc891_z_target": {
+      "mae": 0.8385,
+      "gt8": 0.022856,
+      "gt32": 0.00078,
+      "psnr": 38.404,
+      "method": "vtracer"
+    },
+    "article_t302_body_body": {
+      "mae": 3.1774,
+      "gt8": 0.081886,
+      "gt32": 0.02385,
+      "psnr": 26.672,
+      "method": "vtracer"
+    },
+    "article_t302_prolate_nucleus": {
+      "mae": 1.1055,
+      "gt8": 0.010902,
+      "gt32": 0.00469,
+      "psnr": 26.145,
+      "method": "smooth-mesh"
+    },
+    "article_t302_qgp_droplet": {
+      "mae": 2.2383,
+      "gt8": 0.090173,
+      "gt32": 0.025901,
+      "psnr": 29.94,
+      "method": "shade"
+    },
+    "article_t302_shape_01": {
+      "mae": 2.4084,
+      "gt8": 0.056981,
+      "gt32": 0.014872,
+      "psnr": 30.906,
+      "method": "shade"
+    },
+    "article_t302_shape_02": {
+      "mae": 2.858,
+      "gt8": 0.08355,
+      "gt32": 0.017114,
+      "psnr": 29.419,
+      "method": "vtracer"
+    },
+    "article_t302_shape_03": {
+      "mae": 3.0681,
+      "gt8": 0.147496,
+      "gt32": 0.002367,
+      "psnr": 31.705,
+      "method": "shade"
+    },
+    "article_t302_shape_04": {
+      "mae": 3.8153,
+      "gt8": 0.110817,
+      "gt32": 0.026367,
+      "psnr": 27.538,
+      "method": "vtracer"
+    },
+    "article_t302_shape_05": {
+      "mae": 3.8949,
+      "gt8": 0.10937,
+      "gt32": 0.029588,
+      "psnr": 26.839,
+      "method": "vtracer"
+    },
+    "article_t302_shape_06": {
+      "mae": 0.5586,
+      "gt8": 0.00617,
+      "gt32": 0.002446,
+      "psnr": 36.598,
+      "method": "smooth-mesh"
+    },
+    "article_t302_tip_tip": {
+      "mae": 3.2269,
+      "gt8": 0.095569,
+      "gt32": 0.024199,
+      "psnr": 27.324,
+      "method": "vtracer"
+    },
+    "article_t311_cms_detector": {
+      "mae": 5.8906,
+      "gt8": 0.255076,
+      "gt32": 0.072134,
+      "psnr": 24.302,
+      "method": "vtracer"
+    },
+    "article_t311_q_blue_01": {
+      "mae": 19.877,
+      "gt8": 0.591346,
+      "gt32": 0.345414,
+      "psnr": 17.147,
+      "method": "vtracer"
+    },
+    "article_t311_q_blue_02": {
+      "mae": 6.7093,
+      "gt8": 0.277143,
+      "gt32": 0.134694,
+      "psnr": 23.03,
+      "method": "vtracer"
+    },
+    "article_t311_q_blue_03": {
+      "mae": 5.0578,
+      "gt8": 0.191554,
+      "gt32": 0.066742,
+      "psnr": 24.699,
+      "method": "vtracer"
+    },
+    "article_t311_q_green_01": {
+      "mae": 10.4667,
+      "gt8": 0.442308,
+      "gt32": 0.203997,
+      "psnr": 21.936,
+      "method": "shade"
+    },
+    "article_t311_q_green_02": {
+      "mae": 6.67,
+      "gt8": 0.286364,
+      "gt32": 0.125909,
+      "psnr": 22.777,
+      "method": "vtracer"
+    },
+    "article_t311_q_green_03": {
+      "mae": 7.1297,
+      "gt8": 0.28671,
+      "gt32": 0.145098,
+      "psnr": 22.977,
+      "method": "vtracer"
+    },
+    "article_t311_q_red_02": {
+      "mae": 7.8939,
+      "gt8": 0.335227,
+      "gt32": 0.158654,
+      "psnr": 21.782,
+      "method": "vtracer"
+    },
+    "article_t311_q_red_03": {
+      "mae": 7.7754,
+      "gt8": 0.334875,
+      "gt32": 0.177151,
+      "psnr": 21.903,
+      "method": "vtracer"
+    },
+    "article_t311_qbar_gray_02": {
+      "mae": 7.5838,
+      "gt8": 0.347633,
+      "gt32": 0.119083,
+      "psnr": 23.262,
+      "method": "vtracer"
+    },
+    "article_t311_qbar_green_01": {
+      "mae": 9.3471,
+      "gt8": 0.45747,
+      "gt32": 0.157544,
+      "psnr": 23.454,
+      "method": "shade"
+    },
+    "article_t311_qbar_green_02": {
+      "mae": 10.9859,
+      "gt8": 0.456731,
+      "gt32": 0.169379,
+      "psnr": 20.939,
+      "method": "vtracer"
+    },
+    "article_t311_qbar_red_01": {
+      "mae": 10.6312,
+      "gt8": 0.430618,
+      "gt32": 0.180995,
+      "psnr": 20.148,
+      "method": "vtracer"
+    },
+    "article_t311_qbar_red_02": {
+      "mae": 14.6488,
+      "gt8": 0.615909,
+      "gt32": 0.308636,
+      "psnr": 18.834,
+      "method": "vtracer"
+    },
+    "article_t311_qbar_striped": {
+      "mae": 8.9542,
+      "gt8": 0.399462,
+      "gt32": 0.152249,
+      "psnr": 21.315,
+      "method": "vtracer"
+    },
+    "article_t311_red_quark_clean": {
+      "mae": 6.106,
+      "gt8": 0.244344,
+      "gt32": 0.082579,
+      "psnr": 23.28,
+      "method": "vtracer"
+    },
+    "article_t312_hadronic_medium": {
+      "mae": 3.0176,
+      "gt8": 0.113152,
+      "gt32": 0.013868,
+      "psnr": 30.008,
+      "method": "shade"
+    },
+    "article_t312_hadronizing_shell": {
+      "mae": 2.3712,
+      "gt8": 0.112129,
+      "gt32": 0.010222,
+      "psnr": 31.266,
+      "method": "shade"
+    },
+    "article_t321_tracker_face": {
+      "mae": 6.8265,
+      "gt8": 0.284572,
+      "gt32": 0.097396,
+      "psnr": 24.153,
+      "method": "shade"
+    },
+    "article_t330_dark_gray_nucleon": {
+      "mae": 4.3961,
+      "gt8": 0.152657,
+      "gt32": 0.053623,
+      "psnr": 25.663,
+      "method": "vtracer"
+    },
+    "article_t330_gray_nucleon": {
+      "mae": 3.817,
+      "gt8": 0.119826,
+      "gt32": 0.041394,
+      "psnr": 26.356,
+      "method": "vtracer"
+    },
+    "article_t330_qgp_fireball": {
+      "mae": 0.8512,
+      "gt8": 0.066283,
+      "gt32": 0.001248,
+      "psnr": 38.339,
+      "method": "smooth-mesh"
+    },
+    "article_t330_red_nucleon": {
+      "mae": 7.8263,
+      "gt8": 0.166126,
+      "gt32": 0.103896,
+      "psnr": 20.161,
+      "method": "shade"
+    },
+    "article_t330_red_nucleon_highlight": {
+      "mae": 7.4974,
+      "gt8": 0.174036,
+      "gt32": 0.075397,
+      "psnr": 19.457,
+      "method": "vtracer"
+    },
+    "article_t331_star_cutaway": {
+      "mae": 11.5491,
+      "gt8": 0.43517,
+      "gt32": 0.253503,
+      "psnr": 21.65,
+      "method": "shade"
+    },
+    "article_t334_magnetic_arrow": {
+      "mae": 9.8155,
+      "gt8": 0.218272,
+      "gt32": 0.156728,
+      "psnr": 16.036,
+      "method": "vtracer"
+    },
+    "article_t335_green_nucleon_right": {
+      "mae": 2.9675,
+      "gt8": 0.032558,
+      "gt32": 0.023768,
+      "psnr": 21.275,
+      "method": "vtracer"
+    },
+    "article_t335_green_nucleon_top": {
+      "mae": 1.9758,
+      "gt8": 0.02949,
+      "gt32": 0.021684,
+      "psnr": 24.201,
+      "method": "vtracer"
+    },
+    "article_t335_purple_nucleon": {
+      "mae": 2.6454,
+      "gt8": 0.029898,
+      "gt32": 0.023145,
+      "psnr": 21.825,
+      "method": "vtracer"
+    },
+    "article_t335_red_nucleon_bottom": {
+      "mae": 2.3551,
+      "gt8": 0.029729,
+      "gt32": 0.020432,
+      "psnr": 22.593,
+      "method": "vtracer"
+    },
+    "article_t335_red_nucleon_top": {
+      "mae": 2.4632,
+      "gt8": 0.029128,
+      "gt32": 0.020303,
+      "psnr": 22.291,
+      "method": "vtracer"
+    },
+    "article_t360_neutron_back": {
+      "mae": 4.6847,
+      "gt8": 0.101869,
+      "gt32": 0.049569,
+      "psnr": 23.176,
+      "method": "vtracer"
+    },
+    "article_t360_neutron_center": {
+      "mae": 3.4875,
+      "gt8": 0.066116,
+      "gt32": 0.033058,
+      "psnr": 24.78,
+      "method": "vtracer"
+    },
+    "article_t360_neutron_lower": {
+      "mae": 4.6368,
+      "gt8": 0.089268,
+      "gt32": 0.037294,
+      "psnr": 22.703,
+      "method": "vtracer"
+    },
+    "article_t360_neutron_top": {
+      "mae": 3.8172,
+      "gt8": 0.051022,
+      "gt32": 0.029867,
+      "psnr": 25.281,
+      "method": "vtracer"
+    },
+    "article_t360_proton_left": {
+      "mae": 4.8452,
+      "gt8": 0.081629,
+      "gt32": 0.040533,
+      "psnr": 22.254,
+      "method": "vtracer"
+    },
+    "article_t360_proton_right": {
+      "mae": 5.1669,
+      "gt8": 0.085007,
+      "gt32": 0.045224,
+      "psnr": 21.508,
+      "method": "vtracer"
+    },
+    "article_t360_proton_top": {
+      "mae": 4.002,
+      "gt8": 0.0688,
+      "gt32": 0.034133,
+      "psnr": 23.407,
+      "method": "vtracer"
+    },
+    "article_t72_eic_detector": {
+      "mae": 3.5423,
+      "gt8": 0.085879,
+      "gt32": 0.027039,
+      "psnr": 23.748,
+      "method": "vtracer"
+    },
+    "article_prl125_qgp_jet_scene": {
+      "mae": 0.8112,
+      "gt8": 0.007761,
+      "gt32": 0.003392,
+      "psnr": 26.926,
+      "method": "smooth-mesh"
+    }
+  }
+}

@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 90 360"
+     data-element-asset="article_t334_magnetic_arrow" data-origin="article_vector_native">
+  <defs>
+    <marker id="article-t334-magnetic-arrow-arrow" viewBox="0 0 10 10" refX="8.5" refY="5"
+            markerWidth="5" markerHeight="5" orient="auto-start-reverse">
+      <path d="M0 0 L10 5 L0 10 z" fill="#18212b"/>
+    </marker>
+    <marker id="article-t334-magnetic-arrow-flow" viewBox="0 0 10 10" refX="8" refY="5"
+            markerWidth="5.5" markerHeight="5.5" orient="auto">
+      <path d="M0 0 L10 5 L0 10 z" fill="#84a3cf"/>
+    </marker>
+</defs>
+  <g id="magnetic-field-arrow" data-element="article_t334_magnetic_arrow">
+    <path d="M45 330 L45 28" stroke="#e33529" stroke-width="8"
+          stroke-linecap="round" marker-end="url(#article-t334-magnetic-arrow-arrow)"/>
+    <path d="M45 312 C15 270 72 230 38 190 C8 150 72 116 45 74"
+          fill="none" stroke="#6f56bd" stroke-width="2.3" opacity=".58"/>
+  </g>
+</svg>

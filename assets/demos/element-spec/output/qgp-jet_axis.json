@@ -1,0 +1,238 @@
+{
+  "checks": [
+    {
+      "ok": true,
+      "label": "X0 SVG 与位图的轴名多重集一致",
+      "detail": "svg=['x', 'y', 'z']  png=['x', 'y', 'z']",
+      "hard": false
+    },
+    {
+      "ok": true,
+      "label": "X1 坐标约定已声明",
+      "detail": "面内=['x', 'z'] 法线=y  (composition.坐标约定)",
+      "hard": true
+    },
+    {
+      "ok": true,
+      "label": "X2 恰好三个互不相同的轴名",
+      "detail": "实测 ['x', 'y', 'z']",
+      "hard": true
+    },
+    {
+      "ok": true,
+      "label": "X2 轴名集合 == 约定",
+      "detail": "实测 ['x', 'y', 'z']  约定 ['x', 'y', 'z']",
+      "hard": true
+    },
+    {
+      "ok": true,
+      "label": "X3 x 出现次数 <= 2",
+      "detail": "1 次（同一轴两端各一次是允许的）",
+      "hard": true
+    },
+    {
+      "ok": true,
+      "label": "X3 y 出现次数 <= 2",
+      "detail": "1 次（同一轴两端各一次是允许的）",
+      "hard": true
+    },
+    {
+      "ok": true,
+      "label": "X3 z 出现次数 <= 2",
+      "detail": "1 次（同一轴两端各一次是允许的）",
+      "hard": true
+    },
+    {
+      "ok": true,
+      "label": "X5 无第四个轴名",
+      "detail": "只有 x / y / z",
+      "hard": true
+    },
+    {
+      "ok": true,
+      "label": "X8 投影类型 ∈ {斜二测, 斜投影, 等轴测, 正等测}",
+      "detail": "类型 = '斜二测'（出处 composition.projection）",
+      "hard": true
+    },
+    {
+      "ok": true,
+      "label": "X8 三轴方向 / 前缩自洽（斜二测 或 正交轴测）",
+      "detail": "斜二测：面内 y/z 夹角 90.0 度（≈90）、前缩 1.00/1.00 相等，法线轴 x 前缩 0.72 更小、与最近面内轴夹角 30 度",
+      "hard": true
+    },
+    {
+      "ok": true,
+      "label": "X7 右手定则（声明）",
+      "detail": "IR 已声明右手系（composition.坐标约定.手性）",
+      "hard": true
+    },
+    {
+      "ok": true,
+      "label": "X9 束流轴 = z（默认）",
+      "detail": "出处：composition.坐标约定.束流轴",
+      "hard": true
+    },
+    {
+      "ok": false,
+      "label": "X4 x 标注贴在一根轴杆上",
+      "detail": "最近的杆垂距 9414 px > 容许 130",
+      "hard": false
+    },
+    {
+      "ok": false,
+      "label": "X4 y 标注贴在一根轴杆上",
+      "detail": "最近的杆垂距 -1 px > 容许 130",
+      "hard": false
+    },
+    {
+      "ok": false,
+      "label": "X4 z 标注贴在一根轴杆上",
+      "detail": "最近的杆垂距 8636 px > 容许 130",
+      "hard": false
+    },
+    {
+      "ok": false,
+      "label": "X7b 图上三轴方向 == IR 声明的 轴方向_deg",
+      "detail": "轴标注没贴到任何轴杆上（无法核对）",
+      "hard": false
+    }
+  ],
+  "fails": [],
+  "warns": [
+    "X4 x 标注贴在一根轴杆上 (最近的杆垂距 9414 px > 容许 130)",
+    "X4 y 标注贴在一根轴杆上 (最近的杆垂距 -1 px > 容许 130)",
+    "X4 z 标注贴在一根轴杆上 (最近的杆垂距 8636 px > 容许 130)",
+    "X7b 图上三轴方向 == IR 声明的 轴方向_deg (轴标注没贴到任何轴杆上（无法核对）)"
+  ],
+  "readings": {
+    "convention": {
+      "in_plane": [
+        "x",
+        "z"
+      ],
+      "normal": "y",
+      "source": "composition.坐标约定"
+    },
+    "projection_family": "oblique",
+    "axis_angles_deg": {
+      "x": 30.0,
+      "y": -90.0,
+      "z": 0.0
+    },
+    "foreshort": {
+      "x": 0.72,
+      "y": 1.0,
+      "z": 1.0
+    },
+    "plane": {
+      "frac": 0.169,
+      "edges": [
+        0.0,
+        26.0
+      ]
+    },
+    "rods": [
+      {
+        "dir": 133.8,
+        "centre": [
+          3347,
+          1366
+        ],
+        "halflen": 240
+      },
+      {
+        "dir": 178.2,
+        "centre": [
+          678,
+          1422
+        ],
+        "halflen": 245
+      },
+      {
+        "dir": 26.4,
+        "centre": [
+          2135,
+          1593
+        ],
+        "halflen": 179
+      },
+      {
+        "dir": 161.1,
+        "centre": [
+          759,
+          1464
+        ],
+        "halflen": 208
+      },
+      {
+        "dir": 161.2,
+        "centre": [
+          737,
+          1459
+        ],
+        "halflen": 200
+      },
+      {
+        "dir": 16.9,
+        "centre": [
+          820,
+          1512
+        ],
+        "halflen": 139
+      },
+      {
+        "dir": 143.1,
+        "centre": [
+          755,
+          1462
+        ],
+        "halflen": 185
+      },
+      {
+        "dir": 30.4,
+        "centre": [
+          827,
+          1512
+        ],
+        "halflen": 140
+      },
+      {
+        "dir": 56.5,
+        "centre": [
+          3224,
+          697
+        ],
+        "halflen": 219
+      },
+      {
+        "dir": 49.7,
+        "centre": [
+          1859,
+          1853
+        ],
+        "halflen": 346
+      },
+      {
+        "dir": 45.3,
+        "centre": [
+          814,
+          1515
+        ],
+        "halflen": 121
+      },
+      {
+        "dir": 89.7,
+        "centre": [
+          804,
+          1500
+        ],
+        "halflen": 142
+      }
+    ],
+    "name_to_dir": {
+      "x": null,
+      "y": null,
+      "z": null
+    }
+  }
+}

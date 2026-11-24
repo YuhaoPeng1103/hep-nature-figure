@@ -1,0 +1,55 @@
+{
+  "schema_version": "1.0",
+  "profile_id": "nature-2026",
+  "display_name": "Nature schematic profile (2026 repository baseline)",
+  "canvas": {
+    "widths_mm": [89, 183],
+    "max_height_mm": 247
+  },
+  "typography": {
+    "font_size_pt_min": 5,
+    "font_size_pt_max": 12,
+    "recommended_pt": [5, 7],
+    "allowed_families": [
+      "DejaVu Sans",
+      "Arial",
+      "Helvetica",
+      "Noto Sans",
+      "Noto Sans CJK SC",
+      "Noto Sans CJK JP"
+    ]
+  },
+  "lines": {
+    "min_pt": 0.25,
+    "max_pt": 3.0,
+    "recommended_pt": [0.5, 2.0]
+  },
+  "palette": {
+    "mode": "semantic-hue-families",
+    "allowed_families": [
+      "neutral",
+      "red",
+      "orange",
+      "amber",
+      "green",
+      "cyan",
+      "blue",
+      "violet",
+      "magenta"
+    ],
+    "max_chromatic_families": 8
+  },
+  "raster": {
+    "min_photo_dpi": 300,
+    "min_combination_dpi": 600,
+    "safe_mode_allows_raster": false
+  },
+  "safe_mode": {
+    "forbidden_origins": [
+      "ai_raster",
+      "ai_generated_vector"
+    ],
+    "forbid_embedded_image": true,
+    "forbid_ai_pixels": true
+  }
+}

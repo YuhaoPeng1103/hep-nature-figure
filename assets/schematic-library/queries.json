@@ -1,0 +1,145 @@
+{
+  "schema_version": "5.1.0",
+  "journal_groups": {
+    "nature_portfolio": {
+      "label": "Nature and Nature-family journals",
+      "issns": [
+        "0028-0836",
+        "1745-2473",
+        "2041-1723",
+        "2399-3650",
+        "2045-2322",
+        "2522-5820"
+      ]
+    },
+    "aps": {
+      "label": "Physical Review series",
+      "issns": [
+        "0031-9007",
+        "2469-9985",
+        "2470-0010",
+        "2643-1564",
+        "2469-9888",
+        "0034-6861",
+        "2160-3308"
+      ]
+    },
+    "hep": {
+      "label": "General HEP journals",
+      "issns": [
+        "1029-8479",
+        "1434-6044",
+        "0370-2693",
+        "0375-9474",
+        "0146-6410",
+        "0370-1573"
+      ]
+    },
+    "general_science": {
+      "label": "General-science journals",
+      "issns": [
+        "0036-8075",
+        "2375-2548",
+        "2041-1723"
+      ]
+    }
+  },
+  "queries": [
+    {
+      "id": "initial-state",
+      "query": "relativistic heavy-ion collisions initial state collision geometry reaction plane",
+      "epmc_query": "(\"initial state\" AND (\"heavy-ion\" OR \"heavy ion\") AND (geometry OR \"reaction plane\"))",
+      "topics": ["initial-state"]
+    },
+    {
+      "id": "collective-flow",
+      "query": "quark gluon plasma collective flow elliptic flow hydrodynamic evolution",
+      "epmc_query": "(collective flow OR elliptic flow OR anisotropic flow OR hydrodynamic)",
+      "topics": ["collective-flow", "qgp"]
+    },
+    {
+      "id": "qgp",
+      "query": "quark gluon plasma strongly interacting matter heavy-ion collisions",
+      "epmc_query": "(\"quark-gluon plasma\" OR \"quark gluon plasma\" OR QGP OR \"hot QCD\")",
+      "topics": ["qgp"]
+    },
+    {
+      "id": "phase-transition",
+      "query": "QCD phase diagram deconfinement critical point heavy-ion collisions",
+      "epmc_query": "(QCD AND (\"phase diagram\" OR deconfinement OR \"critical point\"))",
+      "topics": ["phase-transition", "qgp"]
+    },
+    {
+      "id": "jet-quenching",
+      "query": "jet quenching parton energy loss quark gluon plasma",
+      "epmc_query": "(\"jet quenching\" OR \"jet energy loss\" OR \"parton energy loss\")",
+      "topics": ["jet-quenching", "qgp"]
+    },
+    {
+      "id": "quarkonia",
+      "query": "quarkonium suppression heavy quark heavy-ion collisions",
+      "epmc_query": "(quarkonium OR charmonium OR bottomonium OR \"heavy quark\")",
+      "topics": ["quarkonia", "qgp"]
+    },
+    {
+      "id": "chiral-effects",
+      "query": "chiral magnetic effect axial anomaly relativistic heavy-ion collisions",
+      "epmc_query": "(\"chiral magnetic effect\" OR \"chiral anomaly\" OR \"axial anomaly\" OR \"chiral vortical effect\")",
+      "topics": ["chiral-effects"]
+    },
+    {
+      "id": "spin-polarization",
+      "query": "global spin polarization Lambda hyperon vorticity heavy-ion collisions",
+      "epmc_query": "(\"spin polarization\" OR \"global polarization\" OR \"spin alignment\" OR vorticity)",
+      "topics": ["spin-polarization"]
+    },
+    {
+      "id": "electromagnetic-fields",
+      "query": "electromagnetic fields heavy-ion collisions magnetic field QGP",
+      "epmc_query": "((\"electromagnetic field\" OR \"magnetic field\") AND (\"heavy-ion\" OR QGP OR quark))",
+      "topics": ["electromagnetic-fields"]
+    },
+    {
+      "id": "upc",
+      "query": "ultra-peripheral collisions photonuclear two-photon heavy ions",
+      "epmc_query": "(\"ultra-peripheral\" OR photonuclear OR \"two-photon\")",
+      "topics": ["upc", "nuclear-structure"]
+    },
+    {
+      "id": "nuclear-deformation",
+      "query": "nuclear deformation high-energy nuclear collisions shape imaging",
+      "epmc_query": "(\"nuclear deformation\" OR \"nuclear shape\" OR \"deformed nucleus\" OR \"shape imaging\")",
+      "topics": ["nuclear-structure"]
+    },
+    {
+      "id": "hadronization",
+      "query": "hadronization fragmentation strong interaction heavy-ion collisions",
+      "epmc_query": "(hadronization OR coalescence OR \"fragmentation function\")",
+      "topics": ["hadronization"]
+    },
+    {
+      "id": "small-systems",
+      "query": "small systems collectivity proton-proton proton-lead collisions",
+      "epmc_query": "(\"proton-lead\" OR \"p-Pb\" OR \"pPb\" OR \"small system\")",
+      "topics": ["small-systems"]
+    },
+    {
+      "id": "eic",
+      "query": "electron ion collider nuclear structure parton distribution schematic",
+      "epmc_query": "(\"electron-ion collider\" OR EIC)",
+      "topics": ["eic", "nuclear-structure"]
+    },
+    {
+      "id": "detectors",
+      "query": "heavy-ion detector spectrometer beamline schematic",
+      "epmc_query": "((detector OR spectrometer OR beamline) AND (\"heavy-ion\" OR \"heavy ion\" OR ALICE OR STAR OR sPHENIX))",
+      "topics": ["detectors"]
+    },
+    {
+      "id": "observables",
+      "query": "correlation function anisotropic flow Bayesian inference heavy-ion collisions",
+      "epmc_query": "(\"correlation function\" OR \"anisotropic flow\" OR \"Bayesian inference\")",
+      "topics": ["observables", "collective-flow"]
+    }
+  ]
+}

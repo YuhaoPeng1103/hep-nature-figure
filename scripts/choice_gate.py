@@ -42,6 +42,12 @@ import os
 import sys
 from pathlib import Path
 
+try:
+    from _console import init_console
+    init_console()
+except Exception:
+    pass
+
 CLIENT_WORDS = {"client", "customer", "author", "user", "客户", "作者", "用户", "甲方"}
 AGENT_WORDS = {"agent", "assistant", "ai", "auto", "自动", "我自己", "我", "codex"}
 MANUAL_TAKEOVER = "manual"

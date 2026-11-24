@@ -1,0 +1,245 @@
+{
+  "schema_version": "5.1.0",
+  "topics": {
+    "initial-state": {
+      "label_zh": "初始状态与碰撞几何",
+      "label_en": "Initial state and collision geometry",
+      "keywords": [
+        "initial state",
+        "collision geometry",
+        "初态",
+        "碰撞几何",
+        "核形变",
+        "reaction plane",
+        "participant",
+        "spectator",
+        "impact parameter"
+      ]
+    },
+    "collective-flow": {
+      "label_zh": "集体流与流体演化",
+      "label_en": "Collective flow and hydrodynamic evolution",
+      "keywords": [
+        "collective flow",
+        "集体流",
+        "elliptic flow",
+        "triangular flow",
+        "hydrodynamic",
+        "anisotropic flow"
+      ]
+    },
+    "qgp": {
+      "label_zh": "QGP 介质与状态方程",
+      "label_en": "QGP medium and equation of state",
+      "keywords": [
+        "quark-gluon plasma",
+        "quark gluon plasma",
+        "夸克胶子等离子体",
+        "火球",
+        "QGP",
+        "hot QCD",
+        "strongly coupled"
+      ]
+    },
+    "phase-transition": {
+      "label_zh": "QCD 相图与相变",
+      "label_en": "QCD phase diagram and transitions",
+      "keywords": [
+        "QCD phase",
+        "QCD相图",
+        "phase diagram",
+        "critical point",
+        "crossover",
+        "deconfinement"
+      ]
+    },
+    "jet-quenching": {
+      "label_zh": "喷注淬火与部分子能量损失",
+      "label_en": "Jet quenching and parton energy loss",
+      "keywords": [
+        "jet quenching",
+        "喷注淬火",
+        "energy loss",
+        "jet",
+        "parton",
+        "medium response"
+      ]
+    },
+    "quarkonia": {
+      "label_zh": "重味与夸克偶素",
+      "label_en": "Heavy flavor and quarkonia",
+      "keywords": [
+        "quarkonium",
+        "夸克偶素",
+        "J/psi",
+        "upsilon",
+        "heavy quark",
+        "charmonium",
+        "bottomonium"
+      ]
+    },
+    "chiral-effects": {
+      "label_zh": "手征效应与反常输运",
+      "label_en": "Chiral effects and anomalous transport",
+      "keywords": [
+        "chiral magnetic effect",
+        "手征磁效应",
+        "chiral anomaly",
+        "chiral vortical effect",
+        "axial anomaly",
+        "CME"
+      ]
+    },
+    "spin-polarization": {
+      "label_zh": "自旋极化与涡旋",
+      "label_en": "Spin polarization and vorticity",
+      "keywords": [
+        "spin polarization",
+        "自旋极化",
+        "global polarization",
+        "vorticity",
+        "Lambda polarization",
+        "spin alignment"
+      ]
+    },
+    "electromagnetic-fields": {
+      "label_zh": "强电磁场",
+      "label_en": "Intense electromagnetic fields",
+      "keywords": [
+        "electromagnetic field",
+        "电磁场",
+        "magnetic field",
+        "electric field",
+        "Lorentz force"
+      ]
+    },
+    "upc": {
+      "label_zh": "超边缘碰撞与光子核反应",
+      "label_en": "Ultra-peripheral and photonuclear collisions",
+      "keywords": [
+        "ultra-peripheral",
+        "超边缘碰撞",
+        "UPC",
+        "photonuclear",
+        "two-photon",
+        "photon-photon"
+      ]
+    },
+    "nuclear-structure": {
+      "label_zh": "核结构与形变",
+      "label_en": "Nuclear structure and deformation",
+      "keywords": [
+        "nuclear structure",
+        "核结构",
+        "deformed nucleus",
+        "intrinsic deformation",
+        "neutron skin",
+        "nuclear shape"
+      ]
+    },
+    "hadronization": {
+      "label_zh": "强子化与强相互作用",
+      "label_en": "Hadronization and strong interactions",
+      "keywords": [
+        "hadronization",
+        "强子化",
+        "fragmentation",
+        "strong interaction",
+        "hadron",
+        "coalescence"
+      ]
+    },
+    "small-systems": {
+      "label_zh": "小系统与 pp/pA 碰撞",
+      "label_en": "Small systems and pp/pA collisions",
+      "keywords": [
+        "small system",
+        "小系统",
+        "proton-lead",
+        "p-A",
+        "proton-proton",
+        "collectivity"
+      ]
+    },
+    "eic": {
+      "label_zh": "EIC 与核子结构",
+      "label_en": "EIC and nucleon structure",
+      "keywords": [
+        "electron-ion collider",
+        "电子离子对撞机",
+        "EIC",
+        "DIS",
+        "parton distribution",
+        "nucleon structure"
+      ]
+    },
+    "detectors": {
+      "label_zh": "探测器与束线",
+      "label_en": "Detectors and beamlines",
+      "keywords": [
+        "detector",
+        "探测器",
+        "beamline",
+        "spectrometer",
+        "tracker",
+        "calorimeter"
+      ]
+    },
+    "observables": {
+      "label_zh": "观测量与分析方法",
+      "label_en": "Observables and analysis methods",
+      "keywords": [
+        "correlation function",
+        "flow harmonic",
+        "Bayesian inference",
+        "machine learning",
+        "observable"
+      ]
+    }
+  },
+  "schematic_types": [
+    "3d-illustration",
+    "semi-3d",
+    "flat-diagram",
+    "geometry-diagram",
+    "timeline",
+    "phase-diagram",
+    "detector-cutaway",
+    "spacetime-evolution",
+    "multi-panel",
+    "mixed-data-schematic"
+  ],
+  "style_tags": [
+    "render3d",
+    "axonometric",
+    "isometric",
+    "oblique",
+    "orthographic",
+    "photorealistic",
+    "translucent",
+    "metallic",
+    "plasma",
+    "particle-texture",
+    "field-lines",
+    "clean-editorial",
+    "dark-background",
+    "light-background"
+  ],
+  "redistributable_licenses": [
+    "CC0-1.0",
+    "CC-BY-4.0"
+  ],
+  "metadata_only_licenses": [
+    "CC-BY-NC-4.0",
+    "CC-BY-ND-4.0",
+    "CC-BY-NC-ND-4.0",
+    "arXiv-default",
+    "publisher-copyright",
+    "publisher-open-bronze"
+  ],
+  "statuses": [
+    "verified_figure",
+    "metadata_only",
+    "article_candidate"
+  ]
+}

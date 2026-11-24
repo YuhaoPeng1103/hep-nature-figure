@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 180 130"
+     data-element-asset="article_pmc130_pair_yellow_blue" data-origin="article_vector_native">
+  <defs>
+    <radialGradient id="article-pmc130-pair-yellow-blue-p0" cx=".34" cy=".28" r=".72"><stop offset="0" stop-color="#fff59a"/><stop offset=".22" stop-color="#e7c51a"/><stop offset="1" stop-color="#786100"/></radialGradient><radialGradient id="article-pmc130-pair-yellow-blue-p1" cx=".34" cy=".28" r=".72"><stop offset="0" stop-color="#b9d5ff"/><stop offset=".22" stop-color="#235bd5"/><stop offset="1" stop-color="#0a2a72"/></radialGradient>
+    <marker id="article-pmc130-pair-yellow-blue-arrow" viewBox="0 0 10 10" refX="8.5" refY="5"
+            markerWidth="5" markerHeight="5" orient="auto-start-reverse">
+      <path d="M0 0 L10 5 L0 10 z" fill="#18212b"/>
+    </marker>
+  </defs>
+  <g id="parton-cluster" data-element="article_pmc130_pair_yellow_blue">
+    <circle cx="60" cy="62" r="20" fill="url(#article-pmc130-pair-yellow-blue-p0)" stroke="#786100" stroke-width="1"/><ellipse cx="53" cy="54" rx="5" ry="3" fill="#ffffff" opacity=".52"/><circle cx="103" cy="53" r="20" fill="url(#article-pmc130-pair-yellow-blue-p1)" stroke="#0a2a72" stroke-width="1"/><ellipse cx="96" cy="45" rx="5" ry="3" fill="#ffffff" opacity=".52"/>
+    <path d="M74 80 C98 84 117 80 140 70" fill="none" stroke="#18212b" stroke-width="3.5" marker-end="url(#article-pmc130-pair-yellow-blue-arrow)"/>
+  </g>
+</svg>

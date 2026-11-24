@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""init_workspace -- 在一个新工作区落地 skill 的硬规则（v4.31）
+"""init_workspace -- 在一个新工作区落地 skill 的硬规则（v5.1）
 
 做两件事：
   1) 写 <ws>/AGENTS.md —— 硬规则的入口版（新对话一进来就能看到，不依赖用户手抄）；
@@ -29,6 +29,10 @@ SHIMS = [
     "ir_to_genbrief", "brief_lite", "check_direct_svg", "check_svg_pair", "raster_to_vector_semantic", "trace_rebuild",
     "semantic_conflicts", "semantic_competition", "semantic_release", "release_gate",
     "edit_to_visual",
+    "schematic_library",
+    "element_library", "element_variants", "spec_confirm", "spec_compile", "visual_review", "nature_gate",
+    "source_element_extract",
+    "build_element_library",
     "gen_figure",
 ]
 
@@ -50,7 +54,7 @@ sys.path.insert(0, str(TARGET.parent))
 runpy.run_path(str(TARGET), run_name="__main__")
 '''
 
-AGENTS = """# AGENTS.md —— 配图工作硬规则（由 hep-nature-figure v4.31 生成）
+AGENTS = """# AGENTS.md —— 配图工作硬规则（由 hep-nature-figure v5.1 生成）
 
 > 完整规则与标定：`{skill}/references/hard_rules.md`
 > 本文件是入口版；两者冲突时**取更严的那条**。
@@ -76,9 +80,19 @@ python tools/ref_guard.py --run --stage sketch --brief <brief.md> --tier <A|B|C|
 
 ## 2. 参考图角色（R1）
 
-- `--ref` 只收风格书（`assets/t3-exemplars/`、本工作区 `_T3精选/`）。
+- `--ref` 只收风格书（`assets/t3-exemplars/`、
+  `assets/schematic-library/redistributable/`、本工作区 `_T3精选/`）。
 - `--content-ref`：草图档只收手绘输入；render 档只收本阶梯已登记 rung 的图。
 - 自家成品、`assets/demos/**` 任何阶段都不许当参考；同一张图不许兼两个角色。
+
+## 2.1 元素级生产链（R11/R12）
+
+- 新创作先把元素、文字、连接、画布和硬物理写成 spec；
+- `spec_confirm.py` 收客户回执，完整 spec hash 绑定；
+- `spec_compile.py --safe-mode` 排除 AI 像素与嵌入位图；`--source-derived-only` 再排除 software 占位图元；
+- `visual_review.py` 收最终看图回执；`--final` 复核 SVG/PDF/PNG 哈希；
+- `nature_gate.py` 检查 Nature 尺寸、字号、线宽、色板和 DPI；
+- 元素补充与 AI provenance 见 `references/element-spec-pipeline.md`。
 
 ## 3. 3D 明暗风（R2）
 

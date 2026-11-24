@@ -9,7 +9,7 @@
 # ── 核心（几乎所有工具都要）──
 numpy>=1.24
 Pillow>=10.0
-cairosvg>=2.7          # SVG → PNG/PDF 渲染。★必须用它，PyMuPDF 渲 SVG 会丢渐变
+cairosvg>=2.7          # SVG → PNG/PDF 首选；若本机 Cairo PDF OOM，spec_compile 用 PyMuPDF 矢量回退
 pymupdf>=1.24          # PDF 几何审计、拼版、从论文切图
 
 # ── 位图 → 矢量（scripts/raster_to_vector_semantic.py）──
@@ -32,6 +32,8 @@ shapely>=2.0           # geom.py 的布尔运算（无它时 blob()/poly_to_path
 PyYAML>=6.0            # 读 IR 的 yaml。无它时门禁自动跳过结构断言，不阻断
 opencv-python>=4.8     # raster_to_vector.py 逐像素描摹（无 skimage 时用它）
 scikit-image>=0.21     # raster_to_vector.py 逐像素描摹的备选后端（二选一即可）
+lxml>=5.0              # APS/publisher HTML 图件索引
+vtracer>=0.6           # 文章来源元素与可选纹理 SVG 矢量化
 
 # ── 外部命令（按图型选装，见 scripts/check_tools.py）──
 #   LaTeX (pdflatex)   TikZ / 公式     sudo apt install texlive-latex-recommended texlive-pictures

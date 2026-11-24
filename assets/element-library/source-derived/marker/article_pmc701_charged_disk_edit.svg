@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"
+     data-element-asset="article_pmc701_charged_disk" data-origin="article_vector_native">
+  <g id="charged-vortex" data-element="article_pmc701_charged_disk">
+    <circle cx="50" cy="50" r="38" fill="#08090b"/>
+    <circle cx="50" cy="50" r="34" fill="none" stroke="#25272a" stroke-width="2"/>
+    <text x="50" y="59" text-anchor="middle" font-family="DejaVu Sans, Arial"
+          font-size="25" fill="#fff">q<tspan dy="-7" font-size="17">e</tspan></text>
+  </g>
+</svg>

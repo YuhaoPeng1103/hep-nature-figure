@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 180 130"
+     data-element-asset="article_pmc130_pair_red_green" data-origin="article_vector_native">
+  <defs>
+    <radialGradient id="article-pmc130-pair-red-green-p0" cx=".34" cy=".28" r=".72"><stop offset="0" stop-color="#ff8e91"/><stop offset=".22" stop-color="#e12532"/><stop offset="1" stop-color="#850511"/></radialGradient><radialGradient id="article-pmc130-pair-red-green-p1" cx=".34" cy=".28" r=".72"><stop offset="0" stop-color="#b8ff98"/><stop offset=".22" stop-color="#1bc84b"/><stop offset="1" stop-color="#07581b"/></radialGradient>
+    <marker id="article-pmc130-pair-red-green-arrow" viewBox="0 0 10 10" refX="8.5" refY="5"
+            markerWidth="5" markerHeight="5" orient="auto-start-reverse">
+      <path d="M0 0 L10 5 L0 10 z" fill="#18212b"/>
+    </marker>
+  </defs>
+  <g id="parton-cluster" data-element="article_pmc130_pair_red_green">
+    <circle cx="60" cy="62" r="20" fill="url(#article-pmc130-pair-red-green-p0)" stroke="#850511" stroke-width="1"/><ellipse cx="53" cy="54" rx="5" ry="3" fill="#ffffff" opacity=".52"/><circle cx="103" cy="53" r="20" fill="url(#article-pmc130-pair-red-green-p1)" stroke="#07581b" stroke-width="1"/><ellipse cx="96" cy="45" rx="5" ry="3" fill="#ffffff" opacity=".52"/>
+    <path d="M118 39 C141 31 150 28 162 21" fill="none" stroke="#18212b" stroke-width="4" marker-end="url(#article-pmc130-pair-red-green-arrow)"/>
+  </g>
+</svg>

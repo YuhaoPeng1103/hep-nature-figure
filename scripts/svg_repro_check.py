@@ -16,11 +16,19 @@ import argparse, io, json, os
 import numpy as np
 
 
+def _flatten_rgba(image):
+    from PIL import Image
+    im = image.convert("RGBA")
+    bg = Image.new("RGBA", im.size, "white")
+    bg.alpha_composite(im)
+    return np.asarray(bg.convert("RGB"), np.float32)
+
+
 def render(svg, w, h):
     import cairosvg
     png = cairosvg.svg2png(url=svg, output_width=w, output_height=h)
     from PIL import Image
-    return np.asarray(Image.open(io.BytesIO(png)).convert("RGB"), np.float32)
+    return _flatten_rgba(Image.open(io.BytesIO(png)))
 
 
 def metrics(a, b, mask=None):
@@ -58,7 +66,7 @@ def main():
     a = ap.parse_args()
 
     from PIL import Image
-    src = np.asarray(Image.open(a.png).convert("RGB"), np.float32)
+    src = _flatten_rgba(Image.open(a.png))
     H, W = src.shape[:2]
     ren = render(a.svg, W, H)
     if ren.shape[:2] != src.shape[:2]:

@@ -138,6 +138,13 @@ def silhouette_d(mask, eps=0.7, win=5, rounds=2):
     return "M" + " ".join("%.1f %.1f" % (x, y) for x, y in P) + "Z"
 
 
+def flatten_alpha(source) -> Image.Image:
+    im = source.convert("RGBA")
+    bg = Image.new("RGBA", im.size, "white")
+    bg.alpha_composite(im)
+    return bg.convert("RGB")
+
+
 def size_from_svg(src, svg_path):
     m = re.search(r"<svg\b[^>]*\bwidth=\"([\d.]+)\"[^>]*\bheight=\"([\d.]+)\"", src)
     if m:
@@ -192,7 +199,7 @@ def main():
         raise SystemExit("临摹图里没有这些图层 id：%s" % ", ".join(missing))
     print("trace=%s\nsrc=%s\nsize=%dx%d  elements=%s" % (a.trace, a.src, W, H, ELEMENTS))
 
-    img = np.asarray(Image.open(a.src).convert("RGB")).astype(np.float64)
+    img = np.asarray(flatten_alpha(Image.open(a.src))).astype(np.float64)
     if img.shape[:2] != (H, W):
         img = np.asarray(Image.fromarray(img.astype(np.uint8)).resize((W, H), Image.LANCZOS)).astype(np.float64)
 
@@ -307,7 +314,7 @@ def main():
     cairosvg.svg2png(bytestring=svg.encode("utf-8"), write_to=PNG, output_width=a.png_width)
     cairosvg.svg2png(bytestring=svg.encode("utf-8"), write_to=PNG4, output_width=4000)
 
-    ref = np.asarray(Image.open(PNG).convert("RGB")).astype(np.float64)
+    ref = np.asarray(flatten_alpha(Image.open(PNG))).astype(np.float64)
     ref = np.asarray(Image.fromarray(ref.astype(np.uint8)).resize((W, H), Image.LANCZOS)).astype(np.float64)
     mae = np.abs(ref - img).mean()
     print("wrote %s (%.0f KB)  MAE=%.3f" % (SVG, os.path.getsize(SVG) / 1024.0, mae))

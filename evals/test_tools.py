@@ -398,6 +398,687 @@ def test_tool_detection_no_kpsewhich():
     assert "amsmath.sty" in r.stdout, "LaTeX 宏包段应照常打印（逐条标 ✗）"
 
 
+@case("schematic_library_for_ref_is_redistributable_only",
+      "Style-library search must never expose metadata-only or non-local images as --ref")
+def test_schematic_library_for_ref():
+    import os
+    env = os.environ.copy()
+    env["PYTHONUTF8"] = "1"
+    env["PYTHONIOENCODING"] = "utf-8"
+    r = subprocess.run(
+        [sys.executable, str(SCRIPTS / "schematic_library.py"),
+         "search", "--for-ref", "--limit", "100"],
+        capture_output=True, text=True, encoding="utf-8", errors="replace",
+        env=env, timeout=60)
+    assert r.returncode == 0, r.stdout + r.stderr
+    paths = [line.strip() for line in r.stdout.splitlines() if line.strip()]
+    assert paths, "the redistributable catalog should contain at least one image"
+    for rel in paths:
+        assert rel.startswith(("assets/t3-exemplars/",
+                               "assets/schematic-library/redistributable/")), rel
+        assert (SCRIPTS.parent / rel).exists(), rel
+
+
+@case("schematic_library_rejects_restricted_local_copy",
+      "NC/ND/default-license records must stay metadata-only and cannot ship an image")
+def test_schematic_library_license_tier():
+    import argparse
+    import importlib
+    import json
+    mod = importlib.import_module("schematic_library")
+    original = mod.CATALOG
+    try:
+        tmp = Path(tempfile.mkdtemp(prefix="hep_schematic_license_"))
+        doc = json.loads(original.read_text(encoding="utf-8"))
+        doc["entries"][0]["license"]["redistributable"] = False
+        doc["entries"][0]["license"]["spdx"] = "arXiv-default"
+        mod.CATALOG = tmp / "catalog.json"
+        mod.CATALOG.write_text(json.dumps(doc, ensure_ascii=False), encoding="utf-8")
+        rc = mod.cmd_validate(argparse.Namespace())
+        assert rc != 0, "metadata-only record with local_file must be rejected"
+    finally:
+        mod.CATALOG = original
+
+
+@case("ref_guard_accepts_new_style_library",
+      "The 5.1 redistributable library must count as a style book, not an arbitrary asset")
+def test_ref_guard_style_library_path():
+    import importlib
+    import json
+    mod = importlib.import_module("ref_guard")
+    catalog = SCRIPTS.parent / "assets" / "schematic-library" / "catalog.json"
+    doc = json.loads(catalog.read_text(encoding="utf-8"))
+    rel = next(e["local_file"] for e in doc["entries"]
+               if e.get("local_file") and e["license"].get("redistributable"))
+    path = str(SCRIPTS.parent / rel)
+    assert mod.classify(path) == mod.STYLE_LIB
+    fake = str(SCRIPTS.parent / "assets" / "schematic-library" /
+               "redistributable" / "unregistered.png")
+    assert mod.classify(fake) == mod.RESTRICTED_ASSET
+
+
+@case("element_library_builtins_are_safe_vectors",
+      "Built-in elements must carry hashes, licence/provenance, and no AI pixels")
+def test_element_library_builtins():
+    import importlib
+    mod = importlib.import_module("element_library")
+    doc = mod.load_index()
+    assert doc["assets"], "element library is empty"
+    for asset in doc["assets"]:
+        path = mod.LIB / asset["file"]
+        assert path.exists(), path
+        assert asset["sha256"] == mod.sha256(path)
+        if asset["review"]["status"] == "needs-native-redraw":
+            assert not mod.is_safe_asset(asset)
+        else:
+            assert mod.is_safe_asset(asset)
+        assert not asset["generation"]["ai_generated"]
+
+
+@case("article_derived_elements_preserve_crop_provenance",
+      "Article-derived vector elements must retain source file, crop box, licence, and source hash")
+def test_article_derived_provenance():
+    import importlib
+    mod = importlib.import_module("element_library")
+    doc = mod.load_index()
+    derived = [a for a in doc["assets"]
+               if a["generation"]["origin"].startswith("article_vector_")]
+    assert len(derived) >= 30
+    for asset in derived:
+        gen = asset["generation"]
+        assert gen["source_asset_id"]
+        assert gen["source_local_file"]
+        assert len(gen["source_bbox_px"]) == 4
+        assert gen["source_sha256"]
+        assert asset["license"]["spdx"] == "CC-BY-4.0"
+        crop = mod.LIB / gen["crop_file"]
+        assert crop.exists(), crop
+        assert gen["crop_sha256"] == mod.sha256(crop)
+        svg = mod.LIB / asset["file"]
+        assert "<image" not in svg.read_text(encoding="utf-8")
+
+
+@case("article_derived_elements_have_texture_and_native_edit",
+      "Article-derived SVGs must keep the scalable edit file active and pair it with an optional texture")
+def test_article_derived_native_geometry():
+    import importlib
+    mod = importlib.import_module("element_library")
+    doc = mod.load_index()
+    derived = [
+        a for a in doc["assets"]
+        if a["generation"]["origin"].startswith("article_vector_")
+    ]
+    assert derived
+    for asset in derived:
+        gen = asset["generation"]
+        assert gen["origin"] == "article_vector_native"
+        assert gen["native_origin"] == "article_vector_native"
+        assert asset["file"] == gen["edit_file"]
+        texture = (mod.LIB / gen["texture_file"]).read_text(encoding="utf-8")
+        edit = (mod.LIB / gen["edit_file"]).read_text(encoding="utf-8")
+        assert "<image" not in texture
+        assert "<image" not in edit
+        assert "data-origin=\"article_vector_native\"" in edit
+        assert "data-origin=\"article_vector_smooth_texture\"" in texture
+        metrics = gen["texture_metrics"]
+        assert metrics["mae"] >= 0
+        assert 0 <= metrics["gt32"] <= 1
+
+
+@case("article_harvester_accepts_octet_stream_images",
+      "PMC S3 returns valid image bytes as application/octet-stream")
+def test_article_harvester_image_payload():
+    import importlib
+    mod = importlib.import_module("article_element_harvester")
+    assert mod.image_payload(b"\x89PNG\r\n\x1a\n" + b"0" * 2048,
+                             "binary/octet-stream")
+    assert mod.image_payload(b"\xff\xd8\xff" + b"0" * 2048, "")
+    assert not mod.image_payload(b"<html>" + b"0" * 2048, "text/html")
+
+
+@case("hep_article_filter_rejects_cross_domain_keyword_collisions",
+      "Generic spin, heavy-ion radiation, and space-weather papers must not enter the HEP corpus")
+def test_hep_article_filter():
+    import importlib
+    mod = importlib.import_module("article_element_harvester")
+    assert mod.hep_article_relevant(
+        "Observation of partonic flow in proton-proton and proton-nucleus collisions",
+        "Collective flow in high-energy nuclear collisions.",
+    )
+    assert not mod.hep_article_relevant(
+        "Field-free spin-orbit torque switching in an antiferromagnetic insulator",
+        "Spin polarization at a magnetic interface.",
+    )
+    assert not mod.hep_article_relevant(
+        "TCAD simulation of heavy ion radiation effects on a transistor",
+        "Single-event radiation damage in a semiconductor.",
+    )
+
+
+@case("publisher_harvester_parses_aps_figure_band",
+      "APS landing-page figures must deduplicate repeated responsive image bands")
+def test_publisher_harvester_aps_parser():
+    import importlib
+    mod = importlib.import_module("publisher_figure_harvester")
+    page = """
+    <html><body>
+      <div aria-label="Article figures"><ul><li><img
+        alt="Figure 1" src="/prl/article/10.1103/x/deliverable/fig1"></li></ul></div>
+      <div aria-label="Article figures"><ul><li><img
+        alt="Figure 1" src="/prl/article/10.1103/x/deliverable/fig1"></li></ul></div>
+    </body></html>
+    """
+    figs = mod.parse_aps_figures(page, "https://journals.aps.org/prl/abstract/10.1103/x")
+    assert figs == [{
+        "label": "Figure 1",
+        "remote_image": (
+            "https://journals.aps.org/prl/article/10.1103/x/deliverable/fig1"
+        ),
+    }]
+
+
+@case("publisher_harvester_extracts_pdf_figure_region",
+      "PDF harvesting must pair a numbered caption with an above-caption crop region")
+def test_publisher_harvester_pdf_region():
+    import importlib
+    import fitz
+    mod = importlib.import_module("publisher_figure_harvester")
+    doc = fitz.open()
+    page = doc.new_page(width=612, height=792)
+    page.insert_text((52, 300), "FIG. 1. Schematic illustration of the collision.")
+    data = doc.tobytes()
+    doc.close()
+    figures = mod.pdf_figure_data(data)
+    assert 1 in figures
+    assert figures[1]["caption"].startswith("FIG. 1.")
+    assert figures[1]["pdf_rect"][3] - figures[1]["pdf_rect"][1] > 45
+
+
+@case("figure_candidate_ranking_rewards_schematic_captions",
+      "Figure review candidates must favor explicit schematics over data plots")
+def test_figure_candidate_ranking():
+    import importlib
+    mod = importlib.import_module("figure_element_candidates")
+    schematic, _ = mod.caption_score(
+        "Schematic illustration of the collision geometry and detector"
+    )
+    plot, _ = mod.caption_score(
+        "Cross section as a function of mass with statistical error bars"
+    )
+    assert schematic > plot
+
+
+@case("priority_rebuild_creates_scalable_candidate",
+      "High-priority object audit must produce a raster-free smooth SVG candidate for a simple object")
+def test_priority_rebuild_native_candidate():
+    import importlib
+    import numpy as np
+    from PIL import Image
+    mod = importlib.import_module("priority_element_rebuild")
+    rgba = np.zeros((96, 128, 4), dtype=np.uint8)
+    yy, xx = np.ogrid[:96, :128]
+    mask = ((xx - 64) / 42) ** 2 + ((yy - 48) / 30) ** 2 <= 1
+    rgba[mask, 0] = 230
+    rgba[mask, 1] = 120
+    rgba[mask, 2] = 30
+    rgba[mask, 3] = 255
+    svg, stats = mod.native_svg_from_rgba(
+        Image.fromarray(rgba, "RGBA"), "synthetic_object"
+    )
+    assert stats["paths"] >= 1
+    assert "<image" not in svg and "data:image" not in svg
+    assert 'data-origin="article_vector_candidate"' in svg
+    assert 'viewBox="0 0 128 96"' in svg
+
+
+@case("article_qgp_redraw_excludes_context_background",
+      "The article-derived QGP element must keep fireball and partons but exclude grid and field context")
+def test_article_qgp_redraw_layers():
+    import importlib
+    mod = importlib.import_module("rebuild_article_vectors")
+    svg = mod.t330_qgp_fireball_svg({"id": "article_t330_qgp_fireball"})
+    for element_id in (
+        "qgp-medium", "radiation-rays", "partons", "parton-spirals",
+    ):
+        assert f'id="{element_id}"' in svg
+    assert 'id="reaction-grid"' not in svg
+    assert 'id="field-lines"' not in svg
+    assert "<image" not in svg and "data:image" not in svg
+    assert 'data-origin="article_vector_native"' in svg
+
+
+@case("rgba_crop_hidden_rgb_is_composited_on_white",
+      "Transparent article crops must not leak stale RGB into smooth vector textures")
+def test_smooth_texture_alpha_compositing():
+    import importlib
+    import numpy as np
+    from PIL import Image
+    mod = importlib.import_module("shade_smooth")
+    with tempfile.TemporaryDirectory() as td:
+        path = Path(td) / "alpha.png"
+        rgba = np.zeros((8, 10, 4), dtype=np.uint8)
+        rgba[:, :, :3] = (240, 90, 20)
+        rgba[2:6, 3:7, 3] = 255
+        Image.fromarray(rgba, "RGBA").save(path)
+        rgb = mod.load_rgb_on_white(path, 10, 8)
+        assert np.all(rgb[0, 0] == [255, 255, 255])
+        assert np.all(rgb[3, 4] == [240, 90, 20])
+
+
+@case("article_texture_smooth_mesh_is_transparent_and_faithful",
+      "Smooth mesh textures must preserve alpha, avoid flat terraces and match the source crop")
+def test_article_texture_smooth_mesh():
+    import importlib
+    import numpy as np
+    from PIL import Image
+    mod = importlib.import_module("element_texture_vectorize")
+    with tempfile.TemporaryDirectory() as td:
+        root = Path(td)
+        source = root / "source.png"
+        target = root / "texture.svg"
+        xx, yy = np.meshgrid(np.arange(96), np.arange(72))
+        mask = ((xx - 48) / 34) ** 2 + ((yy - 36) / 25) ** 2 <= 1
+        rgba = np.zeros((72, 96, 4), dtype=np.uint8)
+        rgba[:, :, 0][mask] = 225
+        rgba[:, :, 1][mask] = np.clip(110 + xx[mask], 0, 255)
+        rgba[mask, 2] = 45
+        rgba[mask, 3] = 255
+        Image.fromarray(rgba, "RGBA").save(source)
+        _stats, metric = mod.smooth_mesh_texture(
+            source, target, "synthetic_smooth", max_width=900
+        )
+        svg = target.read_text(encoding="utf-8")
+        assert metric["mae"] < 1.5
+        assert "<image" not in svg and "data:image" not in svg
+        assert 'data-texture-backend="smooth-gradient-mesh"' in svg
+        assert 'data-alpha-geometry="exact-rgba-silhouette"' in svg
+        assert '<rect width="96" height="72" fill="#ffffff"' not in svg
+
+
+@case("prl125_article_scene_keeps_physical_groups",
+      "The paper-derived QGP-jet scene must remain native vector with QGP, photon, jet and axis groups")
+def test_prl125_article_scene():
+    import importlib
+    mod = importlib.import_module("rebuild_prl125_scene")
+    svg = mod.native_svg()
+    for element_id in ("qgp-medium", "reaction-plane", "photon",
+                       "quenched-jet", "coordinate-axes"):
+        assert f'data-element="{element_id}"' in svg
+    assert "<image" not in svg and "data:image" not in svg
+
+
+@case("qgp_jet_3d_uses_article_assets_and_coherent_axes",
+      "The canonical 3D QGP-jet must share one scene, article assets and one right-handed axis triad")
+def test_qgp_jet_3d_scene():
+    import importlib.util
+    path = SCRIPTS.parent / "assets" / "examples" / "direct-svg" / "qgp_jet_paper_3d.py"
+    spec = importlib.util.spec_from_file_location("qgp_jet_paper_3d_test", path)
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    svg = mod.build()
+    for element_id in ("incoming_left", "incoming_right", "qgp-medium",
+                       "escaping-jet", "quenched-jet",
+                       "medium-induced-radiation", "coordinate-axes"):
+        assert f'id="{element_id}"' in svg
+    assert 'data-origin="article_vector_native"' in svg
+    assert "<image" not in svg and "data:image" not in svg
+
+
+@case("qgp_jet_sketch_has_required_structure",
+      "The sketch reconstruction must preserve QGP, two opposite jets, radiation and editable labels")
+def test_qgp_jet_sketch_scene():
+    import importlib.util
+    path = SCRIPTS.parent / "assets" / "examples" / "direct-svg" / "qgp_jet_sketch.py"
+    spec = importlib.util.spec_from_file_location("qgp_jet_sketch_test", path)
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    svg = mod.build()
+    for element_id in ("qgp-medium", "parton-track", "quenched_jet",
+                       "escaped_jet", "medium-induced-radiation",
+                       "hard-scattering", "labels"):
+        assert f'id="{element_id}"' in svg
+    assert 'id="reaction-grid"' not in svg
+    assert "<image" not in svg and "data:image" not in svg
+
+
+@case("qgp_jet_sketch_excludes_background_grid",
+      "The user sketch has no QGP background grid and the vector reconstruction must preserve that absence")
+def test_qgp_jet_sketch_excludes_grid():
+    import importlib.util
+    path = SCRIPTS.parent / "assets" / "examples" / "direct-svg" / "qgp_jet_sketch.py"
+    spec = importlib.util.spec_from_file_location("qgp_jet_sketch_grid_test", path)
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    svg = mod.build()
+    assert "plane-grid" not in svg
+    assert "reaction-grid" not in svg
+    assert "field-lines" not in svg
+
+
+@case("article_harvester_rejects_generic_heavy_ion_noise",
+      "Heavy-ion therapy and water-jet papers must not enter the HEP element corpus")
+def test_article_harvester_hep_title_filter():
+    import importlib
+    mod = importlib.import_module("article_element_harvester")
+    assert mod.hep_article_relevant(
+        "Observation of partonic flow in proton-proton and proton-nucleus collisions",
+        "",
+    )
+    assert not mod.hep_article_relevant(
+        "A modified broad beam model for uniformly scanned carbon ion therapy",
+        "heavy-ion collisions",
+    )
+    assert not mod.hep_article_relevant(
+        "A theoretical approach for estimating the effect of water-jet quenching",
+        "",
+    )
+
+
+@case("crossref_candidates_normalize_year_and_authors",
+      "Crossref bibliographic metadata must preserve DOI-grade provenance")
+def test_crossref_metadata_normalization():
+    import importlib
+    mod = importlib.import_module("schematic_library")
+    item = {
+        "published-online": {"date-parts": [[2024, 3]]},
+        "author": [
+            {"given": "A.", "family": "Author"},
+            {"given": "B.", "family": "Collaborator"},
+        ],
+    }
+    assert mod._crossref_year(item) == 2024
+    assert mod._crossref_authors(item) == ["A. Author", "B. Collaborator"]
+
+
+@case("element_library_ai_ingest_is_provenance_marked",
+      "AI-supplied SVG must be marked as AI and excluded from submission-safe mode")
+def test_element_library_ai_ingest():
+    import argparse
+    import importlib
+    import json
+    import os
+    mod = importlib.import_module("element_library")
+    old = (mod.LIB, mod.INDEX, mod.GENERATED)
+    try:
+        tmp = Path(tempfile.mkdtemp(prefix="hep_element_ai_"))
+        lib = tmp / "library"
+        lib.mkdir()
+        (lib / "index.json").write_text(json.dumps({
+            "schema_version": "1.0", "library_version": "5.1.0", "assets": []
+        }), encoding="utf-8")
+        src = tmp / "ai.svg"
+        src.write_text(
+            '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">'
+            '<circle cx="50" cy="50" r="30" fill="#f08a32"/></svg>',
+            encoding="utf-8")
+        prompt = tmp / "prompt.txt"
+        prompt.write_text("AI fixture fireball", encoding="utf-8")
+        mod.LIB, mod.INDEX, mod.GENERATED = lib, lib / "index.json", lib / "generated"
+        ns = argparse.Namespace(
+            id="ai_fireball", source=str(src), name_zh="AI 火球",
+            category="medium", family="qgp", variant="ai-custom",
+            variant_description="AI fixture", license="CC-BY-4.0",
+            origin="ai_generated_vector", tool="test-generator",
+            model="fixture", prompt_file=str(prompt), source_uri="",
+            attribution="fixture", reviewer="author", review_note="reviewed fixture",
+            dimensionality="3d", alias=[], tag=[], physics_role=["QGP"],
+            replace=False)
+        assert mod.cmd_ingest_ai(ns) == 0
+        doc = json.loads(mod.INDEX.read_text(encoding="utf-8"))
+        asset = doc["assets"][0]
+        assert asset["generation"]["origin"] == "ai_generated_vector"
+        assert asset["generation"]["ai_generated"] is True
+        assert asset["generation"]["contains_ai_pixels"] is True
+        assert not mod.is_safe_asset(asset)
+    finally:
+        mod.LIB, mod.INDEX, mod.GENERATED = old
+
+
+@case("element_library_ai_png_is_vectorized_and_tagged",
+      "AI PNG supplementation must crop alpha, vectorize, and retain ai_raster provenance")
+def test_element_library_ai_png():
+    import argparse
+    import importlib
+    import json
+    from PIL import Image, ImageDraw
+    mod = importlib.import_module("element_library")
+    old = (mod.LIB, mod.INDEX, mod.GENERATED)
+    try:
+        tmp = Path(tempfile.mkdtemp(prefix="hep_element_ai_png_"))
+        lib = tmp / "library"
+        lib.mkdir()
+        (lib / "index.json").write_text(json.dumps({
+            "schema_version": "1.0", "library_version": "5.1.0", "assets": []
+        }), encoding="utf-8")
+        im = Image.new("RGBA", (160, 120), (0, 0, 0, 0))
+        ImageDraw.Draw(im).ellipse((20, 15, 140, 105), fill=(240, 138, 50, 255))
+        src = tmp / "ai.png"
+        im.save(src)
+        prompt = tmp / "prompt.txt"
+        prompt.write_text("AI PNG fixture", encoding="utf-8")
+        mod.LIB, mod.INDEX, mod.GENERATED = lib, lib / "index.json", lib / "generated"
+        ns = argparse.Namespace(
+            id="ai_png", source=str(src), name_zh="AI PNG",
+            category="particle", family="nucleon", variant="ai-png",
+            variant_description="AI PNG fixture", license="CC-BY-4.0",
+            origin="ai_raster", tool="test-generator", model="fixture",
+            prompt_file=str(prompt), source_uri="", attribution="fixture",
+            reviewer="author", review_note="reviewed", dimensionality="3d",
+            alias=[], tag=[], physics_role=["test"], replace=False)
+        assert mod.cmd_ingest_ai(ns) == 0
+        asset = json.loads(mod.INDEX.read_text(encoding="utf-8"))["assets"][0]
+        svg = lib / asset["file"]
+        assert svg.exists()
+        assert "<image" not in svg.read_text(encoding="utf-8")
+        assert asset["generation"]["origin"] == "ai_raster"
+        assert asset["generation"]["contains_ai_pixels"] is True
+        assert not mod.is_safe_asset(asset)
+    finally:
+        mod.LIB, mod.INDEX, mod.GENERATED = old
+
+
+@case("spec_confirmation_hash_invalidates_after_edit",
+      "Client confirmation must bind the complete spec, not just element names")
+def test_spec_confirmation_hash():
+    import os
+    import shutil
+    env = os.environ.copy()
+    env["PYTHONUTF8"] = "1"
+    tmp = Path(tempfile.mkdtemp(prefix="hep_spec_confirm_"))
+    src = SCRIPTS.parent / "assets" / "spec-examples" / "qgp-jet-element.spec.yaml"
+    spec = tmp / "figure.spec.yaml"
+    shutil.copyfile(src, spec)
+    def run(*args):
+        return subprocess.run(
+            [sys.executable, str(SCRIPTS / "spec_confirm.py"), str(spec), *args],
+            capture_output=True, text=True, encoding="utf-8", errors="replace",
+            env=env, timeout=60)
+    r = run("--record", "--by", "agent", "--reply", "agent self-approved")
+    assert r.returncode != 0
+    r = run("--record", "--by", "client", "--reply", "结构确认")
+    assert r.returncode == 0, r.stdout + r.stderr
+    r = run("--check")
+    assert r.returncode == 0, r.stdout + r.stderr
+    spec.write_text(spec.read_text(encoding="utf-8").replace(
+        "height_mm: 105", "height_mm: 106"), encoding="utf-8")
+    r = run("--check")
+    assert r.returncode != 0 and "spec changed" in r.stdout
+
+
+@case("spec_compile_builds_svg_pdf_png_from_confirmed_spec",
+      "Element IDs, relations, text, connections, and publisher outputs compile deterministically")
+def test_spec_compile_pipeline():
+    import json
+    import os
+    import shutil
+    env = os.environ.copy()
+    env["PYTHONUTF8"] = "1"
+    tmp = Path(tempfile.mkdtemp(prefix="hep_spec_compile_"))
+    spec = tmp / "figure.spec.yaml"
+    shutil.copyfile(
+        SCRIPTS.parent / "assets" / "spec-examples" / "qgp-jet-article-elements.spec.yaml",
+        spec)
+    r = subprocess.run(
+        [sys.executable, str(SCRIPTS / "spec_confirm.py"), str(spec),
+         "--record", "--by", "client", "--reply", "同意按此元素关系编译"],
+        capture_output=True, text=True, encoding="utf-8", errors="replace",
+        env=env, timeout=60)
+    assert r.returncode == 0, r.stdout + r.stderr
+    out = tmp / "out"
+    r = subprocess.run(
+        [sys.executable, str(SCRIPTS / "spec_compile.py"), str(spec),
+         "--outdir", str(out), "--stem", "fig", "--safe-mode",
+         "--source-derived-only"],
+        capture_output=True, text=True, encoding="utf-8", errors="replace",
+        env=env, timeout=300)
+    assert r.returncode == 0, r.stdout + r.stderr
+    for name in ("fig.svg", "fig.pdf", "fig.png", "fig_manifest.json"):
+        assert (out / name).exists(), name
+    svg = (out / "fig.svg").read_text(encoding="utf-8")
+    assert 'data-asset-id="article_pmc130_medium_outer"' in svg
+    assert 'data-connection-id="jet_axis"' in svg
+    assert 'font-size=' in svg and "<image" not in svg
+    manifest = json.loads((out / "fig_manifest.json").read_text(encoding="utf-8"))
+    assert manifest["safe_mode"] is True
+    assert manifest["confirmation"] == "confirmed"
+    assert any(item["status"] == "pass" for item in manifest["physics_checks"])
+    assert any(
+        item["id"] == "jets-back-to-back" and item["status"] == "pass"
+        for item in manifest["layout_checks"]
+    )
+    assert any(
+        item["id"] == "labels-outside-objects" and item["status"] == "pass"
+        for item in manifest["layout_checks"]
+    )
+    medium = next(
+        item for item in manifest["provenance"]
+        if item["element_id"] == "medium"
+    )
+    assert medium["render_mode"] == "texture"
+    assert medium["origin"] == "article_vector_native"
+    assert medium["fit"] == "contain"
+    assert all(
+        item["origin"] == "article_vector_native"
+        for item in manifest["provenance"]
+    )
+    assert any(
+        item["render_mode"] == "texture"
+        for item in manifest["provenance"]
+    )
+    assert 'data-render-mode="texture"' in svg
+    r = subprocess.run(
+        [sys.executable, str(SCRIPTS / "visual_review.py"),
+         "--spec", str(spec), "--svg", str(out / "fig.svg"),
+         "--png", str(out / "fig.png"), "--pdf", str(out / "fig.pdf"),
+         "--record", "--by", "client", "--reply", "预览通过"],
+        capture_output=True, text=True, encoding="utf-8", errors="replace",
+        env=env, timeout=60)
+    assert r.returncode == 0, r.stdout + r.stderr
+    r = subprocess.run(
+        [sys.executable, str(SCRIPTS / "spec_compile.py"), str(spec),
+         "--outdir", str(out), "--stem", "fig", "--safe-mode", "--final"],
+        capture_output=True, text=True, encoding="utf-8", errors="replace",
+        env=env, timeout=300)
+    assert r.returncode == 0, r.stdout + r.stderr
+    manifest = json.loads((out / "fig_manifest.json").read_text(encoding="utf-8"))
+    assert manifest["visual_review"] == "approved"
+
+
+@case("source_derived_only_compile_excludes_system_primitives",
+      "Submission source-only mode compiles article-derived elements and refuses system substitutes")
+def test_source_derived_only_compile():
+    import os
+    env = os.environ.copy()
+    env["PYTHONUTF8"] = "1"
+    tmp = Path(tempfile.mkdtemp(prefix="hep_source_only_"))
+    good = SCRIPTS.parent / "assets" / "spec-examples" / "source-derived-elements.spec.yaml"
+    r = subprocess.run(
+        [sys.executable, str(SCRIPTS / "spec_compile.py"), str(good),
+         "--experiment", "--safe-mode", "--source-derived-only", "--skip-postchecks",
+         "--outdir", str(tmp / "good"), "--stem", "derived"],
+        capture_output=True, text=True, encoding="utf-8", errors="replace",
+        env=env, timeout=300)
+    assert r.returncode == 0, r.stdout + r.stderr
+    derived_svg = (tmp / "good" / "derived.svg").read_text(encoding="utf-8")
+    assert 'data-origin="article_vector_native"' in derived_svg
+    assert "<image" not in derived_svg
+    bad = SCRIPTS.parent / "assets" / "spec-examples" / "qgp-jet-element.spec.yaml"
+    r = subprocess.run(
+        [sys.executable, str(SCRIPTS / "spec_compile.py"), str(bad),
+         "--experiment", "--check-only", "--safe-mode", "--source-derived-only",
+         "--outdir", str(tmp / "bad")],
+        capture_output=True, text=True, encoding="utf-8", errors="replace",
+        env=env, timeout=60)
+    assert r.returncode != 0
+    assert "system primitive" in r.stdout
+
+
+@case("element_variants_choose_same_slot_without_new_placement",
+      "Nucleon slot can switch appearance while x/y/size and all other objects stay fixed")
+def test_element_variants():
+    import json
+    import os
+    import shutil
+    env = os.environ.copy()
+    env["PYTHONUTF8"] = "1"
+    tmp = Path(tempfile.mkdtemp(prefix="hep_variants_"))
+    spec = tmp / "figure.spec.yaml"
+    shutil.copyfile(
+        SCRIPTS.parent / "assets" / "spec-examples" / "qgp-jet-element.spec.yaml",
+        spec)
+    pick = tmp / "pick"
+    r = subprocess.run(
+        [sys.executable, str(SCRIPTS / "element_variants.py"), "preview",
+         "--spec", str(spec), "--element", "participant_nucleon",
+         "--outdir", str(pick), "--safe-only", "--dpi", "90"],
+        capture_output=True, text=True, encoding="utf-8", errors="replace",
+        env=env, timeout=120)
+    assert r.returncode == 0, r.stdout + r.stderr
+    data = json.loads((pick / "variants.json").read_text(encoding="utf-8"))
+    assert len(data["candidates"]) >= 10
+    assert all(x["safe"] for x in data["candidates"])
+    chosen = data["candidates"][0]
+    r = subprocess.run(
+        [sys.executable, str(SCRIPTS / "element_variants.py"), "record",
+         "--spec", str(spec), "--outdir", str(pick),
+         "--code", chosen["code"], "--by", "client", "--reply", "用这个核子形态"],
+        capture_output=True, text=True, encoding="utf-8", errors="replace",
+        env=env, timeout=60)
+    assert r.returncode == 0, r.stdout + r.stderr
+    applied = tmp / "selected.spec.yaml"
+    r = subprocess.run(
+        [sys.executable, str(SCRIPTS / "element_variants.py"), "apply",
+         "--spec", str(spec), "--choice", str(pick / "choice.json"),
+         "--out", str(applied)],
+        capture_output=True, text=True, encoding="utf-8", errors="replace",
+        env=env, timeout=60)
+    assert r.returncode == 0, r.stdout + r.stderr
+    text = applied.read_text(encoding="utf-8")
+    assert f"asset_variant: {chosen['asset_id']}" in text
+    assert "x_mm: 137" in text and "y_mm: 73" in text
+
+
+@case("nature_gate_safe_mode_rejects_ai_groups",
+      "Submission safe mode must fail closed if an AI-origin group slips into SVG")
+def test_nature_gate_safe_mode():
+    import os
+    env = os.environ.copy()
+    env["PYTHONUTF8"] = "1"
+    tmp = Path(tempfile.mkdtemp(prefix="hep_nature_gate_"))
+    svg = tmp / "bad.svg"
+    svg.write_text(
+        '<svg xmlns="http://www.w3.org/2000/svg" width="183mm" height="89mm" '
+        'viewBox="0 0 183 89"><g data-ai-generated="true" data-element-id="ai">'
+        '<circle cx="40" cy="40" r="10" fill="#f08a32"/></g></svg>',
+        encoding="utf-8")
+    r = subprocess.run(
+        [sys.executable, str(SCRIPTS / "nature_gate.py"), str(svg), "--safe-mode"],
+        capture_output=True, text=True, encoding="utf-8", errors="replace",
+        env=env, timeout=60)
+    assert r.returncode != 0
+    assert "AI-origin group" in r.stdout
+
+
 # ══════════════════════════════════════════════════════════════
 #  运行器
 # ══════════════════════════════════════════════════════════════
@@ -2152,7 +2833,10 @@ def test_semantic_release_workspace_integration():
         env=env, timeout=120)
     assert r.returncode == 0, r.stdout + r.stderr
     for name in ("semantic_release", "semantic_conflicts",
-                 "semantic_competition", "release_gate", "edit_to_visual"):
+                 "semantic_competition", "release_gate", "edit_to_visual",
+                 "schematic_library", "element_library", "spec_confirm",
+                 "spec_compile", "nature_gate", "element_variants",
+                 "source_element_extract"):
         shim = tmp / "tools" / (name + ".py")
         assert shim.exists(), shim
         h = subprocess.run([sys.executable, str(shim), "--help"],

@@ -1,0 +1,128 @@
+{
+  "schema_version": "5.1.0",
+  "retrieved": "2026-11-22",
+  "retained": 5245,
+  "removed": 24,
+  "removed_examples": [
+    {
+      "doi": "10.1126/science.260.5106.278-b",
+      "title": "Nuclear Structure Research",
+      "journal": "Science"
+    },
+    {
+      "doi": "10.1126/science.252.5010.1325",
+      "title": "Nuclear Reactions: Heavy Ion Reactions . Lecture Notes. Vol. 1, The Elementary Processes. Part 1, Elastic and Inelastic Reactions; Part 2, Transfer Reactions. Ricardo A. Broglia and Aage Winther. Adin-Wesley, Redwood City, CA, 1990. xx, 504 pp., illus. $49.50. Frontiers in Physics, 84.",
+      "journal": "Science"
+    },
+    {
+      "doi": "10.1126/science.246.4937.1646",
+      "title": "Nuclear Physics: Treatise on Heavy-Ion Science . Vol. 8, Nuclei Far from Stability. D. Allan Bromley, Ed. Plenum, New York, 1989. xxiv, 727 pp., illus. $125.",
+      "journal": "Science"
+    },
+    {
+      "doi": "10.1126/science.232.4748.409.a",
+      "title": "Heavy-Ion Collisions: Frontiers In Nuclear Dynamics . R. A. Broglia and C. H. Dasso, Eds. Plenum, New York, 1985. xii, 402 pp., illus. $69.50. Ettore Majorana International Science Series, Physical Sciences, vol. 25. From a symposium, Erice, Sicily, July 1984.",
+      "journal": "Science"
+    },
+    {
+      "doi": "10.1126/science.228.4701.858",
+      "title": "Phenomena of Nuclear Physics: Treatise on Heavy-Ion Science . Volumes 1-4. D. Allan Bromley, Ed. Plenum, New York. Vol. 1, Elastic and Quasi-Elastic Phenomena, 1984. xxii, 753 pp., illus. $95. Vol. 2, Fusion and Quasi-Fusion Phenomena, 1984. xviii, 734 pp., illus. $95. Vol. 3, Compound System Phenomena, 1984. xx, 589 pp., illus. $89.50. Vol. 4, Extreme Nuclear States, 1985. xx, 701 pp., illus. $92.50.",
+      "journal": "Science"
+    },
+    {
+      "doi": "10.1126/science.220.4592.63.b",
+      "title": "Particle Physics: Proceedings of the Seventeenth Rencontre de Moriond . Les Arcs, Savoie, France, March 1982. J. Tran Thanh Van, Ed. Editions Frontières, Gif sur Yvette, France, 1982. In two volumes. Vol. 1, Quarks, Leptons and Supersymmetry. 650 pp., illus. $60. Vol. 2, Elementary Hadronic Processes and Heavy Ion Interactions. 702 pp., illus. $65.",
+      "journal": "Science"
+    },
+    {
+      "doi": "10.1126/science.216.4550.1104.a",
+      "title": "Nuclear Physics: Nuclear Structure . Proceedings of a summer school, Dronten, Netherlands, Aug. 1980. K. Abrahams, K. Allaart, and A. E. L. Dieperink, Eds. Plenum, New York, 1981. x, 432 pp., illus. $49.50. NATO Advanced Study Institutes Series B, vol. 67.",
+      "journal": "Science"
+    },
+    {
+      "doi": "10.1126/science.205.4405.486",
+      "title": "Nuclear Physics: Ions Lourds et Mésons en Physique Nucléaire . Nuclear Physics with Heavy Ions and Mesons. Papers from a summer school, 1977. Roger Balian, Mannque Rho, and Georges Ripka, Eds. North-Holland, Amsterdam, 1978 (U.S. distributor, Elsevier, New York). In two volumes. lx, 1018 pp., illus. $133.25. Les Houches, Session 30.",
+      "journal": "Science"
+    },
+    {
+      "doi": "10.1126/science.193.4247.43.a",
+      "title": "Toward a Unification of Nuclear Physics: Nuclear Structure . Vol. 2, Nuclear Deformations. Aage Bohr and Ben R. Mottelson. Benjamin, Reading, Mass., 1975. xviii, 748 pp., illus. $37.50.",
+      "journal": "Science"
+    },
+    {
+      "doi": "10.1126/science.193.4247.43-a",
+      "title": "Toward a Unification of Nuclear Physics: Nuclear Structure . Vol. 2, Nuclear Deformations. Aage Bohr and Ben R. Mottelson. Benjamin, Reading, Mass., 1975. xviii, 748 pp., illus. $37.50.",
+      "journal": "Science"
+    },
+    {
+      "doi": "10.1126/science.186.4161.341",
+      "title": "Nuclear Structure: Theoretical Nuclear Physics . Vol. 1, Nuclear Structure. Amos deShalit and Herman Feshbach. Wiley, New York, 1974. xxviii, 980 pp., illus. $27.50.",
+      "journal": "Science"
+    },
+    {
+      "doi": "10.1126/science.184.4141.1068-a",
+      "title": "Spin Polarization: Chemically Induced Magnetic Polarization . Arthur R. Lepley and G. L. Closs, Eds. Wiley-Interscience, New York, 1973. x, 416 pp., illus. $19.95",
+      "journal": "Science"
+    },
+    {
+      "doi": "10.1126/science.184.4141.1068.a",
+      "title": "Spin Polarization: Chemically Induced Magnetic Polarization . Arthur R. Lepley and G. L. Closs, Eds. Wiley-Interscience, New York, 1973. x, 416 pp., illus. $19.95",
+      "journal": "Science"
+    },
+    {
+      "doi": "10.1126/science.179.4076.890",
+      "title": "Nuclear Probe: Mesic Atoms and Nuclear Structure . Y. N. Kim. North-Holland, Amsterdam, and Elsevier, New York, 1971. xii, 250 pp., illus. $20. A North-Holland Research Monograph in the Field of Nuclear Physics.",
+      "journal": "Science"
+    },
+    {
+      "doi": "10.1126/science.166.3904.489.a",
+      "title": "A New Exposition of Nuclear Physics: Nuclear Structure . Vol. 1. Single-Particle Motion. Aage Bohr and Ben R. Mottelson. Benjamin, New York, 1969. xiv + 474 pp., illus. $25.",
+      "journal": "Science"
+    },
+    {
+      "doi": "10.1126/science.166.3904.489-a",
+      "title": "A New Exposition of Nuclear Physics: Nuclear Structure . Vol. 1. Single-Particle Motion. Aage Bohr and Ben R. Mottelson. Benjamin, New York, 1969. xiv + 474 pp., illus. $25.",
+      "journal": "Science"
+    },
+    {
+      "doi": "10.1126/science.166.3904.489",
+      "title": "Nuclear Structure. Vol. 1. Single-Particle Motion. Aage Bohr and Ben R. Mottelson. Benjamin, New York, 1969. xiv + 474 pp., illus. $25",
+      "journal": "Science"
+    },
+    {
+      "doi": "10.1126/science.162.3851.347.a",
+      "title": "Nuclear Instrumentation: Nuclear Structure . Based on lectures given at the International Seminar on Low-Energy Nuclear Physics, Dacca, East Pakistan, Jan. 1967. Anwar Hossain, Harun-Ar-Rashid, and Mizanul Islam, Eds. North-Holland, Amsterdam; Interscience (Wiley), New York, 1967. xiv + 342 pp., illus. $17.",
+      "journal": "Science"
+    },
+    {
+      "doi": "10.1126/science.162.3851.347",
+      "title": "Nuclear Structure. Based on lectures given at the International Seminar on Low-Energy Nuclear Physics, Dacca, East Pakistan, Jan. 1967. Anwar Hossain, Harun-Ar-Rashid, and Mizanul Islam, Eds. North-Holland, Amsterdam; Interscience (Wiley), New York, 1967. xiv + 342 pp., illus. $17",
+      "journal": "Science"
+    },
+    {
+      "doi": "10.1126/science.159.3810.73.a",
+      "title": "Nuclear Structure: Unified Theory of Nuclear Models and Forces . G. E. Brown. North-Holland, Amsterdam; Interscience (Wiley), New York, ed. 2, 1967. 271 pp., illus. $9.25.",
+      "journal": "Science"
+    },
+    {
+      "doi": "10.1126/science.161.3836.39.b",
+      "title": "Nuclei and Other Particles: High Energy Physics and Nuclear Structure . Proceedings of the 2nd international conference, Rehovoth, Israel, Feb.-March 1967. Gideon Alexander, Ed. North-Holland, Amsterdam; Interscience (Wiley), New York, 1967. viii + 489 pp., illus. $23.",
+      "journal": "Science"
+    },
+    {
+      "doi": "10.1126/science.161.3836.39-b",
+      "title": "Nuclei and Other Particles: High Energy Physics and Nuclear Structure . Proceedings of the 2nd international conference, Rehovoth, Israel, Feb.-March 1967. Gideon Alexander, Ed. North-Holland, Amsterdam; Interscience (Wiley), New York, 1967. viii + 489 pp., illus. $23.",
+      "journal": "Science"
+    },
+    {
+      "doi": "10.1126/science.158.3807.1440",
+      "title": "Nuclear Physics: Many-Body Description of Nuclear Structure and Reactions . Course 36, International School of Physics \"Enrico Fermi.\" C. Bloch, Ed. Academic Press, New York, 1966. 605 pp., illus. $26.50.",
+      "journal": "Science"
+    },
+    {
+      "doi": "10.1126/science.89.2305.10-u",
+      "title": "The Einstein Theory and the Nuclear Structure of Atoms",
+      "journal": "Science"
+    }
+  ]
+}

@@ -1,0 +1,414 @@
+{
+  "pmcids": [
+    "PMC10198983",
+    "PMC10439128",
+    "PMC10471643",
+    "PMC10575913",
+    "PMC10579385",
+    "PMC10684581",
+    "PMC10700589",
+    "PMC10882050",
+    "PMC10914947",
+    "PMC10985094",
+    "PMC11055871",
+    "PMC11128003",
+    "PMC11150511",
+    "PMC11258327",
+    "PMC11338825",
+    "PMC11424472",
+    "PMC11538309",
+    "PMC11541211",
+    "PMC11568055",
+    "PMC11730327",
+    "PMC11805893",
+    "PMC11920203",
+    "PMC12057658",
+    "PMC12106791",
+    "PMC12217760",
+    "PMC12391314",
+    "PMC12521530",
+    "PMC12559427",
+    "PMC12571066",
+    "PMC12719351",
+    "PMC12796214",
+    "PMC12909998",
+    "PMC13004930",
+    "PMC13061608",
+    "PMC13308607",
+    "PMC13338392",
+    "PMC13487239",
+    "PMC13554122",
+    "PMC13687407",
+    "PMC3715846",
+    "PMC4003475",
+    "PMC4319162",
+    "PMC4371050",
+    "PMC4415598",
+    "PMC4445049",
+    "PMC4458877",
+    "PMC4468519",
+    "PMC4485072",
+    "PMC4515640",
+    "PMC4629148",
+    "PMC4639808",
+    "PMC4655408",
+    "PMC4682178",
+    "PMC4726316",
+    "PMC4751543",
+    "PMC4756790",
+    "PMC4761925",
+    "PMC4766390",
+    "PMC4806306",
+    "PMC4897691",
+    "PMC4917861",
+    "PMC4922018",
+    "PMC4946869",
+    "PMC4947956",
+    "PMC4977554",
+    "PMC5011644",
+    "PMC5013692",
+    "PMC5114574",
+    "PMC5118552",
+    "PMC5121593",
+    "PMC5123049",
+    "PMC5171237",
+    "PMC5206729",
+    "PMC5228121",
+    "PMC5234076",
+    "PMC5253690",
+    "PMC5312247",
+    "PMC5333099",
+    "PMC5368950",
+    "PMC5388845",
+    "PMC5411482",
+    "PMC5468313",
+    "PMC5491515",
+    "PMC5557845",
+    "PMC5589876",
+    "PMC5638861",
+    "PMC5662718",
+    "PMC5670247",
+    "PMC5676752",
+    "PMC5715082",
+    "PMC5715149",
+    "PMC5768690",
+    "PMC5834540",
+    "PMC5844874",
+    "PMC5890272",
+    "PMC5955938",
+    "PMC5966392",
+    "PMC6041308",
+    "PMC6045669",
+    "PMC6120952",
+    "PMC6145922",
+    "PMC6158274",
+    "PMC6232090",
+    "PMC6375962",
+    "PMC6403338",
+    "PMC6405744",
+    "PMC6428839",
+    "PMC6443799",
+    "PMC6484004",
+    "PMC6491564",
+    "PMC6555817",
+    "PMC6560129",
+    "PMC6565667",
+    "PMC6800440",
+    "PMC6848168",
+    "PMC6915568",
+    "PMC6934561",
+    "PMC6956903",
+    "PMC6956957",
+    "PMC6972883",
+    "PMC6976618",
+    "PMC6981145",
+    "PMC6989695",
+    "PMC7010749",
+    "PMC7021714",
+    "PMC7060315",
+    "PMC7060352",
+    "PMC7331725",
+    "PMC7387461",
+    "PMC7477097",
+    "PMC7477273",
+    "PMC7494910",
+    "PMC7578839",
+    "PMC7713250",
+    "PMC7810756",
+    "PMC8149450",
+    "PMC8298712",
+    "PMC8319315",
+    "PMC8324837",
+    "PMC8333326",
+    "PMC8413446",
+    "PMC8417228",
+    "PMC8585975",
+    "PMC8674246",
+    "PMC8789836",
+    "PMC8810786",
+    "PMC8913752",
+    "PMC8931105",
+    "PMC9177417",
+    "PMC9349289",
+    "PMC9477796",
+    "PMC9525613",
+    "PMC9525701",
+    "PMC9605986",
+    "PMC9617862",
+    "PMC9870917",
+    "PMC9879936",
+    "PMC9935919",
+    "PMC9977948"
+  ],
+  "failures": {
+    "PMC10075958": {
+      "error": "not in PMC OA or not redistributable CC BY",
+      "updated": "2026-11-22"
+    },
+    "PMC11380680": {
+      "error": "not in PMC OA or not redistributable CC BY",
+      "updated": "2026-11-22"
+    },
+    "PMC11490610": {
+      "error": "not in PMC OA or not redistributable CC BY",
+      "updated": "2026-11-22"
+    },
+    "PMC11696085": {
+      "error": "not in PMC OA or not redistributable CC BY",
+      "updated": "2026-11-22"
+    },
+    "PMC11599937": {
+      "error": "not in PMC OA or not redistributable CC BY",
+      "updated": "2026-11-22"
+    },
+    "PMC12586455": {
+      "error": "not in PMC OA or not redistributable CC BY",
+      "updated": "2026-11-22"
+    },
+    "PMC12758540": {
+      "error": "not in PMC OA or not redistributable CC BY",
+      "updated": "2026-11-22"
+    },
+    "PMC12815926": {
+      "error": "not in PMC OA or not redistributable CC BY",
+      "updated": "2026-11-22"
+    },
+    "PMC13530202": {
+      "error": "not in PMC OA or not redistributable CC BY",
+      "updated": "2026-11-22"
+    },
+    "PMC13782477": {
+      "error": "not in PMC OA or not redistributable CC BY",
+      "updated": "2026-11-22"
+    },
+    "PMC3514489": {
+      "error": "not in PMC OA or not redistributable CC BY",
+      "updated": "2026-11-22"
+    },
+    "PMC3570775": {
+      "error": "not in PMC OA or not redistributable CC BY",
+      "updated": "2026-11-22"
+    },
+    "PMC3819611": {
+      "error": "not in PMC OA or not redistributable CC BY",
+      "updated": "2026-11-22"
+    },
+    "PMC4102904": {
+      "error": "not in PMC OA or not redistributable CC BY",
+      "updated": "2026-11-22"
+    },
+    "PMC4155335": {
+      "error": "not in PMC OA or not redistributable CC BY",
+      "updated": "2026-11-22"
+    },
+    "PMC5392024": {
+      "error": "not in PMC OA or not redistributable CC BY",
+      "updated": "2026-11-22"
+    },
+    "PMC7195179": {
+      "error": "not in PMC OA or not redistributable CC BY",
+      "updated": "2026-11-22"
+    },
+    "PMC7612063": {
+      "error": "not in PMC OA or not redistributable CC BY",
+      "updated": "2026-11-22"
+    },
+    "PMC7817096": {
+      "error": "not in PMC OA or not redistributable CC BY",
+      "updated": "2026-11-22"
+    },
+    "PMC4485072": {
+      "error": "not in PMC OA or not redistributable CC BY",
+      "updated": "2026-11-22"
+    },
+    "PMC5890272": {
+      "error": "not in PMC OA or not redistributable CC BY",
+      "updated": "2026-11-22"
+    },
+    "PMC5955938": {
+      "error": "The read operation timed out",
+      "updated": "2026-11-22"
+    },
+    "PMC5844874": {
+      "error": "2 figure download(s) failed",
+      "figure_failures": [
+        {
+          "label": "Fig. 3",
+          "href": "41467_2018_3240_Fig3_HTML.jpg",
+          "url": "https://pmc-oa-opendata.s3.amazonaws.com/PMC5844874.1/41467_2018_3240_Fig3_HTML.jpg?md5=6626869529cbc4e8fb487e35727c2a40",
+          "error": "<urlopen error _ssl.c:980: The handshake operation timed out>"
+        },
+        {
+          "label": "Fig. 4",
+          "href": "41467_2018_3240_Fig4_HTML.jpg",
+          "url": "https://pmc-oa-opendata.s3.amazonaws.com/PMC5844874.1/41467_2018_3240_Fig4_HTML.jpg?md5=f137527e7fb1334bd04eeb6cb7acbf08",
+          "error": "<urlopen error [Errno 2] No such file or directory>"
+        }
+      ],
+      "updated": "2026-11-22"
+    },
+    "PMC5966392": {
+      "error": "<urlopen error [Errno 2] No such file or directory>",
+      "updated": "2026-11-22"
+    },
+    "PMC6041308": {
+      "error": "<urlopen error [Errno 2] No such file or directory>",
+      "updated": "2026-11-22"
+    },
+    "PMC6045669": {
+      "error": "<urlopen error [Errno 2] No such file or directory>",
+      "updated": "2026-11-22"
+    },
+    "PMC6120952": {
+      "error": "<urlopen error [Errno 2] No such file or directory>",
+      "updated": "2026-11-22"
+    },
+    "PMC6145922": {
+      "error": "<urlopen error [Errno 2] No such file or directory>",
+      "updated": "2026-11-22"
+    },
+    "PMC6158274": {
+      "error": "<urlopen error [Errno 2] No such file or directory>",
+      "updated": "2026-11-22"
+    },
+    "PMC6232090": {
+      "error": "<urlopen error [Errno 2] No such file or directory>",
+      "updated": "2026-11-22"
+    },
+    "PMC6375962": {
+      "error": "<urlopen error [Errno 2] No such file or directory>",
+      "updated": "2026-11-22"
+    },
+    "PMC6403338": {
+      "error": "<urlopen error [Errno 2] No such file or directory>",
+      "updated": "2026-11-22"
+    },
+    "PMC6405744": {
+      "error": "<urlopen error [WinError 10054] 远程主机强迫关闭了一个现有的连接。>",
+      "updated": "2026-11-22"
+    },
+    "PMC6443799": {
+      "error": "<urlopen error [WinError 10054] 远程主机强迫关闭了一个现有的连接。>",
+      "updated": "2026-11-22"
+    },
+    "PMC6484004": {
+      "error": "<urlopen error [WinError 10054] 远程主机强迫关闭了一个现有的连接。>",
+      "updated": "2026-11-22"
+    },
+    "PMC6428839": {
+      "error": "<urlopen error [WinError 10054] 远程主机强迫关闭了一个现有的连接。>",
+      "updated": "2026-11-22"
+    },
+    "PMC6491564": {
+      "error": "<urlopen error [WinError 10061] 由于目标计算机积极拒绝，无法连接。>",
+      "updated": "2026-11-22"
+    },
+    "PMC6560129": {
+      "error": "<urlopen error [WinError 10061] 由于目标计算机积极拒绝，无法连接。>",
+      "updated": "2026-11-22"
+    },
+    "PMC6555817": {
+      "error": "<urlopen error [WinError 10061] 由于目标计算机积极拒绝，无法连接。>",
+      "updated": "2026-11-22"
+    },
+    "PMC6565667": {
+      "error": "<urlopen error [WinError 10061] 由于目标计算机积极拒绝，无法连接。>",
+      "updated": "2026-11-22"
+    },
+    "PMC6800440": {
+      "error": "<urlopen error [WinError 10061] 由于目标计算机积极拒绝，无法连接。>",
+      "updated": "2026-11-22"
+    },
+    "PMC6848168": {
+      "error": "<urlopen error [WinError 10061] 由于目标计算机积极拒绝，无法连接。>",
+      "updated": "2026-11-22"
+    },
+    "PMC6915568": {
+      "error": "<urlopen error [WinError 10061] 由于目标计算机积极拒绝，无法连接。>",
+      "updated": "2026-11-22"
+    },
+    "PMC6934561": {
+      "error": "<urlopen error [WinError 10061] 由于目标计算机积极拒绝，无法连接。>",
+      "updated": "2026-11-22"
+    },
+    "PMC6956903": {
+      "error": "<urlopen error [WinError 10061] 由于目标计算机积极拒绝，无法连接。>",
+      "updated": "2026-11-22"
+    },
+    "PMC4946869": {
+      "error": "8 figure download(s) failed",
+      "figure_failures": [
+        {
+          "label": "Fig. 99",
+          "href": "10052_2015_3819_Fig99_HTML.jpg",
+          "url": "https://pmc-oa-opendata.s3.amazonaws.com/PMC4946869.1/10052_2015_3819_Fig99_HTML.jpg?md5=88f3b5af25685926ea005da4d8682fed",
+          "error": "<urlopen error [Errno 2] No such file or directory>"
+        },
+        {
+          "label": "Fig. 100",
+          "href": "10052_2015_3819_Fig100_HTML.jpg",
+          "url": "https://pmc-oa-opendata.s3.amazonaws.com/PMC4946869.1/10052_2015_3819_Fig100_HTML.jpg?md5=4be0dbce2904a6d3eb46aa6bc7493ea2",
+          "error": "<urlopen error [Errno 2] No such file or directory>"
+        },
+        {
+          "label": "Fig. 101",
+          "href": "10052_2015_3819_Fig101_HTML.jpg",
+          "url": "https://pmc-oa-opendata.s3.amazonaws.com/PMC4946869.1/10052_2015_3819_Fig101_HTML.jpg?md5=08efb05908531141ab07beb8f4e1b12c",
+          "error": "<urlopen error [Errno 2] No such file or directory>"
+        },
+        {
+          "label": "Fig. 102",
+          "href": "10052_2015_3819_Fig102_HTML.jpg",
+          "url": "https://pmc-oa-opendata.s3.amazonaws.com/PMC4946869.1/10052_2015_3819_Fig102_HTML.jpg?md5=8cc9a87bbbdb25358d358848cc30df08",
+          "error": "<urlopen error [Errno 2] No such file or directory>"
+        },
+        {
+          "label": "Fig. 103",
+          "href": "10052_2015_3819_Fig103_HTML.jpg",
+          "url": "https://pmc-oa-opendata.s3.amazonaws.com/PMC4946869.1/10052_2015_3819_Fig103_HTML.jpg?md5=463f8de2a90944cdadf401bdd0462b0e",
+          "error": "<urlopen error [WinError 10054] 远程主机强迫关闭了一个现有的连接。>"
+        },
+        {
+          "label": "Fig. 104",
+          "href": "10052_2015_3819_Fig104_HTML.jpg",
+          "url": "https://pmc-oa-opendata.s3.amazonaws.com/PMC4946869.1/10052_2015_3819_Fig104_HTML.jpg?md5=b10b9b41c5cf017b4c57a82aa5c6215c",
+          "error": "<urlopen error [WinError 10061] 由于目标计算机积极拒绝，无法连接。>"
+        },
+        {
+          "label": "Fig. 105",
+          "href": "10052_2015_3819_Fig105_HTML.jpg",
+          "url": "https://pmc-oa-opendata.s3.amazonaws.com/PMC4946869.1/10052_2015_3819_Fig105_HTML.jpg?md5=9c09294255f0c3f5b364349cef409fcc",
+          "error": "<urlopen error [WinError 10061] 由于目标计算机积极拒绝，无法连接。>"
+        },
+        {
+          "label": "Fig. 106",
+          "href": "10052_2015_3819_Fig106_HTML.jpg",
+          "url": "https://pmc-oa-opendata.s3.amazonaws.com/PMC4946869.1/10052_2015_3819_Fig106_HTML.jpg?md5=b2d3a0d15eb571dd65cb0c9d6fcb317b",
+          "error": "<urlopen error [WinError 10061] 由于目标计算机积极拒绝，无法连接。>"
+        }
+      ],
+      "updated": "2026-11-22"
+    }
+  },
+  "updated": "2026-11-22"
+}

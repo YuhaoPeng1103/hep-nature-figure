@@ -1,0 +1,16 @@
+{
+  "schema_version": "1.0",
+  "updated": "2026-11-22",
+  "candidate_articles": 574,
+  "processed_articles": 524,
+  "cached_failures": 50,
+  "figure_records": 4568,
+  "by_status": {
+    "downloaded": 3557,
+    "metadata-only-caption-unavailable": 1011
+  },
+  "by_source": {
+    "aps-html": 4549,
+    "arxiv-pdf": 19
+  }
+}

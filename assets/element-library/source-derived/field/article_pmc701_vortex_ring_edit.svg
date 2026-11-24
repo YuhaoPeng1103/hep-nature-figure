@@ -1,0 +1,29 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 240"
+     data-element-asset="article_pmc701_vortex_ring" data-origin="article_vector_native">
+  <defs>
+    
+    <marker id="article-pmc701-vortex-ring-arrow" viewBox="0 0 10 10" refX="8.5" refY="5"
+            markerWidth="5" markerHeight="5" orient="auto-start-reverse">
+      <path d="M0 0 L10 5 L0 10 z" fill="#18212b"/>
+    </marker>
+    <marker id="article-pmc701-vortex-ring-flow" viewBox="0 0 10 10" refX="8" refY="5"
+            markerWidth="5.5" markerHeight="5.5" orient="auto">
+      <path d="M0 0 L10 5 L0 10 z" fill="#84a3cf"/>
+    </marker>
+
+    <marker id="article-pmc701-vortex-ring-red" viewBox="0 0 10 10" refX="8" refY="5"
+            markerWidth="5" markerHeight="5" orient="auto">
+      <path d="M0 0 L10 5 L0 10 z" fill="#d9231c"/>
+    </marker>
+  </defs>
+  <g id="vortex-ring" data-element="article_pmc701_vortex_ring">
+    <path d="M160 230 L160 18" stroke="#df2a22" stroke-width="6"
+          stroke-dasharray="10 9" marker-end="url(#article-pmc701-vortex-ring-red)"/>
+    <ellipse cx="145" cy="115" rx="125" ry="45" fill="none" stroke="#20aee7" stroke-width="7" opacity="1.0"/><path d="M36 135.25 L20 123.1" stroke="#20aee7" stroke-width="8" marker-end="url(#article-pmc701-vortex-ring-flow)"/>
+    <text x="26" y="71" font-family="DejaVu Serif, Times" font-size="25"
+          font-style="italic" font-weight="700" fill="#111">J</text>
+    <text x="125" y="125" font-family="DejaVu Serif, Times" font-size="22"
+          font-style="italic" fill="#333">ω</text>
+    <circle cx="262" cy="142" r="31" fill="#060708"/><text x="262" y="150" text-anchor="middle" font-family="DejaVu Sans, Arial" font-size="18" fill="#fff">q<tspan dy="-5" font-size="13">e</tspan></text>
+  </g>
+</svg>

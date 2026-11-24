@@ -1,0 +1,84 @@
+{
+  "schema": "hep-nature-figure/direct-svg-v1",
+  "spec": "F:\\HuaweiMoveData\\Users\\HUAWEI\\Desktop\\work\\dun\\_gh_push\\hep-nature-figure\\assets\\spec-examples\\qgp-jet-sketch.spec.yaml",
+  "spec_sha256": "a5dad01419582aa8574fbdfdeb99d1119ffde74c559c12b4265f406d2e7dd74c",
+  "confirmation": "experimental",
+  "source_sketch": "F:\\HuaweiMoveData\\Users\\HUAWEI\\Desktop\\work\\dun\\_gh_push\\hep-nature-figure\\assets\\examples\\direct-svg\\references\\jet-quenching-sketch.png",
+  "source_sketch_sha256": "dde73a2d3135c8517b5a8cf5734cfb0b7245b0cca73809fab9ed66e3330374fd",
+  "safe_mode": true,
+  "source_derived_only": true,
+  "renderer": "direct-svg",
+  "physics_checks": [
+    {
+      "id": "HP1",
+      "status": "human-review",
+      "note": "Inspect the common origin of the fan centers."
+    },
+    {
+      "id": "HP2",
+      "status": "pass",
+      "type": "angle_between_rays",
+      "angle_deg": 177.847
+    }
+  ],
+  "layout_checks": [
+    {
+      "id": "jet_quenching",
+      "status": "pass"
+    },
+    {
+      "id": "jets-back-to-back",
+      "status": "pass"
+    }
+  ],
+  "sources": {
+    "qgp_colour_and_edge": "article_t330_qgp_fireball",
+    "jet_motif": "PRL125.122301-fig01"
+  },
+  "outputs": {
+    "svg": "F:\\HuaweiMoveData\\Users\\HUAWEI\\Desktop\\work\\dun\\_gh_push\\hep-nature-figure\\assets\\demos\\element-spec\\output\\qgp-jet-sketch.svg",
+    "png": "F:\\HuaweiMoveData\\Users\\HUAWEI\\Desktop\\work\\dun\\_gh_push\\hep-nature-figure\\assets\\demos\\element-spec\\output\\qgp-jet-sketch.png",
+    "pdf": "F:\\HuaweiMoveData\\Users\\HUAWEI\\Desktop\\work\\dun\\_gh_push\\hep-nature-figure\\assets\\demos\\element-spec\\output\\qgp-jet-sketch.pdf"
+  },
+  "nature_gate": {
+    "schema": "hep-nature-figure/nature-gate-v1",
+    "profile": "nature-2026",
+    "safe_mode": true,
+    "ok": true,
+    "errors": [],
+    "warnings": [],
+    "readings": {
+      "canvas_mm": [
+        183.0,
+        100.0
+      ],
+      "font_size_pt": {
+        "count": 10,
+        "min": 5.56,
+        "max": 7.72
+      },
+      "line_width_pt": {
+        "count": 0,
+        "min": null,
+        "max": null
+      },
+      "palette_families": [
+        "amber",
+        "blue",
+        "cyan",
+        "green",
+        "neutral",
+        "orange",
+        "red",
+        "violet"
+      ],
+      "png": {
+        "size": [
+          4323,
+          2362
+        ],
+        "expected_width_600dpi": 4323
+      }
+    }
+  }
+}

@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 180 130"
+     data-element-asset="article_pmc130_flow_arrow_right" data-origin="article_vector_native">
+  <defs>
+    <linearGradient id="article-pmc130-flow-arrow-right-g" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#d7e6ff"/>
+      <stop offset=".52" stop-color="#91b2e4"/>
+      <stop offset="1" stop-color="#597fb7"/>
+    </linearGradient>
+  </defs>
+  <g id="partonic-flow-arrow" data-element="article_pmc130_flow_arrow_right">
+    <path d="M18 52 L102 52 L102 22 L164 65 L102 108 L102 78 L18 78 Z" fill="url(#article-pmc130-flow-arrow-right-g)" stroke="#587fb5" stroke-width="1.3"/>
+  </g>
+</svg>

@@ -5,7 +5,7 @@
 ## ① 工具回归测试（机器可跑）
 
 ```bash
-python3 evals/test_tools.py        # 47 个 case
+python3 evals/test_tools.py        # 87 个 case
 python3 evals/test_tools.py -v     # 显示每个 case 防的是什么坑
 python3 evals/test_tools.py geom   # 只跑名字含 geom 的
 python3 -m unittest discover -s evals -p test_ladder_modes.py  # 有草图 A→E 与旧账本 A→D

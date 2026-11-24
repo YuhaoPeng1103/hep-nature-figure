@@ -29,7 +29,7 @@
 | `sketch_to_vector.py` | **★ 草图矢量化**（人可改的 SVG 草图）：不用写 `panels.py`，自动切分每个形体一个子层 |
 | `sketch_handoff.py` | **★★ 人机交接（交出去）**：多张草图 → `candidates.md`（表格 + 预览 + 三种回音）+ 可编辑 SVG + 预览图。排序复用 `pick_best` 的判据 |
 | `sketch_ingest.py` | **★★ 人机交接（灌回来）**：人改完的 SVG/PNG → 规范化到目标画布 → **强制重跑闸口①**（不过就拒，给返修单）；`--no-gate` 逃生门会留大字 |
-| `ref_guard.py` | **★ 参考图角色闸门（v3.1；v4.13 起加 `LADDER_PREV`）**：`--ref` 只许风格书（`assets/t3-exemplars/`）；sketch 的 `--content-ref` 只许作者手绘输入，**外加「同一条阶梯上一轮的草图」**（`LADDER_PREV`：落在本阶梯账本已登记的 rung 目录里，由 `L9` 强制 —— 这是「同一物理每次草图都一样」那条禁令的**唯一**例外）；render 的只许**上一步已过闸口①的草图**；`assets/demos/**` 任何阶段不许；同一张图不许同时占两个角色。`--run --` 包一层 = **先查后调**，查不过就不执行（不烧 API 的钱）。★ v4.15：IR 契约再加三样 —— `composition.projection.类型`（不许透视）、`坐标约定.手性: 右手`（没写只软警）、`坐标约定.束流轴`（读不出即硬伤；无束流的图写「无」），与 axis_gate 的 X7/X8/X9 同一组判据 |
+| `ref_guard.py` | **★ 参考图角色闸门（v3.1；v4.13 起加 `LADDER_PREV`）**：`--ref` 只许风格书（`assets/t3-exemplars/`、`assets/schematic-library/redistributable/`、`_T3精选/`）；sketch 的 `--content-ref` 只许作者手绘输入，**外加「同一条阶梯上一轮的草图」**（`LADDER_PREV`：落在本阶梯账本已登记的 rung 目录里，由 `L9` 强制 —— 这是「同一物理每次草图都一样」那条禁令的**唯一**例外）；render 的只许**上一步已过闸口①的草图**；`assets/demos/**` 任何阶段不许；同一张图不许同时占两个角色。`--run --` 包一层 = **先查后调**，查不过就不执行（不烧 API 的钱）。★ v4.15：IR 契约再加三样 —— `composition.projection.类型`（不许透视）、`坐标约定.手性: 右手`（没写只软警）、`坐标约定.束流轴`（读不出即硬伤；无束流的图写「无」），与 axis_gate 的 X7/X8/X9 同一组判据 |
 | `ladder_gate.py` | **★ 提示词阶梯闸门（v4.15，四档 A→B→C→D）**：不许跳档；A 档 = 一句话(≤80 字符)、**默认不带风格图**、只作诊断不许进交付链；**B 档必须带 `--ref`** + 面板序列 + 输出硬约束、**且不许给 `--content-ref`**（`L9`）；**C 档 = 元素替换档**：必须写明「把 A 档画得好的元素搬进来、替换 B 里对应的那一个」（`L12`），并把 **A 与 B 两张图**都当 `--content-ref` 交进去（`L9`）；**D 档 = 物理修正档**：只许带「上一轮错在哪→改成什么」(≤3000 字符)、**严格在上一张图上改**（`L10`）、且**改形状 / 几何时必须写明「不要修改材质 / 质感」（`L11`）**、必须给紧邻上一档的 `--content-ref`（`L9`）；**render 档必须在上一张草图的基础上改**（`L13`）。`--selftest` 标定 L9 / L12 / L13（10 条）。账本 `<gen-dir>/ladder.json`；`ref_guard.py --run` **出图前自动查、成功后退图后自动登记**，`--ladder-waive "理由"` 可放行 |
 | `keep_gate.py` | **★ 阶梯两档之间的「保留」对账（v4.13）**：`--prev 上一轮 --new 这一轮`，机械对出 ① **形体删除**（「上一版有 → 这一版没了」的连通域 + 颜色族）② **质感漂移**（两版都有内容处按网格量平均色差 / 对比度塌陷 —— 「粗糙火球 → 光滑球」这类换材质会被点出来）。**只适用同一阶梯相邻两档**（跨版式会大面积误报）；默认只出清单（读数是诊断不是判决），`--strict` / `--material-strict` 才当硬伤 |
 | `ir_layout_guard.py` | **★ IR 版式锁闸门（v3.1）**：IR 把整张版式写死（`composition.分区` / `元素布局`、`elements[].params` 的绝对毫米、`conventions` 里的逐面板脚本 / "exactly N panels in ONE ROW"）→ 同一份物理每次草图都一样。它把**简报真的编译出来再扫**（简报才是模型看到的东西），只查 IR 字面会漏掉被模板合成的那些 |
@@ -65,3 +65,19 @@
 | `ir_scope_gate.py` | **★ IR 生效范围闸门（v4.26）**：`S0` 档位必须声明；`S1` A/B 档不许出现 IR 的规格书部件（色号 / conventions 整条 / 绝对版式词 / **形体与材质词** —— 竖立 / 斜置 / 网格 / 薄板 / 玻璃 / 半透明 / 冷灰 …）；`S2/S3` C 档每条改动必须追得到 `[HPn]` 或可量证据；`S4` IR 的画法专属词不许进「必须」块；`S5` 打印本闸门**明确不判**的东西。已接进 `ref_guard.py`（`IR_SCOPE`）。标定：v427 的 B = FAIL（竖立/网格/半透明），干净 B = PASS |
 | `preview.py` | **★ 取图预算（v4.26）**：把图片 / 目录批量缩成长边 ≤1800 的 JPEG q90 写到 `_preview/`，打印尺寸与合计体积。**模型只看预览，全尺寸只喂脚本**（描摹 / axis_gate / keep_gate / trace_rebuild）。413 的根因是历史里每张图每轮重新 base64，不是仓库体积 |
 | `init_workspace.py` | **★ 新工作区落地（v4.26）**：`--dir <ws>` 写一份 `AGENTS.md`（硬规则入口版）+ `tools/*.py` 转发脚本（`python tools/ref_guard.py` 照样可用）。规则与脚本只有 skill 这一份，工作区不复制、不漂移 |
+| `schematic_library.py` | **★ 5.1 许可分级素材库**：`stats` / `validate` / `search` / `--for-ref`；`discover` 用 OpenAlex 按 16 个 HEP 主题扫 Nature、APS、JHEP、EPJC 等期刊并 DOI 去重；`discover-crossref` 分页扩展 APS/HEP/Nature；`prune-candidates` 清掉词面假阳性；`harvest-europepmc` 只下载 CC BY 图；`import-legacy` 导入 metadata-only 记录 |
+| `article_element_harvester.py` | **★ PMC/OA 素材上游采集**：严格 HEP 标题/摘要分类 → PMC OA S3 版本/许可核对 → JATS 图注筛选 → 原始媒体（可选 PDF）下载。图件按 graphic URL 去重；永久许可失败与临时网络失败分开缓存，`--retry-permanent` 可显式重开 |
+| `publisher_figure_harvester.py` | **★ PMC 之外的可恢复采集**：当前支持 APS/PR 系列 CC BY 页面；核对 landing page 许可和题注第三方权利短语，从 PDF 以 300 dpi 重建图区，保留 DOI、题注、PDF/图像哈希与来源 URL；题注缺失或出现 permission/reprinted 时只留 metadata |
+| `figure_element_candidates.py` | **★ 全图库元素候选索引**：按文件哈希去重、严格过滤跨领域误收、用题注与像素平坦度/边缘密度给示意图排序，生成全图审查拼图和最多 12 个对象候选 crop；任何 crop 都标 `review-only`，未经人工对象审查与原生 SVG 重建不得进 `index.json` |
+| `priority_element_rebuild.py` | **★ 高优先级逐对象重建首轮**：读取 408 张 `high` 图的对象候选，做连通背景去除、上下文对象指标审核，并只为单连通、无孔洞、非线稿/文字的安全对象生成平滑原生路径 SVG candidate；其余明确进入人工拆分队列，全部 `review-only` |
+| `source_element_extract.py` | 从 catalog 或 manifest 内嵌 source 读取 CC BY 图，支持 bbox、椭圆/多形体掩膜、saturated/dark 与 red 颜色过滤；`vtracer` 透明 SVG；记录源图/高清覆盖/crop/hash/出处 |
+| `rebuild_article_vectors.py` | 把高频文章来源元素从描摹稿重建为原生圆/路径、真渐变、独立箭头和原生文字；保留 source crop/DOI/SHA，`origin=article_vector_native`，输出 `NATIVE_NOTICE.md` |
+| `element_texture_vectorize.py` | 为每个文章来源元素生成**可选**的平滑路径/色阶/渐变纹理（`_texture.svg`），逐元素记录 MAE/>8/>32；`_edit.svg` 始终是 `index.json.file` 的默认无限缩放版本。重跑纹理不会把公开入口改回跟踪稿 |
+| `build_element_library.py` | **★ 5.1 system 元素生成器**：确定性生成 107 个透明原生 SVG 元素变体，写入授权、物理角色、哈希和 `origin=software` provenance；保留已抽取的 source-derived 条目 |
+| `source_element_extract.py` | **★ 文章派生元素抽取**：按人工 bbox/掩膜从 CC BY 图件去背景、`vtracer` 矢量化，记录 DOI、许可、源 SHA、crop、viewBox 与源图位置 |
+| `element_variants.py` | **★ 同槽位多方案选择**：对一个 spec 元素渲染所有候选变体、生成 pick.html/拼图、记录客户选择，并可回写 `asset_variant` |
+| `element_library.py` | **★ 元素库入口**：校验 SVG/许可/哈希/安全属性、按标签检索、`ingest-ai` 把清理后的 PNG/SVG 补充入库并记录模型/提示词/审核来源 |
+| `spec_confirm.py` | **★ IR 作者确认**：展示元素/文字/连接/关系/硬物理；完整 spec SHA-256 与 `--by client` 回执绑定，改 spec 即失效 |
+| `spec_compile.py` | **★ 元素级编译器**：确认 spec → 解析矢量元素 → 代码组装连接/文字/布局 → SVG/PDF/600 dpi PNG + provenance manifest；`--safe-mode` 排除 AI 资产与嵌入位图 |
+| `visual_review.py` | **★ 视觉回执**：把 spec、SVG、PNG、PDF 的哈希绑定到作者看图后的原话；`spec_compile.py --final` 在导出最终稿前复核 |
+| `nature_gate.py` | **★ 期刊规范与安全门禁**：89/183 mm、5–12 pt、0.25–3 pt、语义色板、字体、600 dpi、无脚本/外链/安全模式 AI 元素 |

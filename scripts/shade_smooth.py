@@ -116,6 +116,23 @@ def rasterize(head, body, W, H):
     return (255 - A.min(2)) > 8
 
 
+def load_rgb_on_white(path, width, height):
+    """Load the appearance exactly as a reader sees it.
+
+    Article crops are often RGBA with useful glow inside the alpha boundary and
+    stale, unrelated RGB values outside it. Reading RGB directly would turn
+    those hidden samples into a visible coloured halo after vectorization.
+    """
+    image = Image.open(path).convert("RGBA")
+    if image.size != (width, height):
+        image = image.resize((width, height), Image.Resampling.LANCZOS)
+    background = Image.new("RGBA", image.size, "white")
+    background.alpha_composite(image)
+    return np.ascontiguousarray(
+        np.asarray(background.convert("RGB"), dtype=np.float32)
+    )
+
+
 def smoothed_clip_svg(mask, iters=2, eps=0.55, dilate=1, prec=2):
     """像素掩膜的 Chaikin 平滑轮廓 → SVG path 'd'（子路径 + even-odd 洞里）。"""
     m = np.ascontiguousarray(mask.astype(np.uint8))
@@ -141,6 +158,41 @@ def smoothed_clip_svg(mask, iters=2, eps=0.55, dilate=1, prec=2):
         d.append("Z")
         parts.append("".join(d))
     return "".join(parts) if parts else None
+
+
+def mask_band_path(mask, x0, x1, y0, y1):
+    """Bake a row band's visible pixels into geometry, avoiding clip dependencies."""
+    parts = []
+    active = {}
+    previous = None
+    active_y = y0
+
+    def flush(end_y):
+        for start, stop in active:
+            width = stop - start
+            parts.append(
+                f"M{start} {active_y}h{width}v{end_y-active_y}h-{width}z"
+            )
+
+    for y in range(y0, y1):
+        row = np.asarray(mask[y, x0:x1 + 1], dtype=np.bool_)
+        padded = np.r_[False, row, False]
+        edges = np.flatnonzero(padded[1:] != padded[:-1])
+        runs = tuple(
+            (x0 + int(start), x0 + int(stop))
+            for start, stop in zip(edges[0::2], edges[1::2])
+            if stop > start
+        )
+        if previous is not None and runs != previous:
+            flush(y)
+            active = {}
+            active_y = y
+        for start, stop in runs:
+            active[(start, stop)] = None
+        previous = runs
+    if active:
+        flush(y1)
+    return "".join(parts)
 
 
 def component_lattice(fieldF, comp, cell, W, H):
@@ -224,6 +276,16 @@ def main():
     ap.add_argument("--width-mm", type=float, default=183.0, help="成品物理宽度（mm）")
     ap.add_argument("--no-detail", action="store_true", help="不出线稿残差层")
     ap.add_argument("--no-text", action="store_true", help="不搬临摹图里的真 <text>")
+    ap.add_argument(
+        "--bake-clips",
+        action="store_true",
+        help="把可见轮廓写进每条约色带路径，避免复杂 clipPath 在缩放时失效",
+    )
+    ap.add_argument(
+        "--transparent-background",
+        action="store_true",
+        help="不铺白色画布矩形；用于带 alpha 的文章元素裁切",
+    )
     a = ap.parse_args()
 
     t0 = time.time()
@@ -235,10 +297,7 @@ def main():
     sx, sy = W / float(TW), H / float(TH)
     if W <= 0 or H <= 0:
         sys.exit("无法从临摹 SVG 读到尺寸，请用 --size WxH")
-    src = np.ascontiguousarray(np.asarray(Image.open(a.src).convert("RGB")).astype(np.float32))
-    if src.shape[1] != W or src.shape[0] != H:
-        src = np.ascontiguousarray(np.asarray(
-            Image.open(a.src).convert("RGB").resize((W, H), Image.LANCZOS)).astype(np.float32))
+    src = load_rgb_on_white(a.src, W, H)
     spec = {}
     for kv in a.cell.split(","):
         if "=" in kv:
@@ -318,9 +377,21 @@ def main():
             if st[j, 4] >= a.mind:
                 keep[j] = True
         Mm = keep[lab]
-        Mm |= (base_cov == False)  # noqa: E712
+        if a.transparent_background:
+            # The transparent canvas is not part of the object. Including it as
+            # residual paints a white rectangle wherever the asset is placed on
+            # a tinted panel.
+            Mm &= base_cov
+        else:
+            Mm |= (base_cov == False)  # noqa: E712
         Mm = ndimage.binary_fill_holes(Mm)
-        Mm = cv2.dilate(Mm.astype(np.uint8), np.ones((5, 5), np.uint8)) > 0
+        detail_kernel = 3 if a.transparent_background else 5
+        Mm = cv2.dilate(
+            Mm.astype(np.uint8),
+            np.ones((detail_kernel, detail_kernel), np.uint8),
+        ) > 0
+        if a.transparent_background:
+            Mm &= base_cov
         print("detail mask %.2f%% of canvas" % (100.0 * Mm.mean()), flush=True)
         din = ndimage.distance_transform_edt(Mm).astype(np.float32)
         dc, tile = a.dc, a.tile
@@ -350,42 +421,75 @@ def main():
                 dstr = smoothed_clip_svg(full, iters=2, eps=0.55, dilate=1)
                 if dstr is None:
                     continue
-                det.append((dstr, xs.astype(np.int32), ys.astype(np.int32), V))
-        nv = sum(len(x) * len(y) for _, x, y, _ in det)
+                det.append((
+                    dstr, xs.astype(np.int32), ys.astype(np.int32), V,
+                    full.astype(bool),
+                ))
+        nv = sum(len(x) * len(y) for _, x, y, _, _ in det)
         print("layer B: %d tiles, %d verts (~%.1f MB)" % (len(det), nv, nv * 7 / 1048576.), flush=True)
 
     # ---- 装配 ----
     pieces = [(n, f["mask"], f["xs"], f["ys"], f["V"]) for n, f in piecesA]
-    pieces += [("detail-layer", d_, xs_, ys_, V_) for (d_, xs_, ys_, V_) in det]
-    defs = ['<linearGradient id="vbl" x1="0" y1="0" x2="0" y2="1">'
-            '<stop offset="0" stop-color="#000000"/><stop offset="1" stop-color="#ffffff"/>'
-            '</linearGradient>',
+    pieces += [
+        ("detail-layer", mask_, xs_, ys_, V_)
+        for (d_, xs_, ys_, V_, mask_) in det
+    ]
+    defs = []
+    if not a.bake_clips:
+        defs.extend([
+            '<linearGradient id="vbl" x1="0" y1="0" x2="0" y2="1">'
+            '<stop offset="0" stop-color="#000000"/>'
+            '<stop offset="1" stop-color="#ffffff"/></linearGradient>',
             '<mask id="vmsk" maskContentUnits="objectBoundingBox">'
-            '<rect x="0" y="0" width="1" height="1" fill="url(#vbl)"/></mask>']
+            '<rect x="0" y="0" width="1" height="1" fill="url(#vbl)"/>'
+            '</mask>',
+        ])
     body, nstops, nrect, cur_el = [], 0, 0, None
     for pid, (ename, mask, xs, ys, V) in enumerate(pieces):
         if len(ys) < 2 or len(xs) < 2:
             continue
-        d = mask if isinstance(mask, str) else smoothed_clip_svg(mask, iters=2, eps=0.55, dilate=1)
-        if not d:
-            continue
-        defs.append('<clipPath id="c%d" clipPathUnits="userSpaceOnUse"><path d="%s"/></clipPath>' % (pid, d))
+        d = None
+        if not a.bake_clips:
+            d = (mask if isinstance(mask, str)
+                 else smoothed_clip_svg(mask, iters=2, eps=0.55, dilate=1))
+            if not d:
+                continue
+            defs.append(
+                '<clipPath id="c%d" clipPathUnits="userSpaceOnUse">'
+                '<path d="%s"/></clipPath>' % (pid, d)
+            )
         for j in range(len(ys)):
             g, ns = row_gradient(pid, j, xs, V)
             defs.append(g)
             nstops += ns
         x0 = float(xs[0])
         wd = float(xs[-1]) + 1.0 - x0
-        band = ['<g clip-path="url(#c%d)">' % pid]
-        for j in range(len(ys) - 1):
-            y0 = float(ys[j])
-            hh = float(ys[j + 1]) - y0
-            band.append('<rect x="%g" y="%g" width="%g" height="%g" fill="url(#g%d_%d)"/>'
-                        % (x0, y0, wd, hh, pid, j))
-            band.append('<rect x="%g" y="%g" width="%g" height="%g" fill="url(#g%d_%d)" mask="url(#vmsk)"/>'
-                        % (x0, y0, wd, hh, pid, j + 1))
-            nrect += 2
-        band.append("</g>")
+        band = []
+        if a.bake_clips and isinstance(mask, np.ndarray):
+            band.append("<g>")
+            for j in range(len(ys) - 1):
+                d_band = mask_band_path(
+                    mask, int(xs[0]), int(xs[-1]),
+                    int(ys[j]), int(ys[j + 1]),
+                )
+                if d_band:
+                    band.append(
+                        '<path d="%s" fill="url(#g%d_%d)"/>'
+                        % (d_band, pid, j)
+                    )
+                    nrect += 1
+            band.append("</g>")
+        else:
+            band.append('<g clip-path="url(#c%d)">' % pid)
+            for j in range(len(ys) - 1):
+                y0 = float(ys[j])
+                hh = float(ys[j + 1]) - y0
+                band.append('<rect x="%g" y="%g" width="%g" height="%g" fill="url(#g%d_%d)"/>'
+                            % (x0, y0, wd, hh, pid, j))
+                band.append('<rect x="%g" y="%g" width="%g" height="%g" fill="url(#g%d_%d)" mask="url(#vmsk)"/>'
+                            % (x0, y0, wd, hh, pid, j + 1))
+                nrect += 2
+            band.append("</g>")
         if ename != cur_el:
             if cur_el is not None:
                 body.append("</g>")
@@ -421,9 +525,10 @@ def main():
     out = ['<?xml version="1.0" encoding="UTF-8"?>',
            '<svg xmlns="http://www.w3.org/2000/svg" data-artifact="visual-master" '
            'data-contract="pixel-fidelity" width="%.4fmm" height="%.4fmm" viewBox="0 0 %d %d">'
-           % (a.width_mm, a.width_mm * H / float(W), W, H),
-           '<rect width="%d" height="%d" fill="#ffffff"/>' % (W, H),
-           "<defs>", "".join(defs), "</defs>"]
+           % (a.width_mm, a.width_mm * H / float(W), W, H)]
+    if not a.transparent_background:
+        out.append('<rect width="%d" height="%d" fill="#ffffff"/>' % (W, H))
+    out.extend(["<defs>", "".join(defs), "</defs>"])
     out.extend(body)
     out.append("</svg>")
     dst = os.path.join(a.outdir, "%s_mesh.svg" % a.stem)

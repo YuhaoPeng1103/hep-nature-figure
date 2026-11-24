@@ -1,4 +1,4 @@
-# 硬规则（自包含版，v4.26）
+# 硬规则（自包含版，v5.1）
 
 > 这份文件 = 工作区 `AGENTS.md` 的**可移植版本**。规则属于 skill，不属于某一个工作区：
 > 换一台机器、开一个新对话、在一个空目录里开工，只要按这里的命令走，闸门就在。
@@ -54,7 +54,9 @@ python scripts/ref_guard.py --post --post-3d <成品.png> \
 
 ## 2. 参考图的角色（R1）
 
-- `--ref`（风格参考）**只许**取风格书：`assets/t3-exemplars/` 或工作区 `_T3精选/`。
+- `--ref`（风格参考）**只许**取风格书：`assets/t3-exemplars/`、
+  `assets/schematic-library/redistributable/` 或工作区 `_T3精选/`。
+- 新素材库只把 CC0 / CC BY 图放进 `redistributable/`；metadata-only 记录不得当 `--ref`。
 - `--content-ref`（构图依据）：草图阶段只许作者手绘输入（`sketches_in/`、`hand_sketch*.png`）；
   render 阶段只许**本阶梯已登记 rung 目录里**的图（`gen/A/sketch_s1.png`、`gen/B/chosen.png`）。
 - 任何阶段都不许：自家成品（`out/**`、`render_*.png`、`chosen*.png`、`*.svg`、`*.pdf`、`*@4000.png`）、
@@ -183,7 +185,37 @@ python scripts/ir_to_genbrief.py <IR> --stage render --style-mode render3d -o <d
 
 **双版要求（2026-11-19）**：默认同时交付 `<stem>_edit.svg`（原生几何重绘版）与 `<stem>_texture.svg`（独立透明纹理版），各附 PNG、源码和试编辑结果。两版使用同一对象表、viewBox 与原生文字；纹理版拖动仅改变组变换，不关闭纹理或切换重绘稿。 见 [双 SVG 流程](dual-svg.md)。`check_svg_pair.py` 验证共同对象/文字及试编辑只改变指定 transform/display，完整遮挡和前景颜色仍需目检。
 
-## 12. 交付强制项（每张图都要出）
+## 12. 元素级矢量素材库（R11）
+
+```bash
+python scripts/element_library.py validate
+python scripts/element_library.py list --safe-only
+```
+
+- `assets/element-library/` 存透明原生 SVG，不存整图截图；
+- 每个元素必须声明 licence、attribution、SHA-256、physics_roles、dimensionality；
+- `generation.origin` 区分 software / human / AI raster / AI vector；
+- AI 补充必须走 `ingest-ai`，记录模型、prompt hash、审核人和来源；
+- 整图检索层 `schematic-library/` 仍按 CC0/CC BY 与 metadata-only 分层。
+
+## 12.1 元素 spec 与投稿安全模式（R12）
+
+```bash
+python scripts/spec_confirm.py figure.spec.yaml --record --by client --reply "原话"
+python scripts/spec_compile.py figure.spec.yaml --outdir out --stem figure --safe-mode
+python scripts/visual_review.py --spec figure.spec.yaml --svg out/figure.svg \
+  --png out/figure.png --pdf out/figure.pdf --record --by client --reply "原话"
+python scripts/spec_compile.py figure.spec.yaml --outdir out --stem figure --safe-mode --final
+```
+
+- confirmation hash 覆盖元素、文字、连接、画布、关系与硬物理；改 spec 后必须重新确认；
+- `--safe-mode` 排除 `ai_raster`、`ai_generated_vector`、`data-ai-generated=true` 与 `<image>`；
+- `--source-derived-only` 进一步只允许 `article_vector_native/trace`，排除所有 `software` 补位图元；
+- `nature_gate.py` 检查 89/183 mm 宽度、5–12 pt 字号、0.25–3 pt 线宽、语义色族和 600 dpi；
+- `--final` 要求视觉回执与当前 SVG/PNG/PDF 哈希一致；
+- 输出 SVG + PDF + 600 dpi PNG + manifest；manifest 记录每个元素的 licence 与 AI provenance。
+
+## 13. 交付强制项（每张图都要出）
 
 1. 作者给定的参考图，或客户确认的成品位图（若需生成位图）；
 2. 原生几何 `<stem>_edit.svg` + 独立透明 `<stem>_texture.svg`，各自 PNG、所用源码；
@@ -192,7 +224,7 @@ python scripts/ir_to_genbrief.py <IR> --stage render --style-mode render3d -o <d
    `3D 闸门读数：板面 ?% / 接触阴影 ?% / 高光偏离 ? 半轴`；
 5. 已知偏差 + 没改对的地方（逐条）。
 
-## 13. 新工作区怎么起步
+## 14. 新工作区怎么起步
 
 ```bash
 python scripts/init_workspace.py --dir <新工作区>
@@ -200,7 +232,7 @@ python scripts/init_workspace.py --dir <新工作区>
 它会在目标目录写一份 `AGENTS.md`（本文件的入口版）+ `tools/` 下的转发脚本（指向 skill 的
 `scripts/`），这样新对话即使读不到这份 `references/hard_rules.md`，也会先看到 `AGENTS.md` 并照做。
 
-## 14. 与工作区 `AGENTS.md` 的关系
+## 15. 与工作区 `AGENTS.md` 的关系
 
 - 本文件是**上游**；工作区那份是**副本/补充**（可以写具体图种、具体标定样本）。
 - 冲突时取**更严**；工作区放宽一条，必须在交付说明里写明理由，并给出对应的 `--waive`。

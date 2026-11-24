@@ -353,6 +353,8 @@ material: >
 
 `assets/t3-exemplars/` 里有 **17 张 CC BY 4.0 的 T3 参考图**
 （STAR / ALICE / CMS / 开放获取的 arXiv 论文，逐张署名与加工说明见 `NOTICE.md`）。
+5.1 还可用 `assets/schematic-library/redistributable/` 中的 CC0 / CC BY 图，
+先用 `schematic_library.py search --for-ref` 只筛本地图。
 
 | | 给参考图 | 给提炼的规律 |
 |---|---|---|

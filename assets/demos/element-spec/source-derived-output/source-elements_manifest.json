@@ -1,0 +1,202 @@
+{
+  "schema": "hep-nature-figure/spec-compile-v1",
+  "spec": "F:\\HuaweiMoveData\\Users\\HUAWEI\\Desktop\\work\\dun\\_gh_push\\hep-nature-figure\\assets\\spec-examples\\source-derived-elements.spec.yaml",
+  "spec_sha256": "022f342d3d1573fda68d4b79b6b9bcadd38445205156c687203a797ef73782dd",
+  "confirmation": "experimental",
+  "safe_mode": true,
+  "source_derived_only": true,
+  "visual_review": "preview",
+  "metrics": {
+    "figure_id": "source-derived-elements",
+    "canvas_mm": [
+      183.0,
+      92.0
+    ],
+    "target": "Nature",
+    "elements": 6,
+    "three_d_elements": 6,
+    "texts": 4,
+    "connections": 2,
+    "hard_physics": 1,
+    "safe_mode": true,
+    "source_derived_only": true
+  },
+  "physics_checks": [
+    {
+      "id": "HP1",
+      "status": "pass",
+      "type": "opposite_rays",
+      "cosine": -1.0
+    }
+  ],
+  "layout_checks": [],
+  "outputs": {
+    "svg": "F:\\HuaweiMoveData\\Users\\HUAWEI\\Desktop\\work\\dun\\_gh_push\\hep-nature-figure\\assets\\demos\\element-spec\\source-derived-output\\source-elements.svg",
+    "png": "F:\\HuaweiMoveData\\Users\\HUAWEI\\Desktop\\work\\dun\\_gh_push\\hep-nature-figure\\assets\\demos\\element-spec\\source-derived-output\\source-elements.png",
+    "pdf": "F:\\HuaweiMoveData\\Users\\HUAWEI\\Desktop\\work\\dun\\_gh_push\\hep-nature-figure\\assets\\demos\\element-spec\\source-derived-output\\source-elements.pdf"
+  },
+  "provenance": [
+    {
+      "element_id": "left_nucleus",
+      "asset_id": "article_t302_prolate_nucleus",
+      "asset_family": "nucleus",
+      "asset_variant": "article-prolate-gridded",
+      "asset_file": "source-derived/nucleus/article_t302_prolate_nucleus_edit.svg",
+      "render_mode": "edit",
+      "requested_render_mode": "edit",
+      "asset_sha256": "f9bb2a2e424e9be32614cff88d692493ee5c02194bf70bbdc9acc290ad8f7c5b",
+      "origin": "article_vector_native",
+      "ai_generated": false,
+      "contains_ai_pixels": false,
+      "license": "CC-BY-4.0",
+      "license_source_url": "https://doi.org/10.1038/s41586-024-08097-2",
+      "attribution": "STAR Collaboration. Imaging shapes of atomic nuclei in high-energy nuclear collisions. Nature 635",
+      "source_asset_id": "T3-02",
+      "source_sha256": "4e054ec9635ca6ff08526745c999e8c62ad4a01e33316b24ae6310f166a689fc",
+      "submission_safe": true
+    },
+    {
+      "element_id": "right_nucleus",
+      "asset_id": "article_t302_prolate_nucleus",
+      "asset_family": "nucleus",
+      "asset_variant": "article-prolate-gridded",
+      "asset_file": "source-derived/nucleus/article_t302_prolate_nucleus_edit.svg",
+      "render_mode": "edit",
+      "requested_render_mode": "edit",
+      "asset_sha256": "f9bb2a2e424e9be32614cff88d692493ee5c02194bf70bbdc9acc290ad8f7c5b",
+      "origin": "article_vector_native",
+      "ai_generated": false,
+      "contains_ai_pixels": false,
+      "license": "CC-BY-4.0",
+      "license_source_url": "https://doi.org/10.1038/s41586-024-08097-2",
+      "attribution": "STAR Collaboration. Imaging shapes of atomic nuclei in high-energy nuclear collisions. Nature 635",
+      "source_asset_id": "T3-02",
+      "source_sha256": "4e054ec9635ca6ff08526745c999e8c62ad4a01e33316b24ae6310f166a689fc",
+      "submission_safe": true
+    },
+    {
+      "element_id": "detector",
+      "asset_id": "article_t311_cms_detector",
+      "asset_family": "detector-layer",
+      "asset_variant": "article-cms-cutaway",
+      "asset_file": "source-derived/detector-layer/article_t311_cms_detector_edit.svg",
+      "render_mode": "edit",
+      "requested_render_mode": "edit",
+      "asset_sha256": "5cbbecacfe1efbee97e0217693c9afbec24f46e282492959e236a06e0c19ba55",
+      "origin": "article_vector_native",
+      "ai_generated": false,
+      "contains_ai_pixels": false,
+      "license": "CC-BY-4.0",
+      "license_source_url": "https://doi.org/10.1038/s41467-025-56200-6",
+      "attribution": "CMS Collaboration. Elliptic anisotropy measurement of the f0(980) hadron in proton-lead collisions and evidence for its quark-antiquark composition. Nat. Commun. 16",
+      "source_asset_id": "T3-11",
+      "source_sha256": "cfcf35115a17182dbb39633781f286c0ad09e64974c162395fd5f55172f39ef1",
+      "submission_safe": true
+    },
+    {
+      "element_id": "medium",
+      "asset_id": "article_pmc130_medium_outer",
+      "asset_family": "medium",
+      "asset_variant": "article-partonic-medium-surface",
+      "asset_file": "source-derived/medium/article_pmc130_medium_outer_edit.svg",
+      "render_mode": "edit",
+      "requested_render_mode": "edit",
+      "asset_sha256": "45d44ea08ec0c67ef36194bc67d47bb2654e668c6486c42e33e7c29a142e9f89",
+      "origin": "article_vector_native",
+      "ai_generated": false,
+      "contains_ai_pixels": false,
+      "license": "CC-BY-4.0",
+      "license_source_url": "https://doi.org/10.1038/s41467-025-67795-1",
+      "attribution": "ALICE Collaboration. Observation of partonic flow in proton-proton and proton-nucleus collisions. Nature Communications (2026).",
+      "source_asset_id": "PMC13004930",
+      "source_sha256": "bbc5e2f686bf51f6edfcd7eabc80b1573242c8b86796222d623838a8f21dc6e3",
+      "submission_safe": true
+    },
+    {
+      "element_id": "hadronization",
+      "asset_id": "article_t312_hadronizing_shell",
+      "asset_family": "qgp",
+      "asset_variant": "article-surface-hadronization",
+      "asset_file": "source-derived/qgp/article_t312_hadronizing_shell_edit.svg",
+      "render_mode": "edit",
+      "requested_render_mode": "edit",
+      "asset_sha256": "f425cceec719c969f26c2022bf82b8f5e3bf792ffbb9874a77475fbade1ec201",
+      "origin": "article_vector_native",
+      "ai_generated": false,
+      "contains_ai_pixels": false,
+      "license": "CC-BY-4.0",
+      "license_source_url": "https://doi.org/10.1038/s41467-025-67795-1",
+      "attribution": "ALICE Collaboration. Observation of partonic flow in proton-proton and proton-nucleus collisions. Nat. Commun. 17",
+      "source_asset_id": "T3-12",
+      "source_sha256": "7673015eab4a6e8dcfba06ca6d36cddf4c48ffd82a96b3eeed51d46129516a7e",
+      "submission_safe": true
+    },
+    {
+      "element_id": "participant_nucleon",
+      "asset_id": "article_t335_red_nucleon_top",
+      "asset_family": "nucleon",
+      "asset_variant": "article-red-top",
+      "asset_file": "source-derived/nucleon/article_t335_red_nucleon_top_edit.svg",
+      "render_mode": "edit",
+      "requested_render_mode": "edit",
+      "asset_sha256": "ba67f53437ebc3778e0200836a75ebdda153da7a7d3782bad6116362505739bd",
+      "origin": "article_vector_native",
+      "ai_generated": false,
+      "contains_ai_pixels": false,
+      "license": "CC-BY-4.0",
+      "license_source_url": "https://arxiv.org/abs/1509.04073",
+      "attribution": "Xu-Guang Huang. Electromagnetic fields and anomalous transports in heavy-ion collisions - A pedagogical review. arXiv",
+      "source_asset_id": "T3-35",
+      "source_sha256": "9507ef6d94aa90b7d5a1919c3b5f6c0d1d6598c564704e59b8bd465d03adf468",
+      "submission_safe": true
+    }
+  ],
+  "nature_gate": {
+    "schema": "hep-nature-figure/nature-gate-v1",
+    "profile": "nature-2026",
+    "safe_mode": true,
+    "ok": true,
+    "errors": [],
+    "warnings": [],
+    "readings": {
+      "canvas_mm": [
+        183.0,
+        92.0
+      ],
+      "font_size_pt": {
+        "count": 4,
+        "min": 6.0,
+        "max": 7.0
+      },
+      "line_width_pt": {
+        "count": 2,
+        "min": 0.7999370078740159,
+        "max": 0.7999370078740159
+      },
+      "palette_families": [
+        "amber",
+        "blue",
+        "cyan",
+        "green",
+        "magenta",
+        "neutral",
+        "orange",
+        "red",
+        "violet"
+      ],
+      "png": {
+        "size": [
+          4323,
+          2173
+        ],
+        "expected_width_600dpi": 4323
+      }
+    }
+  },
+  "postchecks": {
+    "svg_structure": 0,
+    "render": 0,
+    "3d": 0,
+    "delivery": 0
+  }
+}

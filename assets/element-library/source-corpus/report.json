@@ -1,0 +1,9 @@
+{
+  "schema_version": "1.0",
+  "retrieved": "2026-11-22",
+  "query": "(JOURNAL:\"Nature\" OR JOURNAL:\"Nature Physics\" OR JOURNAL:\"Nature Communications\" OR JOURNAL:\"Communications Physics\" OR JOURNAL:\"Scientific Reports\" OR JOURNAL:\"Nature Reviews Physics\") AND OPEN_ACCESS:y AND (TITLE_ABS:\"quark-gluon plasma\" OR TITLE_ABS:\"quark gluon plasma\" OR TITLE_ABS:QGP OR TITLE_ABS:\"heavy-ion collisions\" OR TITLE_ABS:\"heavy ion collisions\" OR TITLE_ABS:\"relativistic heavy-ion\" OR TITLE_ABS:\"relativistic heavy ion\" OR TITLE_ABS:\"relativistic nuclear collision\" OR TITLE_ABS:\"high-energy nuclear collision\" OR TITLE_ABS:\"proton-lead\" OR TITLE_ABS:\"proton-nucleus\" OR TITLE_ABS:quarkonium OR TITLE_ABS:\"elliptic flow\" OR TITLE_ABS:\"jet quenching\" OR TITLE_ABS:\"electron-ion collider\" OR TITLE_ABS:\"ultra-peripheral\" OR TITLE_ABS:\"QCD phase\" OR TITLE_ABS:\"QCD confinement\" OR TITLE_ABS:\"partonic flow\" OR (TITLE_ABS:hadronization AND TITLE_ABS:collision) OR (TITLE_ABS:\"little-bang\" AND TITLE_ABS:nucleosynthesis))",
+  "reported_total": 24,
+  "retrieved_unique": 10,
+  "calls": 1,
+  "complete": false
+}

@@ -1,0 +1,45 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 280 360"
+     data-element-asset="article_pmc130_medium_left" data-origin="article_vector_native">
+  <defs>
+    
+    <marker id="article-pmc130-medium-left-arrow" viewBox="0 0 10 10" refX="8.5" refY="5"
+            markerWidth="5" markerHeight="5" orient="auto-start-reverse">
+      <path d="M0 0 L10 5 L0 10 z" fill="#18212b"/>
+    </marker>
+    <marker id="article-pmc130-medium-left-flow" viewBox="0 0 10 10" refX="8" refY="5"
+            markerWidth="5.5" markerHeight="5.5" orient="auto">
+      <path d="M0 0 L10 5 L0 10 z" fill="#84a3cf"/>
+    </marker>
+
+    <radialGradient id="article-pmc130-medium-left-medium" cx=".48" cy=".42" r=".62">
+      <stop offset="0" stop-color="#f7f7f7"/>
+      <stop offset=".58" stop-color="#b8babd"/>
+      <stop offset="1" stop-color="#595c60"/>
+    </radialGradient>
+    <clipPath id="article-pmc130-medium-left-clip">
+      <path d="M139 24 C181 25 210 54 219 99 C226 137 249 170 237 209
+               C226 247 206 277 171 304 C141 327 114 337 78 314
+               C48 294 29 272 26 231 C22 184 43 166 50 132
+               C57 98 51 67 79 43 C98 28 119 24 139 24 Z"/>
+    </clipPath>
+  </defs>
+  <g id="partonic-medium" data-element="article_pmc130_medium_left">
+    <path d="M139 24 C181 25 210 54 219 99 C226 137 249 170 237 209
+             C226 247 206 277 171 304 C141 327 114 337 78 314
+             C48 294 29 272 26 231 C22 184 43 166 50 132
+             C57 98 51 67 79 43 C98 28 119 24 139 24 Z"
+          fill="url(#article-pmc130-medium-left-medium)" stroke="#4e5155" stroke-width="2"/>
+    <g clip-path="url(#article-pmc130-medium-left-clip)" opacity=".72">
+      <ellipse cx="74" cy="58" rx="44" ry="18" fill="#ffffff"/>
+      <ellipse cx="191" cy="179" rx="58" ry="25" fill="#ffffff" opacity=".55"/>
+      <ellipse cx="116" cy="283" rx="48" ry="18" fill="#303338" opacity=".22"/>
+    </g>
+    
+    <g stroke="#1d242b" stroke-width="3" fill="none" marker-end="url(#article-pmc130-medium-left-arrow)">
+      <path d="M70 120 L91 92"/><path d="M110 86 L106 53"/>
+      <path d="M152 92 L176 64"/><path d="M204 166 L239 163"/>
+      <path d="M193 230 L227 249"/><path d="M142 283 L155 317"/>
+      <path d="M91 273 L61 291"/><path d="M56 208 L24 216"/>
+    </g>
+  </g>
+</svg>

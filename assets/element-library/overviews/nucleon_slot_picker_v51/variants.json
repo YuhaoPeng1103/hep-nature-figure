@@ -1,0 +1,300 @@
+{
+  "schema": "hep-nature-figure/element-variants-v1",
+  "spec": "F:\\HuaweiMoveData\\Users\\HUAWEI\\Desktop\\work\\dun\\_gh_push\\hep-nature-figure\\assets\\spec-examples\\qgp-jet-element.spec.yaml",
+  "element_id": "participant_nucleon",
+  "family": "nucleon",
+  "source_derived_only": false,
+  "sheet": "F:\\HuaweiMoveData\\Users\\HUAWEI\\Desktop\\work\\dun\\_gh_push\\hep-nature-figure\\assets\\element-library\\overviews\\nucleon_slot_picker_v51\\variant_sheet.png",
+  "candidates": [
+    {
+      "code": "cand_01",
+      "asset_id": "article_t330_dark_gray_nucleon",
+      "asset_variant": "article-dark-gray-sphere",
+      "name_zh": "文章原图深灰核子",
+      "origin": "article_vector_trace",
+      "safe": true,
+      "svg": null,
+      "png": "F:\\HuaweiMoveData\\Users\\HUAWEI\\Desktop\\work\\dun\\_gh_push\\hep-nature-figure\\assets\\element-library\\overviews\\nucleon_slot_picker_v51\\cand_01.png"
+    },
+    {
+      "code": "cand_02",
+      "asset_id": "article_t330_gray_nucleon",
+      "asset_variant": "article-gray-sphere",
+      "name_zh": "文章原图灰色核子",
+      "origin": "article_vector_trace",
+      "safe": true,
+      "svg": null,
+      "png": "F:\\HuaweiMoveData\\Users\\HUAWEI\\Desktop\\work\\dun\\_gh_push\\hep-nature-figure\\assets\\element-library\\overviews\\nucleon_slot_picker_v51\\cand_02.png"
+    },
+    {
+      "code": "cand_03",
+      "asset_id": "article_t330_red_nucleon",
+      "asset_variant": "article-red-sphere",
+      "name_zh": "文章原图红色核子",
+      "origin": "article_vector_trace",
+      "safe": true,
+      "svg": null,
+      "png": "F:\\HuaweiMoveData\\Users\\HUAWEI\\Desktop\\work\\dun\\_gh_push\\hep-nature-figure\\assets\\element-library\\overviews\\nucleon_slot_picker_v51\\cand_03.png"
+    },
+    {
+      "code": "cand_04",
+      "asset_id": "article_t330_red_nucleon_highlight",
+      "asset_variant": "article-red-sphere-highlight",
+      "name_zh": "文章原图高光红色核子",
+      "origin": "article_vector_trace",
+      "safe": true,
+      "svg": null,
+      "png": "F:\\HuaweiMoveData\\Users\\HUAWEI\\Desktop\\work\\dun\\_gh_push\\hep-nature-figure\\assets\\element-library\\overviews\\nucleon_slot_picker_v51\\cand_04.png"
+    },
+    {
+      "code": "cand_05",
+      "asset_id": "article_t335_green_nucleon_right",
+      "asset_variant": "article-green-right",
+      "name_zh": "文章原图绿色核子（右）",
+      "origin": "article_vector_trace",
+      "safe": true,
+      "svg": null,
+      "png": "F:\\HuaweiMoveData\\Users\\HUAWEI\\Desktop\\work\\dun\\_gh_push\\hep-nature-figure\\assets\\element-library\\overviews\\nucleon_slot_picker_v51\\cand_05.png"
+    },
+    {
+      "code": "cand_06",
+      "asset_id": "article_t335_green_nucleon_top",
+      "asset_variant": "article-green-top",
+      "name_zh": "文章原图绿色核子（上）",
+      "origin": "article_vector_trace",
+      "safe": true,
+      "svg": null,
+      "png": "F:\\HuaweiMoveData\\Users\\HUAWEI\\Desktop\\work\\dun\\_gh_push\\hep-nature-figure\\assets\\element-library\\overviews\\nucleon_slot_picker_v51\\cand_06.png"
+    },
+    {
+      "code": "cand_07",
+      "asset_id": "article_t335_purple_nucleon",
+      "asset_variant": "article-purple",
+      "name_zh": "文章原图紫色核子",
+      "origin": "article_vector_trace",
+      "safe": true,
+      "svg": null,
+      "png": "F:\\HuaweiMoveData\\Users\\HUAWEI\\Desktop\\work\\dun\\_gh_push\\hep-nature-figure\\assets\\element-library\\overviews\\nucleon_slot_picker_v51\\cand_07.png"
+    },
+    {
+      "code": "cand_08",
+      "asset_id": "article_t335_red_nucleon_bottom",
+      "asset_variant": "article-red-bottom",
+      "name_zh": "文章原图红色核子（下）",
+      "origin": "article_vector_trace",
+      "safe": true,
+      "svg": null,
+      "png": "F:\\HuaweiMoveData\\Users\\HUAWEI\\Desktop\\work\\dun\\_gh_push\\hep-nature-figure\\assets\\element-library\\overviews\\nucleon_slot_picker_v51\\cand_08.png"
+    },
+    {
+      "code": "cand_09",
+      "asset_id": "article_t335_red_nucleon_top",
+      "asset_variant": "article-red-top",
+      "name_zh": "文章原图红色核子（上）",
+      "origin": "article_vector_trace",
+      "safe": true,
+      "svg": null,
+      "png": "F:\\HuaweiMoveData\\Users\\HUAWEI\\Desktop\\work\\dun\\_gh_push\\hep-nature-figure\\assets\\element-library\\overviews\\nucleon_slot_picker_v51\\cand_09.png"
+    },
+    {
+      "code": "cand_10",
+      "asset_id": "article_t360_neutron_back",
+      "asset_variant": "article-t360-neutron-back",
+      "name_zh": "文章原图后层蓝色中子",
+      "origin": "article_vector_trace",
+      "safe": true,
+      "svg": null,
+      "png": "F:\\HuaweiMoveData\\Users\\HUAWEI\\Desktop\\work\\dun\\_gh_push\\hep-nature-figure\\assets\\element-library\\overviews\\nucleon_slot_picker_v51\\cand_10.png"
+    },
+    {
+      "code": "cand_11",
+      "asset_id": "article_t360_neutron_center",
+      "asset_variant": "article-t360-neutron-center",
+      "name_zh": "文章原图中央蓝色中子",
+      "origin": "article_vector_trace",
+      "safe": true,
+      "svg": null,
+      "png": "F:\\HuaweiMoveData\\Users\\HUAWEI\\Desktop\\work\\dun\\_gh_push\\hep-nature-figure\\assets\\element-library\\overviews\\nucleon_slot_picker_v51\\cand_11.png"
+    },
+    {
+      "code": "cand_12",
+      "asset_id": "article_t360_neutron_lower",
+      "asset_variant": "article-t360-neutron-right",
+      "name_zh": "文章原图右下蓝色中子",
+      "origin": "article_vector_trace",
+      "safe": true,
+      "svg": null,
+      "png": "F:\\HuaweiMoveData\\Users\\HUAWEI\\Desktop\\work\\dun\\_gh_push\\hep-nature-figure\\assets\\element-library\\overviews\\nucleon_slot_picker_v51\\cand_12.png"
+    },
+    {
+      "code": "cand_13",
+      "asset_id": "article_t360_neutron_top",
+      "asset_variant": "article-t360-neutron-front",
+      "name_zh": "文章原图上方蓝色中子",
+      "origin": "article_vector_trace",
+      "safe": true,
+      "svg": null,
+      "png": "F:\\HuaweiMoveData\\Users\\HUAWEI\\Desktop\\work\\dun\\_gh_push\\hep-nature-figure\\assets\\element-library\\overviews\\nucleon_slot_picker_v51\\cand_13.png"
+    },
+    {
+      "code": "cand_14",
+      "asset_id": "article_t360_proton_left",
+      "asset_variant": "article-t360-proton-left",
+      "name_zh": "文章原图左下红色质子",
+      "origin": "article_vector_trace",
+      "safe": true,
+      "svg": null,
+      "png": "F:\\HuaweiMoveData\\Users\\HUAWEI\\Desktop\\work\\dun\\_gh_push\\hep-nature-figure\\assets\\element-library\\overviews\\nucleon_slot_picker_v51\\cand_14.png"
+    },
+    {
+      "code": "cand_15",
+      "asset_id": "article_t360_proton_right",
+      "asset_variant": "article-t360-proton-right",
+      "name_zh": "文章原图右侧红色质子",
+      "origin": "article_vector_trace",
+      "safe": true,
+      "svg": null,
+      "png": "F:\\HuaweiMoveData\\Users\\HUAWEI\\Desktop\\work\\dun\\_gh_push\\hep-nature-figure\\assets\\element-library\\overviews\\nucleon_slot_picker_v51\\cand_15.png"
+    },
+    {
+      "code": "cand_16",
+      "asset_id": "article_t360_proton_top",
+      "asset_variant": "article-t360-proton-front",
+      "name_zh": "文章原图前方红色质子",
+      "origin": "article_vector_trace",
+      "safe": true,
+      "svg": null,
+      "png": "F:\\HuaweiMoveData\\Users\\HUAWEI\\Desktop\\work\\dun\\_gh_push\\hep-nature-figure\\assets\\element-library\\overviews\\nucleon_slot_picker_v51\\cand_16.png"
+    },
+    {
+      "code": "cand_17",
+      "asset_id": "nucleon_constituent",
+      "asset_variant": "constituent-quark",
+      "name_zh": "组分夸克核子",
+      "origin": "software",
+      "safe": true,
+      "svg": null,
+      "png": "F:\\HuaweiMoveData\\Users\\HUAWEI\\Desktop\\work\\dun\\_gh_push\\hep-nature-figure\\assets\\element-library\\overviews\\nucleon_slot_picker_v51\\cand_17.png"
+    },
+    {
+      "code": "cand_18",
+      "asset_id": "nucleon_dressed",
+      "asset_variant": "dressed",
+      "name_zh": "穿衣服夸克团",
+      "origin": "software",
+      "safe": true,
+      "svg": null,
+      "png": "F:\\HuaweiMoveData\\Users\\HUAWEI\\Desktop\\work\\dun\\_gh_push\\hep-nature-figure\\assets\\element-library\\overviews\\nucleon_slot_picker_v51\\cand_18.png"
+    },
+    {
+      "code": "cand_19",
+      "asset_id": "nucleon_high_q2",
+      "asset_variant": "high-q2-resolved",
+      "name_zh": "高 Q² 分辨核子",
+      "origin": "software",
+      "safe": true,
+      "svg": null,
+      "png": "F:\\HuaweiMoveData\\Users\\HUAWEI\\Desktop\\work\\dun\\_gh_push\\hep-nature-figure\\assets\\element-library\\overviews\\nucleon_slot_picker_v51\\cand_19.png"
+    },
+    {
+      "code": "cand_20",
+      "asset_id": "nucleon_low_q2",
+      "asset_variant": "low-q2-diffuse",
+      "name_zh": "低 Q² 弥散核子",
+      "origin": "software",
+      "safe": true,
+      "svg": null,
+      "png": "F:\\HuaweiMoveData\\Users\\HUAWEI\\Desktop\\work\\dun\\_gh_push\\hep-nature-figure\\assets\\element-library\\overviews\\nucleon_slot_picker_v51\\cand_20.png"
+    },
+    {
+      "code": "cand_21",
+      "asset_id": "nucleon_neutron",
+      "asset_variant": "neutron",
+      "name_zh": "中子",
+      "origin": "software",
+      "safe": true,
+      "svg": null,
+      "png": "F:\\HuaweiMoveData\\Users\\HUAWEI\\Desktop\\work\\dun\\_gh_push\\hep-nature-figure\\assets\\element-library\\overviews\\nucleon_slot_picker_v51\\cand_21.png"
+    },
+    {
+      "code": "cand_22",
+      "asset_id": "nucleon_participant",
+      "asset_variant": "participant",
+      "name_zh": "参与者核子",
+      "origin": "software",
+      "safe": true,
+      "svg": null,
+      "png": "F:\\HuaweiMoveData\\Users\\HUAWEI\\Desktop\\work\\dun\\_gh_push\\hep-nature-figure\\assets\\element-library\\overviews\\nucleon_slot_picker_v51\\cand_22.png"
+    },
+    {
+      "code": "cand_23",
+      "asset_id": "nucleon_proton",
+      "asset_variant": "proton",
+      "name_zh": "质子",
+      "origin": "software",
+      "safe": true,
+      "svg": null,
+      "png": "F:\\HuaweiMoveData\\Users\\HUAWEI\\Desktop\\work\\dun\\_gh_push\\hep-nature-figure\\assets\\element-library\\overviews\\nucleon_slot_picker_v51\\cand_23.png"
+    },
+    {
+      "code": "cand_24",
+      "asset_id": "nucleon_sea_cloud",
+      "asset_variant": "sea-cloud",
+      "name_zh": "海夸克胶子云",
+      "origin": "software",
+      "safe": true,
+      "svg": null,
+      "png": "F:\\HuaweiMoveData\\Users\\HUAWEI\\Desktop\\work\\dun\\_gh_push\\hep-nature-figure\\assets\\element-library\\overviews\\nucleon_slot_picker_v51\\cand_24.png"
+    },
+    {
+      "code": "cand_25",
+      "asset_id": "nucleon_spectator",
+      "asset_variant": "spectator",
+      "name_zh": "旁观核子",
+      "origin": "software",
+      "safe": true,
+      "svg": null,
+      "png": "F:\\HuaweiMoveData\\Users\\HUAWEI\\Desktop\\work\\dun\\_gh_push\\hep-nature-figure\\assets\\element-library\\overviews\\nucleon_slot_picker_v51\\cand_25.png"
+    },
+    {
+      "code": "cand_26",
+      "asset_id": "nucleon_spin_down",
+      "asset_variant": "polarized-spin-down",
+      "name_zh": "自旋向下核子",
+      "origin": "software",
+      "safe": true,
+      "svg": null,
+      "png": "F:\\HuaweiMoveData\\Users\\HUAWEI\\Desktop\\work\\dun\\_gh_push\\hep-nature-figure\\assets\\element-library\\overviews\\nucleon_slot_picker_v51\\cand_26.png"
+    },
+    {
+      "code": "cand_27",
+      "asset_id": "nucleon_spin_up",
+      "asset_variant": "polarized-spin-up",
+      "name_zh": "自旋向上核子",
+      "origin": "software",
+      "safe": true,
+      "svg": null,
+      "png": "F:\\HuaweiMoveData\\Users\\HUAWEI\\Desktop\\work\\dun\\_gh_push\\hep-nature-figure\\assets\\element-library\\overviews\\nucleon_slot_picker_v51\\cand_27.png"
+    },
+    {
+      "code": "cand_28",
+      "asset_id": "nucleon_valence_cluster",
+      "asset_variant": "valence-cluster",
+      "name_zh": "价夸克簇",
+      "origin": "software",
+      "safe": true,
+      "svg": null,
+      "png": "F:\\HuaweiMoveData\\Users\\HUAWEI\\Desktop\\work\\dun\\_gh_push\\hep-nature-figure\\assets\\element-library\\overviews\\nucleon_slot_picker_v51\\cand_28.png"
+    },
+    {
+      "code": "cand_29",
+      "asset_id": "nucleon_wounded",
+      "asset_variant": "wounded",
+      "name_zh": "受伤核子",
+      "origin": "software",
+      "safe": true,
+      "svg": null,
+      "png": "F:\\HuaweiMoveData\\Users\\HUAWEI\\Desktop\\work\\dun\\_gh_push\\hep-nature-figure\\assets\\element-library\\overviews\\nucleon_slot_picker_v51\\cand_29.png"
+    }
+  ]
+}

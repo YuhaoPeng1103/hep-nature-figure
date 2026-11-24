@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 260 220"
+     data-element-asset="article_t302_shape_06" data-origin="article_vector_native">
+  <defs>
+    <radialGradient id="article-t302-shape-06-n" cx=".38" cy=".3" r=".75">
+      <stop offset="0" stop-color="#d9dde2"/>
+      <stop offset=".55" stop-color="#96a0aa"/>
+      <stop offset="1" stop-color="#48525d"/>
+    </radialGradient>
+    <filter id="article-t302-shape-06-blur"><feGaussianBlur stdDeviation="7"/></filter>
+    <clipPath id="article-t302-shape-06-clip"><ellipse cx="130" cy="110" rx="79" ry="62"/></clipPath>
+  </defs>
+  <g id="nucleus-shape" data-element="article_t302_shape_06"
+     transform="translate(130 110) rotate(24)">
+    <ellipse cx="0" cy="0" rx="79" ry="62" fill="url(#article-t302-shape-06-n)"
+             stroke="#414b55" stroke-width="1.4"/>
+    <g clip-path="url(#article-t302-shape-06-clip)" transform="translate(-130 -110)"><ellipse cx="130.0" cy="152.2" rx="14.2" ry="7.4" fill="#29323b" opacity="0.11" filter="url(#article-t302-shape-06-blur)"/><ellipse cx="174.4" cy="107.5" rx="20.5" ry="10.5" fill="#ffffff" opacity="0.16" filter="url(#article-t302-shape-06-blur)"/><ellipse cx="80.0" cy="68.1" rx="26.9" ry="7.4" fill="#ffffff" opacity="0.21000000000000002" filter="url(#article-t302-shape-06-blur)"/><ellipse cx="142.1" cy="117.4" rx="14.2" ry="10.5" fill="#29323b" opacity="0.26" filter="url(#article-t302-shape-06-blur)"/><ellipse cx="166.4" cy="151.0" rx="20.5" ry="7.4" fill="#ffffff" opacity="0.11" filter="url(#article-t302-shape-06-blur)"/><ellipse cx="76.8" cy="97.7" rx="26.9" ry="10.5" fill="#ffffff" opacity="0.16" filter="url(#article-t302-shape-06-blur)"/><ellipse cx="153.5" cy="70.5" rx="14.2" ry="7.4" fill="#29323b" opacity="0.21000000000000002" filter="url(#article-t302-shape-06-blur)"/><ellipse cx="156.6" cy="127.0" rx="20.5" ry="10.5" fill="#ffffff" opacity="0.26" filter="url(#article-t302-shape-06-blur)"/><ellipse cx="76.5" cy="147.5" rx="26.9" ry="7.4" fill="#ffffff" opacity="0.11" filter="url(#article-t302-shape-06-blur)"/><ellipse cx="163.8" cy="88.6" rx="14.2" ry="10.5" fill="#29323b" opacity="0.16" filter="url(#article-t302-shape-06-blur)"/><ellipse cx="145.4" cy="75.0" rx="20.5" ry="7.4" fill="#ffffff" opacity="0.21000000000000002" filter="url(#article-t302-shape-06-blur)"/><ellipse cx="78.8" cy="135.6" rx="26.9" ry="10.5" fill="#ffffff" opacity="0.26" filter="url(#article-t302-shape-06-blur)"/><ellipse cx="172.3" cy="142.0" rx="14.2" ry="7.4" fill="#29323b" opacity="0.11" filter="url(#article-t302-shape-06-blur)"/><ellipse cx="133.5" cy="80.7" rx="20.5" ry="10.5" fill="#ffffff" opacity="0.16" filter="url(#article-t302-shape-06-blur)"/><ellipse cx="83.8" cy="81.5" rx="26.9" ry="7.4" fill="#ffffff" opacity="0.21000000000000002" filter="url(#article-t302-shape-06-blur)"/><ellipse cx="0" cy="0" rx="79" ry="13.64" fill="none" stroke="#56606a" stroke-width=".65" opacity=".55"/><ellipse cx="0" cy="0" rx="79" ry="27.90" fill="none" stroke="#56606a" stroke-width=".65" opacity=".55"/><ellipse cx="0" cy="0" rx="79" ry="42.16" fill="none" stroke="#56606a" stroke-width=".65" opacity=".55"/><ellipse cx="0" cy="0" rx="22.12" ry="62" fill="none" stroke="#56606a" stroke-width=".55" opacity=".36"/><ellipse cx="0" cy="0" rx="44.24" ry="62" fill="none" stroke="#56606a" stroke-width=".55" opacity=".36"/><ellipse cx="0" cy="0" rx="64.78" ry="62" fill="none" stroke="#56606a" stroke-width=".55" opacity=".36"/></g>
+    <ellipse cx="-25" cy="-27" rx="24" ry="13" fill="#fff" opacity=".28"/>
+  </g>
+</svg>

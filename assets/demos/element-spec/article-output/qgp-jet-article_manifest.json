@@ -1,0 +1,200 @@
+{
+  "schema": "hep-nature-figure/spec-compile-v1",
+  "spec": "F:\\HuaweiMoveData\\Users\\HUAWEI\\Desktop\\work\\dun\\_gh_push\\hep-nature-figure\\assets\\spec-examples\\qgp-jet-article-elements.spec.yaml",
+  "spec_sha256": "604e7f12c66aabece2f4ce1e7773b2a7f4e19dfd74bccb4fe4f9a9e346053aa7",
+  "confirmation": "experimental",
+  "safe_mode": true,
+  "source_derived_only": true,
+  "visual_review": "preview",
+  "metrics": {
+    "figure_id": "qgp-jet-article-elements",
+    "canvas_mm": [
+      183.0,
+      105.0
+    ],
+    "target": "Nature",
+    "elements": 7,
+    "three_d_elements": 7,
+    "texts": 4,
+    "connections": 3,
+    "hard_physics": 3,
+    "safe_mode": true,
+    "source_derived_only": true
+  },
+  "physics_checks": [
+    {
+      "id": "HP1",
+      "status": "pass",
+      "type": "opposite_rays",
+      "cosine": -1.0
+    },
+    {
+      "id": "HP2",
+      "status": "pass",
+      "type": "angle_between_rays",
+      "angle_deg": 176.6
+    },
+    {
+      "id": "HP3",
+      "status": "human-review",
+      "note": "Path lengths depend on the rendered medium boundary and require visual review."
+    }
+  ],
+  "outputs": {
+    "svg": "F:\\HuaweiMoveData\\Users\\HUAWEI\\Desktop\\work\\dun\\_gh_push\\hep-nature-figure\\assets\\demos\\element-spec\\article-output\\qgp-jet-article.svg",
+    "png": "F:\\HuaweiMoveData\\Users\\HUAWEI\\Desktop\\work\\dun\\_gh_push\\hep-nature-figure\\assets\\demos\\element-spec\\article-output\\qgp-jet-article.png",
+    "pdf": "F:\\HuaweiMoveData\\Users\\HUAWEI\\Desktop\\work\\dun\\_gh_push\\hep-nature-figure\\assets\\demos\\element-spec\\article-output\\qgp-jet-article.pdf"
+  },
+  "provenance": [
+    {
+      "element_id": "detector",
+      "asset_id": "article_pmc125_detector_ring",
+      "asset_family": "detector-layer",
+      "asset_variant": "article-tof-tracker-ring",
+      "asset_file": "source-derived/detector-layer/article_pmc125_detector_ring_edit.svg",
+      "render_mode": "edit",
+      "requested_render_mode": "edit",
+      "asset_sha256": "35bc6b571487d948beeb378347ce825acf9ac23f966dd53ffdb94e9fd53fb572",
+      "origin": "article_vector_native",
+      "ai_generated": false,
+      "contains_ai_pixels": false,
+      "license": "CC-BY-4.0",
+      "submission_safe": true
+    },
+    {
+      "element_id": "incoming_left",
+      "asset_id": "article_t302_prolate_nucleus",
+      "asset_family": "nucleus",
+      "asset_variant": "article-prolate-gridded",
+      "asset_file": "source-derived/nucleus/article_t302_prolate_nucleus_edit.svg",
+      "render_mode": "edit",
+      "requested_render_mode": "edit",
+      "asset_sha256": "f9bb2a2e424e9be32614cff88d692493ee5c02194bf70bbdc9acc290ad8f7c5b",
+      "origin": "article_vector_native",
+      "ai_generated": false,
+      "contains_ai_pixels": false,
+      "license": "CC-BY-4.0",
+      "submission_safe": true
+    },
+    {
+      "element_id": "incoming_right",
+      "asset_id": "article_t302_prolate_nucleus",
+      "asset_family": "nucleus",
+      "asset_variant": "article-prolate-gridded",
+      "asset_file": "source-derived/nucleus/article_t302_prolate_nucleus_edit.svg",
+      "render_mode": "edit",
+      "requested_render_mode": "edit",
+      "asset_sha256": "f9bb2a2e424e9be32614cff88d692493ee5c02194bf70bbdc9acc290ad8f7c5b",
+      "origin": "article_vector_native",
+      "ai_generated": false,
+      "contains_ai_pixels": false,
+      "license": "CC-BY-4.0",
+      "submission_safe": true
+    },
+    {
+      "element_id": "medium",
+      "asset_id": "article_t330_qgp_fireball",
+      "asset_family": "qgp",
+      "asset_variant": "article-electromagnetic-fireball",
+      "asset_file": "source-derived/qgp/article_t330_qgp_fireball_edit.svg",
+      "render_mode": "edit",
+      "requested_render_mode": "edit",
+      "asset_sha256": "572c8db1cdc7a19b3ce64aa3cb54d5375375d0c9ef28f57ccc3e72741aa24bc3",
+      "origin": "article_vector_native",
+      "ai_generated": false,
+      "contains_ai_pixels": false,
+      "license": "CC-BY-4.0",
+      "submission_safe": true
+    },
+    {
+      "element_id": "escaped_jet",
+      "asset_id": "article_pmc891_isotropic_cone",
+      "asset_family": "medium",
+      "asset_variant": "article-isotropic-cone",
+      "asset_file": "source-derived/medium/article_pmc891_isotropic_cone_edit.svg",
+      "render_mode": "edit",
+      "requested_render_mode": "edit",
+      "asset_sha256": "07cc4460b5548cf9c1936627e9d27e0aef101fbe170ce2a2721ac8f723e5a46c",
+      "origin": "article_vector_native",
+      "ai_generated": false,
+      "contains_ai_pixels": false,
+      "license": "CC-BY-4.0",
+      "submission_safe": true
+    },
+    {
+      "element_id": "quenched_jet",
+      "asset_id": "article_pmc130_pair_red_cyan_outgoing",
+      "asset_family": "quark",
+      "asset_variant": "article-red-cyan-outgoing",
+      "asset_file": "source-derived/quark/article_pmc130_pair_red_cyan_outgoing_edit.svg",
+      "render_mode": "edit",
+      "requested_render_mode": "edit",
+      "asset_sha256": "91af9fd8db4b32b1d8fed39e53a79cc7ebabda0e86017ba3ba1549c905858c23",
+      "origin": "article_vector_native",
+      "ai_generated": false,
+      "contains_ai_pixels": false,
+      "license": "CC-BY-4.0",
+      "submission_safe": true
+    },
+    {
+      "element_id": "vertex",
+      "asset_id": "article_pmc125_vertex",
+      "asset_family": "detector-layer",
+      "asset_variant": "article-track-vertex",
+      "asset_file": "source-derived/detector-layer/article_pmc125_vertex_edit.svg",
+      "render_mode": "edit",
+      "requested_render_mode": "edit",
+      "asset_sha256": "2e4fa98f05061fb1a57dbd94ce9f5cf95daa499edb597240799aed1aa9d4434c",
+      "origin": "article_vector_native",
+      "ai_generated": false,
+      "contains_ai_pixels": false,
+      "license": "CC-BY-4.0",
+      "submission_safe": true
+    }
+  ],
+  "nature_gate": {
+    "schema": "hep-nature-figure/nature-gate-v1",
+    "profile": "nature-2026",
+    "safe_mode": true,
+    "ok": true,
+    "errors": [],
+    "warnings": [],
+    "readings": {
+      "canvas_mm": [
+        183.0,
+        105.0
+      ],
+      "font_size_pt": {
+        "count": 4,
+        "min": 6.0,
+        "max": 7.0
+      },
+      "line_width_pt": {
+        "count": 3,
+        "min": 0.7999370078740159,
+        "max": 1.0000629921259843
+      },
+      "palette_families": [
+        "amber",
+        "blue",
+        "cyan",
+        "neutral",
+        "orange",
+        "red"
+      ],
+      "png": {
+        "size": [
+          4323,
+          2480
+        ],
+        "expected_width_600dpi": 4323
+      }
+    }
+  },
+  "postchecks": {
+    "svg_structure": 0,
+    "render": 0,
+    "3d": 0,
+    "delivery": 0
+  }
+}

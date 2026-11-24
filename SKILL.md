@@ -27,6 +27,33 @@ description: >-
 
 **纯代码重绘复杂渐变**：给定参考图且要连续渐变与对象级编辑时，先用完整几何、透明原生渐变和独立物理对象重建。低像素差用于定位偏差，逐面板和前景报告。按 [连续渐变 SVG](references/continuous-gradient-svg.md) 做原尺寸对照、放大目检和真编辑。
 
+### 元素级生产链（v5.1）
+
+新创作优先把图写成**可执行元素 spec（IR）**：元素、文字、连接、相对关系、画布毫米尺寸和硬物理约束。作者先确认完整 spec，再由代码从元素库精确装配。
+
+```bash
+python scripts/spec_confirm.py figure.spec.yaml --show
+python scripts/spec_confirm.py figure.spec.yaml --record --by client --reply "原话"
+python scripts/element_variants.py preview --spec figure.spec.yaml \
+  --element participant_nucleon --safe-only --outdir variants/nucleon
+python scripts/spec_compile.py figure.spec.yaml --outdir out --stem figure --safe-mode
+python scripts/visual_review.py --spec figure.spec.yaml --svg out/figure.svg \
+  --png out/figure.png --pdf out/figure.pdf --record --by client --reply "原话"
+python scripts/spec_compile.py figure.spec.yaml --outdir out --stem figure --safe-mode --final
+```
+
+- 元素库：`assets/element-library/`，每个 SVG 带授权、哈希、物理角色和 AI/软件来源；文章来源元素的 `file` 必须是 `_edit.svg`；
+- 无限缩放：`_edit.svg` 用圆/路径/真渐变/原生文字；`_texture.svg` 只是可选平滑跟踪对照，不作为默认入口，也不把逐像素色块冒充重建质量；
+- 语料扩展：PMC OA 之外可用 `publisher_figure_harvester.py`（当前 APS/PR CC BY）和 `figure_element_candidates.py` 建立可恢复的全图审查队列；自动 crop 在人工对象审查和原生重绘前不得入库；
+- 高优先级重建：`priority_element_rebuild.py` 对 `high` 图逐对象去背景、做保守单对象审核并生成平滑 SVG candidate；含文字、坐标轴、连线的复合区域必须进入人工拆分，不得整块晋升为元素；
+- 缺元素：`element_library.py ingest-ai` 登记 AI 补充素材；
+- 投稿安全模式：`--safe-mode` 排除 AI 像素、AI 生成矢量和嵌入位图；
+- Nature 门禁：`nature_gate.py` 检查 89/183 mm、字号、线宽、语义色板和 600 dpi；
+- `--final` 要求视觉回执与本次 SVG/PDF/PNG 哈希一致；
+- 修改 spec 后重新确认并编译。
+
+详见 [元素级生产链](references/element-spec-pipeline.md)。已有作者成品、只需可编辑 SVG 时仍走直接重绘。
+
 ### 架构（2026-09-26 定稿）
 
 **三条职责，各管一段：**
@@ -221,7 +248,8 @@ python3 scripts/ref_guard.py --run --post \
    脚本里**不存任何 key**。别人装了 skill 就用他自己的 key（没 key 也能 `--dry-run` 自检）。
 2. **必须给风格参考图**（`--ref`，可多张）—— 参考图 = Nature **风格书**。
    只给文字简报，出来的图一定很"通用"。`_T3精选` 这类本地图直接传就行；
-   要公开发布时用 `assets/t3-exemplars/` 里那 17 张 CC BY 4.0 的（见纪律 0 与 `NOTICE.md`）。
+   要公开发布时用 `assets/t3-exemplars/` 或 `assets/schematic-library/redistributable/`
+   里的 CC BY 4.0 图（先跑 `schematic_library.py search --for-ref`）。
    ★ 给的是**风格**（配色/线条/材质/光影/**渲染方式**），**不是内容模板** ——
    本图内容可以和参考图**完全不同**；参考图里没有的物理对象照 IR 画出来就行，
    不要因为"参考图里没有"就不画。**「期刊矢量插画风」≠「扁平 2D」**：
@@ -244,9 +272,11 @@ python3 scripts/ref_guard.py --run --post \
 ---
 
 
-## 硬规则（v4.26：已内置，不依赖工作区 `AGENTS.md`）
+## 硬规则（v5.1：已内置，不依赖工作区 `AGENTS.md`）
 
-> 完整版 + 每条标定：**`references/hard_rules.md`**。工作区的 `AGENTS.md` 只是副本/补充；
+> v5.1 增加许可分级示意图库：`assets/schematic-library/`。找参考图先运行
+> `python scripts/schematic_library.py search --topic <topic> --for-ref`；只有 CC0 / CC BY
+> 本地图可进 `--ref`。完整版 + 每条标定：**`references/hard_rules.md`**。工作区的 `AGENTS.md` 只是副本/补充；
 > 两者冲突时**取更严的那条**。
 > 新工作区落地：`python scripts/init_workspace.py --dir <ws>` —— 写 `AGENTS.md`
 > + `tools/` 转发脚本（`python tools/ref_guard.py` 照样可用，脚本只有 skill 这一份）。
@@ -268,6 +298,8 @@ python3 scripts/ref_guard.py --run --post \
 | R8 | 位图简报 = IR 全量 + 上一版错误清单；构图参考原样送 | `render_brief_gate.py` + 复检 | — |
 | R9 | 物理否决美观；美观否决画法；硬物理每条必须给 `measure` | `ir_scope_gate.py` S3/S4 + IR 契约 | `NO_HARD_PHYSICS` |
 | R10 | 同时交原生几何 `_edit.svg` 与独立透明 `_texture.svg`；完整遮挡几何，拖动不切换纹理 | `check_direct_svg.py`（两版）+ `check_svg_pair.py` + 目检 | — |
+| R11 | 元素素材必须带授权、署名、哈希、物理角色与 AI/软件来源；AI 资产显式标记 | `element_library.py validate` | — |
+| R12 | 完整 spec 必须由客户确认；投稿安全模式排除 AI 资产与嵌入位图 | `spec_confirm.py` + `nature_gate.py` | `NO_SPEC_CONFIRMATION` / `AI_ASSET_IN_SAFE_MODE` |
 
 **R6.1 是 v4.26 新增的硬闸门**（作者 2026-10-21：「B 档没有 IR 进去」）。
 它拦的是一次实测过的系统性 bug：A 档只写“两个核子堆成的重核”，B 档自己加了
@@ -373,7 +405,7 @@ python3 scripts/ref_guard.py --run --post \
 3. **草图矢量化**：`sketch_to_vector.py ... --ocr`；每形体一个子层，人可直接改。
 4. **闸口①**：`check_sketch.py --ir ...`。过闸后 `sketch_handoff.py` 交候选 → `make_picker.py` → `choice_gate.py` 收回执；客户改完用 `sketch_ingest.py` 灌回，**强制重过闸口①**。
 5. **出成品位图**：`ir_to_genbrief.py --stage render` → `ref_guard.py --run -- ... --stage render --content-ref <作者选中的末档草图> --ref <风格书>`。末档是 D（无手稿）或 E（有手稿）；草图**原样送**（`auto -> full`），只有草图本身扁平时才考虑 `--content-ref-mode layout`。简报写「在上一张图的基础上改，别换掉画对的」，对照硬物理逐条列出仍需修正或补齐的内容。
-   - `--ref` 只收风格书（`assets/t3-exemplars/`、`_T3精选/`）；`--content-ref` 只收手绘输入或本阶梯已登记的 rung；`assets/demos/**` 任何阶段不许当参考；同一张图不许同时占两个角色。
+   - `--ref` 只收风格书（`assets/t3-exemplars/`、`assets/schematic-library/redistributable/`、`_T3精选/`）；`--content-ref` 只收手绘输入或本阶梯已登记的 rung；`assets/demos/**` 任何阶段不许当参考；同一张图不许同时占两个角色。
 6. **闸口②**：`check_sketch.py --sketch <草图>` 再跑一次；再 `gate3d_rank.py --require-all`、`axis_gate.py`、`check_3d_generic.py`。
 7. **双版 SVG**：默认同时交付 `<stem>_edit.svg`（原生几何重绘版）与 `<stem>_texture.svg`（独立透明纹理版），各附 PNG、源码和试编辑结果。两版使用同一对象表、viewBox 与原生文字；纹理版拖动仅改变组变换，不关闭纹理或切换重绘稿。 按 [重绘](references/direct-svg-redraw.md) 和 [双版流程](references/dual-svg.md) 制作，纹理版另做不切换纹理的拖动/隐藏试验。
    - 临摹备用仍可用 `semantic_conflicts.py` / `semantic_competition.py` 审计边界，再以 `semantic_release.py` 发布、`release_gate.py` 校验；旧 edit master 的修改用 `edit_to_visual.py` 重建。它们不替代默认双版流程，不负责补全遮挡。
@@ -530,6 +562,7 @@ python3 scripts/auto_converge.py --ref 参考图.png \
 | **新对话 / 新工作区：硬规则在哪、每条由哪个闸门执行** | **`references/hard_rules.md`** ★ |
 | **把规则落到一个新目录（写 AGENTS.md + `tools/` 转发脚本）** | `scripts/init_workspace.py --dir <ws>` |
 | **走路线 B、出草图 / 位图、位图→矢量七步** | **`references/generate-flow.md`** ★ |
+| **元素级 spec、作者确认、矢量装配、Nature 规范和安全模式** | **`references/element-spec-pipeline.md`** ★ |
 | 查完整脚本表 / 某个脚本干什么 | `references/scripts.md` |
 | 写 IR 的字段细节 | `references/ir-spec.md` |
 | **画 T3 示意图之前 / 图出来觉得"扁"** | **`references/3d-checklist.md`** ★ |
@@ -547,6 +580,10 @@ python3 scripts/auto_converge.py --ref 参考图.png \
 ## 资产
 
 - `assets/t3-exemplars/` —— **17 张 CC BY 4.0 参考图**（逐张署名见 `NOTICE.md`）
+- `assets/schematic-library/` —— **5.1 许可分级素材库**：20 张本地可分发图、43 条 metadata-only 记录、16 个主题的 5,245 篇 DOI 去重候选论文；先看 `README.md`
+- `assets/element-library/` —— **181 个元素级 SVG 变体**：74 个文章来源素材均以可无限缩放的原生 `_edit.svg` 为默认，附可选平滑 `_texture.svg` 审计对照；107 个 `software` system-primitives；核子族 30 种，其中 16 种为文章来源
+- `assets/spec-profiles/nature-2026.json` —— 尺寸、字体、线宽、色板、DPI 和安全模式口径
+- `assets/demos/element-spec/` —— 元素级 IR → SVG/PDF/PNG 的完整可运行示例
 - `assets/ir/` —— **三套** IR 标准答案（**不要提前给被测 AI 看**）
 
   - B1_T3-03 / B2_T3-05：手写，已按盲测验证结果修正
@@ -568,6 +605,8 @@ python3 scripts/auto_converge.py --ref 参考图.png \
 `ir_to_genbrief.py` / `brief_lite.py` → `gen_figure.py` → `trim_border.py` → `check_sketch.py` → `sketch_to_vector.py` / `sketch_handoff.py` / `choice_gate.py` → `gate3d_rank.py` → `axis_gate.py` → 两版 SVG（几何/透明纹理）→ `check_direct_svg.py`（两版）+ `check_svg_pair.py`（试编辑）→ `check_delivery.py`
 
 - 生成与闸门：`gen_figure.py`、`ref_guard.py`、`ladder_gate.py`、`ir_scope_gate.py`、`ir_layout_guard.py`、`keep_gate.py`、`element_list.py`、`choice_gate.py`、`check_sketch.py`、`gate3d_rank.py`、`axis_gate.py`、`check_3d_generic.py`、`check_delivery.py`、`preview.py`、`init_workspace.py`
+- 素材库：`schematic_library.py`（统计 / 校验 / 语义词检索 / OpenAlex 候选发现 / Europe PMC CC BY 采集）
+- 元素生产链：`article_element_harvester.py`、`publisher_figure_harvester.py`、`figure_element_candidates.py`、`build_element_library.py`、`element_library.py`、`spec_confirm.py`、`spec_compile.py`、`visual_review.py`、`nature_gate.py`
 - 双版 SVG：`check_direct_svg.py`（两版）、`check_svg_pair.py`（共同对象/文字及无切换的拖动）。临摹备用：`raster_to_vector_semantic.py`、`trace_rebuild.py`、`svg_spline.py`、`shade_smooth.py`、`pick_layer.py`。
 - 临摹备用的语义发布：`semantic_conflicts.py`、`semantic_competition.py`、`semantic_release.py`、`release_gate.py`、`edit_to_visual.py`。
 - 诊断与返修：`check_render.py`、`compare_ref.py`、`style_bench.py`、`repair_brief.py`、`audit_composition.py`
