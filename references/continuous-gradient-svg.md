@@ -9,6 +9,13 @@
 3. **先拟合大色场，再加细节。** 给实体一个低频的 `linearGradient` 或 `radialGradient`。涡旋、体积烟雾和光晕可叠圆形或沿纹理方向转动的椭圆径向渐变，外端 alpha 衰减到零。以光照、走向和局部残差选择控制点。再用少量 Bézier 丝带、网格和高光还原细节。把柔边渐变作为连续基函数拟合，可从大尺度逐步加到小尺度。避免用单色小格盖满轮廓。
 4. **保持前景独立。** 光晕、射线与烟雾使用自己的颜色和透明度。参考图是合成色时，按 [双版流程](dual-svg.md) 估计前景颜色和 alpha，或以材质模型直接绘制。试移动前景应露出自然延伸的底层光影。可据形体合理补全隐藏区，并标注它是重建。
 
+## V5.3 几何、材质与遮挡
+
+- **主轮廓承载形体。** 原生版的球缘用完整圆/椭圆，喷注锥口、环纹和细光丝用带真实宽度的曲线。粗色场可用多个连续光斑塑造。三角渐变网格和离散色块可留作旧算法对照。局部放大时检查接缝以及可见物理边缘的清晰度。
+- **按对象取样。** 先完成后层和前层的几何，再生成前景覆盖掩膜。适当扩张掩膜排除前景边缘、阴影、半透明光晕、引线和文字，避免把其颜色烘进后面。半透明重合处按 [双版流程](dual-svg.md) 反混合。完全遮挡处用完整曲面和邻近光照补绘，并记录仍可见的残影或平滑近似。
+- **从大到小拟合。** 分别建立对象原生基底与源图材质目标，拟合时给已分离的可见区域权重。用半透明径向渐变修低频误差，细丝、核子高光和轮廓仍按可编辑原生形体实现。可复用 `scripts/svg_glazes.py` 的 `fit_glazes(target, base, weight, scales)`，参数为同尺寸 RGB 材质与 0–1 权重。它适用于已拆好的对象局部，几何、拆分和遮挡补绘由逐图源码定义。
+- **真实编辑验证。** 至少移动一个会遮挡其他物体的前景对象，再隐藏关键底层。每颗会被独立编辑的核子使用独立组，前排移开应露出有轮廓与明暗的后排球体。对移动中的透明纹理记录实际 RGBA 差和原位残影。原位、移动后和露出部位分别目检。
+
 ## 让复杂剪裁稳定回渲染
 
 对象自己的 `clipPath` 是常用方法。大量半透明渐变叠在复杂剪裁里时，在交付软件与另一种渲染器各抽查一个关键局部。某个渲染器出现硬边矩形或漏绘时，先排查结构和剪裁，再修色场。
@@ -17,10 +24,34 @@
 
 ## 在原尺寸和放大图上验收
 
-- **原尺寸看位置与色差。** 保持同一画布、坐标原点和背景，回渲染到参考图像素尺寸。留白较多时同时记录整图、各面板及前景 MAE，优先修偏差明显的局部。
-- **放大看连续性。** 从 SVG 重新渲染关键局部，通常约 3–4 倍。查矩形硬边、条带台阶、接缝、剪裁漏绘和光晕是否带上旧背景。用同一对象的原尺寸回渲染判断整体光影。
+- **原尺寸看位置与色差。** 有位图基准时运行 [位图保真门禁](svg-fidelity.md)，两版应分别通过。 保持同一画布、坐标原点和背景，回渲染到参考图像素尺寸。留白较多时同时记录整图、各面板及前景 MAE，优先修偏差明显的局部。
+- **放大看连续性。** 从 SVG 重新渲染关键局部，默认 4 倍。保留原 SVG 尺寸和百分比定位，由外部视口裁取对象。查矩形硬边、条带台阶、接缝、剪裁漏绘和光晕是否带上旧背景。用同一对象的原尺寸回渲染判断整体光影。
 - **真编辑看对象完整性。** 只改一个或多个已声明组的 `transform` 或 `display`，按 [双版流程](dual-svg.md) 检查两份文件并回渲染。记录露出的几何、移动前后的对象材质和残影。RGBA 渲染读数用于量化抗锯齿等差异。严格零差与结构通过分别记录。
 - **交付可复现结果。** 两版 SVG、绘制源码、对照图、回渲染 PNG、一次实际试编辑和已知偏差。正式投稿按既有流程查 PDF。
+
+新工具直接回渲染最终文件。坐标用原图像素，右下端点不含。按图选有代表性的球缘、喷注线条、遮挡边或原生字形。图左的位图参考放大只为观察，SVG 各栏均从对应矢量文件重新渲染。`zoom.json` 记录哈希、渲染器和区域，结论由人观察。
+
+```bash
+python scripts/svg_zoom_review.py --reference reference.png \
+  --edit out/figure_edit.svg --texture out/figure_texture.svg \
+  --region sphere_edge 42 86 139 170 --region jet_rim 820 156 971 253 \
+  --outdir out/zoom
+```
+
+可运行的 [结构化重绘示例](../assets/examples/direct-svg/structured_redraw.py) 自行构造参考、火球材质、球体及其遮挡。把输出文件交给正式工具可练习原尺寸、放大与嵌套对象试移。
+
+```bash
+python assets/examples/direct-svg/structured_redraw.py --outdir _demo_out/structured
+python scripts/fidelity_gate.py --reference _demo_out/structured/reference.png \
+  --edit _demo_out/structured/qgp_edit.svg --texture _demo_out/structured/qgp_texture.svg \
+  --region partons 146 57 271 182 --outdir _demo_out/structured/fidelity
+python scripts/svg_zoom_review.py --reference _demo_out/structured/reference.png \
+  --edit _demo_out/structured/qgp_edit.svg --texture _demo_out/structured/qgp_texture.svg \
+  --region partons 146 57 271 182 --outdir _demo_out/structured/zoom
+python scripts/check_svg_pair.py --geometry _demo_out/structured/qgp_edit.svg \
+  --texture _demo_out/structured/qgp_texture.svg --edited _demo_out/structured/qgp_moved.svg \
+  --changed front-parton
+```
 
 下面的命令生成并排图和原尺寸 JSON。`--region` 可重复。坐标从左上角起算，右下端点不含在区域内，按实际面板范围替换。
 

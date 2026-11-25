@@ -1,5 +1,6 @@
 ---
 name: hep-nature-figure
+version: "5.3"
 description: >-
   Produce publication-quality high-energy nuclear physics figures: 3D schematics with
   lighting, collision/QGP illustrations, multi-panel composites, and reproductions of
@@ -25,7 +26,7 @@ description: >-
 
 **最终 SVG 默认双版交付：原生几何版 + 独立透明纹理版。** 先读 [直接重绘](references/direct-svg-redraw.md)，再读 [双版流程](references/dual-svg.md)。默认同时交付 `<stem>_edit.svg`（原生几何重绘版）与 `<stem>_texture.svg`（独立透明纹理版），各附 PNG、源码和试编辑结果。两版使用同一对象表、viewBox 与原生文字；纹理版拖动仅改变组变换，不关闭纹理或切换重绘稿。
 
-**纯代码重绘复杂渐变**：给定参考图且要连续渐变与对象级编辑时，先用完整几何、透明原生渐变和独立物理对象重建。低像素差用于定位偏差，逐面板和前景报告。按 [连续渐变 SVG](references/continuous-gradient-svg.md) 做原尺寸对照、放大目检和真编辑。
+**V5.3 结构化 SVG 重绘**：给定成品位图时，先量锚点并画完整原生几何，再在各自对象内用连续渐变拟合材质。球缘、喷注锥口、环纹和细线各自保留几何。用遮挡掩膜排除前景拟合样本，补画底层，再核对显隐与移动。两版按 [V5.2 位图保真门禁](references/svg-fidelity.md) 用原尺寸验全图、对象与网格，并用 [连续渐变流程](references/continuous-gradient-svg.md) 直接回渲染 4 倍局部。
 
 ### 元素级生产链（v5.1）
 
@@ -207,7 +208,7 @@ python3 scripts/ref_guard.py --run --post \
 
 交可编辑 SVG、回渲染的 PNG、所用绘制源码与「参考图 | SVG 回渲染」对照，记录一次试编辑结果。正式投稿继续按已有条件导出 PDF 并过相应门禁。 `check_direct_svg.py` 检查结构，并可输出一次隐藏对象后的回渲染；要看图确认露出的网格、喷注等是否完整。
 
-只有作者明确要像素级保真、对照旧算法或维护旧稿时，才走临摹备用。直接重绘的像素指标用于诊断，按 [连续渐变指南](references/continuous-gradient-svg.md) 与外观和试编辑一同核对。旧工具见 [临摹备用](references/bitmap-to-vector.md)；草图交接的 `sketch_to_vector.py` 照旧。
+已确认位图基准时，两版均通过 [位图保真门禁](references/svg-fidelity.md)，并保存 [4 倍局部对照](references/continuous-gradient-svg.md) 和实际试编辑。旧算法见 [临摹备用](references/bitmap-to-vector.md)，用于算法对照和维护已有临摹稿。草图快速交接沿用 `sketch_to_vector.py`。
 
 ### ★ 物理检查要在【最终矢量】上做
 
@@ -297,7 +298,7 @@ python3 scripts/ref_guard.py --run --post \
 | R7 | 草图管“对不对”，位图管“全不全、精不精” | `check_sketch.py` | 人工逐条答“否”就重出 |
 | R8 | 位图简报 = IR 全量 + 上一版错误清单；构图参考原样送 | `render_brief_gate.py` + 复检 | — |
 | R9 | 物理否决美观；美观否决画法；硬物理每条必须给 `measure` | `ir_scope_gate.py` S3/S4 + IR 契约 | `NO_HARD_PHYSICS` |
-| R10 | 同时交原生几何 `_edit.svg` 与独立透明 `_texture.svg`；完整遮挡几何，拖动不切换纹理 | `check_direct_svg.py`（两版）+ `check_svg_pair.py` + 目检 | — |
+| R10 | 双版 SVG 共享对象、文字与画布，补全遮挡并试移关键对象。有位图基准时检查原尺寸和 4 倍局部 | `check_direct_svg.py` + `check_svg_pair.py` + `fidelity_gate.py`（有位图基准）+ 放大目检 | — |
 | R11 | 元素素材必须带授权、署名、哈希、物理角色与 AI/软件来源；AI 资产显式标记 | `element_library.py validate` | — |
 | R12 | 完整 spec 必须由客户确认；投稿安全模式排除 AI 资产与嵌入位图 | `spec_confirm.py` + `nature_gate.py` | `NO_SPEC_CONFIRMATION` / `AI_ASSET_IN_SAFE_MODE` |
 

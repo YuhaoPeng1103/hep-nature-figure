@@ -2386,6 +2386,67 @@ def test_bitmap_conformance():
         assert r.returncode != 0, ("空白成品该判「无法比对」，实得 0\n%s"
                                    % (r.stdout or "")[-600:])
 
+@case("fidelity_gate_reports_local_loss_and_checks_final_svgs",
+      "错图即使整图 MAE 很低，也必须由对象区域或覆盖到边缘的网格拦截")
+def test_fidelity_gate():
+    import json
+    from hashlib import sha256
+    from PIL import Image, ImageDraw
+
+    width, height = 803, 807
+    with tempfile.TemporaryDirectory() as directory:
+        tmp = Path(directory)
+        reference = tmp / "原图 reference.png"
+        source = Image.new("RGB", (width, height), "white")
+        ImageDraw.Draw(source).rectangle((width-49, height-76, width-1, height-1), fill="black")
+        source.save(reference)
+        correct = f'<rect x="{width-49}" y="{height-76}" width="49" height="76"/>'
+
+        def svg(name, content, viewbox=f"0 0 {width} {height}"):
+            target = tmp / (name + ".svg")
+            target.write_text(
+                f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="{viewbox}">'
+                f'<g id="{name}" data-element="{name}">{content}</g></svg>', encoding="utf-8")
+            return target
+
+        edit = svg("edit", correct)
+        texture = svg("texture", correct)
+        outside = ("edge-object", width-49, height-76, width, height)
+
+        def gate(expected, variants, region=outside):
+            out = tmp / "audit"
+            cmd = [sys.executable, str(SCRIPTS / "fidelity_gate.py"),
+                   "--reference", str(reference), "--outdir", str(out),
+                   "--region", *map(str, region), *map(str, variants)]
+            p = subprocess.run(cmd, capture_output=True, text=True, encoding="utf-8")
+            assert p.returncode == expected, (p.returncode, p.stdout, p.stderr)
+            return json.loads((out / "fidelity.json").read_text(encoding="utf-8"))
+
+        report = gate(0, ("--edit", edit, "--texture", texture))
+        assert report["status"] == "pass"
+        assert report["reference"]["sha256"] == sha256(reference.read_bytes()).hexdigest()
+        assert report["variants"]["edit"]["sha256"] == sha256(edit.read_bytes()).hexdigest()
+        assert report["variants"]["texture"]["canvas"]["mae"] == 0
+
+        edit_missing = svg("missing", "")
+        report = gate(1, ("--edit", edit_missing, "--texture", texture))
+        final = report["variants"]["edit"]
+        assert final["canvas"]["pass"] and not final["regions"]["edge-object"]["pass"]
+        assert final["tiles"][0]["box"][2:] == [width, height]
+        assert report["variants"]["texture"]["status"] == "pass"
+
+        report = gate(1, ("--edit", edit_missing), ("unaffected", 0, 0, 20, 20))
+        final = report["variants"]["edit"]
+        assert final["canvas"]["pass"] and final["regions"]["unaffected"]["pass"]
+        assert not final["tiles"][0]["pass"]
+
+        report = gate(2, ("--edit", svg("bad-ratio", correct, "0 0 100 50")))
+        assert report["status"] == "error" and "aspect ratio" in report["variants"]["edit"]["error"]
+
+        report = gate(2, ("--edit", edit), ("bad-region", 0, 0, width+1, height))
+        assert report["status"] == "error" and "outside" in report["error"]
+
+
 @case("projection_block_reaches_brief",
       "★ composition.projection 必须整块进简报，并带上三条自检。"
       "为什么单列一节（2026-10-02 实测）：『视角』是自由文本，**锁不住投影** —— "

@@ -35,6 +35,9 @@
 | `ir_layout_guard.py` | **★ IR 版式锁闸门（v3.1）**：IR 把整张版式写死（`composition.分区` / `元素布局`、`elements[].params` 的绝对毫米、`conventions` 里的逐面板脚本 / "exactly N panels in ONE ROW"）→ 同一份物理每次草图都一样。它把**简报真的编译出来再扫**（简报才是模型看到的东西），只查 IR 字面会漏掉被模板合成的那些 |
 | `choice_gate.py` | **★★ 客户拍板闸门（v3.1）**：没有客户回执 `handoff/choice.json` 就**不许出成品位图**；`--by` 只认 `client/customer/author/user/客户/作者/用户/甲方`，写 `agent`/`auto`/`codex` 一律判失败（客户明确说"你定"才用 `manual`）。`ref_guard.py --run --stage render` 会自动带上它 |
 | `make_picker.py` | **★★ 客户选择入口（v3.1）**：handoff 候选 → `pick.html`（客户双击、点一张、底栏给选择码）+ `pick_sheet.png`（贴聊天窗口的总览图）。每张配 `notes.json` 的一句话说明与闸口①读数，有硬伤的卡片点不动 |
+| `fidelity_gate.py` | 在参考原尺寸核对全图、对象区域和 8 × 8 网格，保存报告和误差热图。 |
+| `svg_zoom_review.py` | 从最终 SVG 回渲染指定局部（默认 4 倍），保存对照和输入哈希供目检。 |
+| `svg_glazes.py` | 拟合独立对象的透明径向渐变，可计算渐变与凸轮廓的几何交集。 |
 | `check_direct_svg.py` | 检查直接重绘的对象组、原生文字与 SVG 引用，禁止嵌位图；`--hide … --hidden-png …` 渲染隐藏组的试编辑。被遮挡形体是否完整需目检。 |
 | `check_svg_pair.py` | 核对几何/透明纹理两版的 viewBox、共同对象、原生文字和引用；试编辑只允许指定命名对象或子组的 transform/display。可选顶层对象整数平移验证，`--rgba-report-only` 量化渲染差异。 |
 | `trace_rebuild.py` | **临摹备用：从临摹层重建（v4.0）**：从**临摹层**（`<g data-element=...>` 的掩膜）重建体积元素 —— 每个体积重做成 `clipPath`（精确可见轮廓）+ **真渐变网格**（每 BAND 一条 `linearGradient`）+ **线稿逐像素保留**。几何一律从掩膜取，**不重新走颜色阈值**。回归基线：v38 输入 MAE **1.946**、三体积像素数逐一对上 |

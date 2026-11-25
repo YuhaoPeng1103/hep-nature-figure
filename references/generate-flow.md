@@ -156,6 +156,8 @@ python3 scripts/repair_brief.py fig.svg --profile assets/style-profiles.json
 到了第 7 步，**位图已经过了闸口②，物理是对的**，所以直接重绘应以它为构图和外观依据。
 对不上 = 位图错了，回去改简报重出，**不要**在矢量那步偷偷"修正"。
 
+确认位图基准后，最终两版分别运行 [原尺寸保真门禁](svg-fidelity.md) 和 [4 倍回渲染](continuous-gradient-svg.md)，再核对独立对象的显隐和平移。
+
 > ⚠️ 老版本这里写着"绘画那步要按 IR 的 geometry_constraints 正确执行、
 > **不要照抄位图的几何**" —— 那是**闸口还没补上**时候的写法（怕把位图的物理错误抄进去）。
 > 现在闸口②已经拦在位图前面，这句就反了，2026-09-26 改掉。

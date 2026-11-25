@@ -294,6 +294,8 @@ python3 scripts/compare_ref.py 参考.png fig.png -o cmp.png
 python3 scripts/style_bench.py compare 参考.png fig.png
 ```
 
+成品位图已有明确目标、交付件为 SVG 时，使用 [位图保真门禁](svg-fidelity.md) 直接回渲染最终文件。风格对照可用于外观诊断。
+
 **然后跑返修单，把问题变成可执行的指令：**
 
 ```bash

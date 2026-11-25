@@ -8,6 +8,8 @@ import unittest
 from unittest.mock import patch
 from xml.etree import ElementTree as ET
 
+import cairosvg
+import numpy as np
 from PIL import Image
 
 SCRIPTS = Path(__file__).resolve().parents[1] / "scripts"
@@ -15,6 +17,8 @@ sys.path.insert(0, str(SCRIPTS))
 
 from check_svg_pair import named_objects, rgba_probe, validate_edit
 from compare_ref import measure
+from svg_glazes import Glaze, Scale, fit_glazes
+from svg_zoom_review import render_crop
 
 
 SCENE = """<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 4 4">
@@ -88,6 +92,48 @@ class SvgRedrawTests(unittest.TestCase):
         self.assertIn("Premultiplied RGBA MAE", out.getvalue())
         self.assertIn("Exact RGBA equality not met", out.getvalue())
 
+    def test_zoom_keeps_original_percentage_geometry_and_viewbox_offset(self):
+        contents = (
+            '<svg xmlns="http://www.w3.org/2000/svg" viewBox="10 20 100 60" width="200" height="120">'
+            '<g id="test" data-element="test"><rect x="50%" y="6" width="25%" height="80%" fill="#151517"/>'
+            '<circle cx="95" cy="13" r="10" fill="#e96"/></g></svg>'
+        )
+        root = ET.fromstring(contents)
+        saved = ET.tostring(root)
+        region = (60, 16, 184, 101)
+        zoom = render_crop(root, (200, 120), region, 4)
+        raw = cairosvg.svg2png(bytestring=contents.encode(), output_width=800, output_height=480, background_color="white")
+        with Image.open(BytesIO(raw)) as full:
+            expected = full.convert("RGB").crop(tuple(4 * coordinate for coordinate in region))
+        np.testing.assert_array_equal(np.asarray(zoom), np.asarray(expected))
+        self.assertEqual(ET.tostring(root), saved)
+
+    def test_calibrated_glazes_ignore_occluded_pixels(self):
+        base = np.full((36, 48, 3), 80, dtype=float)
+        target = base.copy()
+        target[4:24, 6:23] = (180, 100, 55)
+        visible = np.ones(base.shape[:2], dtype=float)
+        visible[14:28, 26:38] = 0
+        contaminated = target.copy()
+        contaminated[visible == 0] = (15, 45, 241)
+        schedule = [Scale(7, 10, 2, .8), Scale(3, 5, 1, 1)]
+        expected = fit_glazes(target, base, visible, schedule)
+        self.assertGreater(len(expected), 1)
+        self.assertEqual(fit_glazes(contaminated, base, visible, schedule), expected)
+
+    def test_clipped_glaze_preserves_gradient_coordinates_and_exterior(self):
+        base = Glaze(20, 15, 12, (255, 120, 53))
+        outline = ((8, 5), (22, 5), (22, 24), (8, 24))
+        plain, _ = base.svg("glaze")
+        definition, shape = base.svg("glaze", convex_outline=outline)
+        self.assertEqual(plain, definition)
+        payload = ('<svg xmlns="http://www.w3.org/2000/svg" width="40" height="30">'
+                   f'<defs>{definition}</defs>{shape}</svg>')
+        raw = cairosvg.svg2png(bytestring=payload.encode())
+        with Image.open(BytesIO(raw)) as image:
+            self.assertGreater(image.getpixel((20, 15))[3], 100)
+            self.assertEqual(image.getpixel((24, 15))[3], 0)
+
     def test_generated_compare_ref_shim_loads_sibling_imports(self):
         with tempfile.TemporaryDirectory() as directory:
             workspace = Path(directory)
@@ -98,6 +144,10 @@ class SvgRedrawTests(unittest.TestCase):
             result = subprocess.run(python + [str(shim), "--help"], check=True, capture_output=True,
                                     encoding="utf-8", cwd=workspace, timeout=30)
             self.assertIn("--metrics", result.stdout)
+            for name in ("fidelity_gate", "svg_zoom_review"):
+                executable = workspace / "tools" / f"{name}.py"
+                subprocess.run(python + [str(executable), "--help"], check=True, capture_output=True,
+                               encoding="utf-8", cwd=workspace, timeout=30)
 
 
 if __name__ == "__main__":

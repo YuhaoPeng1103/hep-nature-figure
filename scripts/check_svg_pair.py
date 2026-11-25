@@ -26,7 +26,8 @@ def load(path):
             if key.rsplit("}",1)[-1]=="href":
                 refs.add(value)
     refs.update(m.group(1).strip().strip("'\"") for m in re.finditer(r"url\(\s*([^)]*)\)",text))
-    if any(not r.startswith("#") or r[1:] not in ids for r in refs):
+    known_ids = set(ids)
+    if any(not r.startswith("#") or r[1:] not in known_ids for r in refs):
         raise ValueError(f"{path}: external or unresolved SVG reference")
     groups={n.get("id"):n for n in root if n.get("data-element") and n.get("id")!="background"}
     if not groups:

@@ -1,11 +1,11 @@
 # hep-nature-figure
 
-> **最终 SVG 默认同时交付两版（2026-11-19）：原生几何 `_edit.svg` + 独立透明纹理 `_texture.svg`。** `_edit.svg` 是默认且投稿用的无限缩放版本；`_texture.svg` 只作可选保真对照，放大后的色阶块不应当成新增几何。原来的 [几何重绘](references/direct-svg-redraw.md) 保留，双版验收见 [双版制作与验收](references/dual-svg.md)。
-> 复杂渐变且要纯代码、可编辑对象时，按 [连续渐变 SVG](references/continuous-gradient-svg.md) 建模与验收。旧临摹保留为像素级保真与维护旧稿的备用。
+> **最终 SVG 默认同时交付两版（2026-11-19）：原生几何 `_edit.svg` + 独立透明纹理 `_texture.svg`。** `_edit.svg` 是默认且投稿用的无限缩放版本；`_texture.svg` 保留随对象移动的细材质。原来的 [几何重绘](references/direct-svg-redraw.md) 保留，双版验收见 [双版制作与验收](references/dual-svg.md)。
+> **V5.3 结构化 SVG 重绘**用完整原生几何、连续材质渐变和独立对象组保留球缘、喷注轮廓和遮挡关系。有位图基准时，两版在原尺寸过 [保真门禁](references/svg-fidelity.md)，并按 [连续渐变流程](references/continuous-gradient-svg.md) 做 4 倍回渲染和真编辑。
 
 **面向高能核物理 3D 示意图的配图 Skill。** 从手绘草图或物理描述出发，在草图和成品上核对几何关系，保留复杂的光照与渐变，并交付零嵌入位图的 SVG 与按物理对象分层的编辑稿。
 
-当前主线为 [v5.1](CHANGELOG.md#v51--2026-11-25)，新装请用 `main`。V5.1 基于 V4.31 的原生几何与连续渐变流程扩充元素级素材库。早期的 `route-a`、`route-b1`、`route-b2` 仅作历史保留。
+当前主线为 [v5.3](CHANGELOG.md#v53--2026-11-25)，新装请用 `main`。既有元素级素材库、spec 编译与投稿安全工作流继续可用。
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
@@ -226,7 +226,7 @@ PMC 采集按 graphic URL 去重；APS/PR 采集核对 landing page 的 CC BY �
 
 默认同时交付 `<stem>_edit.svg`（原生几何重绘版）与 `<stem>_texture.svg`（独立透明纹理版），各附 PNG、源码和试编辑结果。两版使用同一对象表、viewBox 与原生文字；纹理版拖动仅改变组变换，不关闭纹理或切换重绘稿。 见 [双版 SVG](references/dual-svg.md)。
 
-按对象直接重绘：量参考图的比例与锚点 → 列对象和前后关系 → 画出完整形体（包括可合理补画的遮挡部分） → 用真渐变、独立阴影和原生文字塑形 → 回渲染、隐藏/移动一个对象核对。SVG 不嵌位图；每个物体是可单独编辑的命名组。 操作与两张喷注图的源码见 [直接重绘 SVG](references/direct-svg-redraw.md)。只有作者明确要像素级保真、对照旧算法或维护旧稿时，才走临摹备用。复杂渐变按 [连续渐变指南](references/continuous-gradient-svg.md) 保持平滑过渡，回渲染后分别检查局部误差和真实编辑。草图快速交接仍可用 `sketch_to_vector.py`。
+按对象直接重绘：量参考图的比例与锚点 → 列对象和前后关系 → 画出完整形体（包括可合理补画的遮挡部分） → 用真渐变、独立阴影和原生文字塑形 → 回渲染、隐藏/移动一个对象核对。SVG 不嵌位图；每个物体是可单独编辑的命名组。 操作与两张喷注图的源码见 [直接重绘 SVG](references/direct-svg-redraw.md)。已有位图基准时，用 [位图保真门禁](references/svg-fidelity.md) 分别验两版。复杂渐变按 [连续渐变指南](references/continuous-gradient-svg.md) 检查 4 倍局部和真实编辑。旧算法用于算法对照和已有临摹稿维护。草图快速交接仍可用 `sketch_to_vector.py`。
 
 ### 旧临摹工程的备用工具
 
