@@ -1,32 +1,43 @@
 ---
 name: hep-nature-figure
-version: "5.3"
+metadata:
+  version: "5.3.1"
 description: >-
   Produce publication-quality high-energy nuclear physics figures: 3D schematics with
   lighting, collision/QGP illustrations, multi-panel composites, and reproductions of
   existing journal figures. Use for 科研配图、论文示意图、高能核物理配图、Nature 级配图、
   碰撞示意图、QGP 示意图、复现论文图、手绘草图转配图、参考图重绘成可编辑 SVG、3D 示意图 with shading.
-  Routes to the right backend per figure (SVG / matplotlib / Blender / image generation)
-  instead of forcing one tool. Not for statistics-only work or interactive dashboards.
+  Existing image to SVG uses code-first object redraw. Journal diagrams with a settled
+  layout use confirmed element specs and licensed vector assets. Data panels use code;
+  image generation is for open-ended visual exploration.
 ---
 
 # HEP Nature Figure — Router
 
+## 先按交付物选路线
+
+| 请求 | 入口 |
+|---|---|
+| 给了目标图，要 SVG、低像素差、放大清楚或能试移对象 | **纯代码按对象重绘**。读 [直接重绘](references/direct-svg-redraw.md)，用目标图量几何和明暗；交付前运行 [双版审查](references/svg-fidelity.md#双版交付审查)。草图阶梯和生图都不属于该路线。 |
+| 给了足以确定构图的手绘草图或明确对象关系，要期刊示意图 | **元素级生产链**。先确认 [结构化 spec](references/element-spec-pipeline.md)，再用授权矢量素材按位装配。 |
+| 要探索新构图或新画风 | 按需走 [草图探索](references/routing.md)。 |
+| 有数据要绘图 | 用 matplotlib；混合面板按各自路线绘制后拼版。 |
+
 ## 分工：谁画、谁约束、谁验收
 
-**画图交给模型，本 skill 负责约束、验收、返修。**
+**先选路线，再由该路线的脚本回渲染和验收。**
 
 | 环节 | 谁做 | 为什么 |
 |---|---|---|
 | **画** | **按对象重绘 SVG**；探索新图时可先生成参考位图 | 模型读图、定形体和叠放；手写 SVG 或写逐图脚本实现几何与光影 |
 | **约束** | **IR + geometry_constraints** | 防"好看但物理错"。模型单干时最爱犯这个 |
 | **验收** | **三道门禁** | 模型看不见自己的输出，这里能量（见下「三道门禁是谁」） |
-| **拍板**（只一次） | **作者本人** | 闸口①之后、成品位图之前：机器只能排序，"哪张更像你要讲的物理"只有你知道。草图是全链最便宜的返工点（`sketch_handoff.py` / `sketch_ingest.py`）。**v3.1 起这条有闸门了**：`make_picker.py` 交出去、`choice_gate.py` 收回执 —— 没有**你本人**的回执就不许出成品位图 |
+| **拍板** | **作者本人** | 元素装配按 spec 和图面回执；探索稿由作者选定草图再出成品位图；指定成品重绘沿用已有目标图 |
 | **返修** | **`repair_brief.py` → 模型改** | 光说"文字重叠"模型只能猜；返修单给**归一化坐标 + 具体错开量** |
 
 **最终 SVG 默认双版交付：原生几何版 + 独立透明纹理版。** 先读 [直接重绘](references/direct-svg-redraw.md)，再读 [双版流程](references/dual-svg.md)。默认同时交付 `<stem>_edit.svg`（原生几何重绘版）与 `<stem>_texture.svg`（独立透明纹理版），各附 PNG、源码和试编辑结果。两版使用同一对象表、viewBox 与原生文字；纹理版拖动仅改变组变换，不关闭纹理或切换重绘稿。
 
-**V5.3 结构化 SVG 重绘**：给定成品位图时，先量锚点并画完整原生几何，再在各自对象内用连续渐变拟合材质。球缘、喷注锥口、环纹和细线各自保留几何。用遮挡掩膜排除前景拟合样本，补画底层，再核对显隐与移动。两版按 [V5.2 位图保真门禁](references/svg-fidelity.md) 用原尺寸验全图、对象与网格，并用 [连续渐变流程](references/continuous-gradient-svg.md) 直接回渲染 4 倍局部。
+**V5.3 结构化 SVG 重绘**：先量轮廓和锚点，再画完整可移动的原生几何、按对象拟合连续材质。球缘、喷注锥口、环纹和文字逐个校准。用 `review_redraw.py` 将两版保真、关键轮廓、4 倍局部及显隐和移动合并验收。首轮回渲染发现轴杆、箭头或线圈偏位，回到几何修改。见 [连续渐变流程](references/continuous-gradient-svg.md)。
 
 ### 元素级生产链（v5.1）
 
@@ -55,7 +66,7 @@ python scripts/spec_compile.py figure.spec.yaml --outdir out --stem figure --saf
 
 详见 [元素级生产链](references/element-spec-pipeline.md)。已有作者成品、只需可编辑 SVG 时仍走直接重绘。
 
-### 架构（2026-09-26 定稿）
+### 草图探索链（仅用于探索路线）
 
 **三条职责，各管一段：**
 
@@ -233,7 +244,7 @@ python3 scripts/ref_guard.py --run --post \
 |---|---|---|---|
 | 中间产物 | 无 | 草图 PNG + **草图 SVG** | 草图 PNG + **草图 SVG** + 成品位图 |
 | 谁保证物理 | 代码（`geometry_constraints` 直接可算） | 闸口① | 闸口① + 闸口② |
-| 观感 | 教科书插画 | 中 | **最好** |
+| 主要用途 | 复现已确定几何、布局或批量参数 | 比较或人工编辑备选构图 | 探索材质表现并交付精修位图 |
 | 成本 | 低 | 中 | 高 |
 
 - **从文字或手稿探索新图**按需走路线 2 / 3；已有指定成品且要可编辑 SVG，直接重绘。
@@ -293,12 +304,12 @@ python3 scripts/ref_guard.py --run --post \
 | R3 | 三轴：X1–X5 轴名与轴杆一一对应、X7 右手系、X8 投影、X9 束流轴=z | `axis_gate.py` | `X1–X9` |
 | R4 | 出草图前 IR 元素清单给客户过目并点头 | `element_list.py --check` | `NO_ELEMENT_ACK` |
 | R5 | 出成品前客户挑草图、`--by client` 回执 | `choice_gate.py` | `NO_CLIENT_CHOICE` |
-| R6 | 无作者草图 A→D；有作者草图 A→E。账本固定路线，元素替换与物理修正按所属路线取图 | `ladder_gate.py` | `L1–L14` |
+| R6 | 走生图探索时，无作者草图 A→D，有作者草图 A→E。账本固定路线，元素替换与物理修正按所属路线取图 | `ladder_gate.py` | `L1–L14` |
 | **R6.1** | **B 档没有 IR：B 简报不许出现板/网格/玻璃/薄板/竖立/斜置/半透明/冷灰等 IR 形体与材质词** | **`ir_scope_gate.py`（已接进 `ref_guard`）** | **`IR_SCOPE` / `S1_IR_PROP_IN_BRIEF`** |
 | R7 | 草图管“对不对”，位图管“全不全、精不精” | `check_sketch.py` | 人工逐条答“否”就重出 |
 | R8 | 位图简报 = IR 全量 + 上一版错误清单；构图参考原样送 | `render_brief_gate.py` + 复检 | — |
 | R9 | 物理否决美观；美观否决画法；硬物理每条必须给 `measure` | `ir_scope_gate.py` S3/S4 + IR 契约 | `NO_HARD_PHYSICS` |
-| R10 | 双版 SVG 共享对象、文字与画布，补全遮挡并试移关键对象。有位图基准时检查原尺寸和 4 倍局部 | `check_direct_svg.py` + `check_svg_pair.py` + `fidelity_gate.py`（有位图基准）+ 放大目检 | — |
+| R10 | 双版 SVG 共享对象、文字与画布，补全遮挡并试移关键对象。有位图基准时检查原尺寸、细结构和 4 倍局部 | `review_redraw.py`（有位图基准）和回渲染目检 | — |
 | R11 | 元素素材必须带授权、署名、哈希、物理角色与 AI/软件来源；AI 资产显式标记 | `element_library.py validate` | — |
 | R12 | 完整 spec 必须由客户确认；投稿安全模式排除 AI 资产与嵌入位图 | `spec_confirm.py` + `nature_gate.py` | `NO_SPEC_CONFIRMATION` / `AI_ASSET_IN_SAFE_MODE` |
 
@@ -365,7 +376,7 @@ python3 scripts/ref_guard.py --run --post \
 
 ### 4. 出图入口与两条阶梯（v4.29）
 
-**上传作者草图才走 A→E**：在新账本首轮把手稿放入 `--content-ref`，A 用手稿 + ≤80 字符的一句话，B 用完全相同的一句话、不传任何图，C 加风格书 + 面板序列 + 输出硬约束、不传构图图，D 给本账本 A/B/C 各一张、逐元素挑选，在 C 底稿上替换对应处，E 拿紧邻上一稿只改物理。风格书从 C 沿用到位图。最后一张合格 E 草图仍交作者选择后再正式出位图。详见 [routing](references/routing.md)。
+**已选择生图探索并有作者草图时走 A→E**：在新账本首轮把手稿放入 `--content-ref`，A 用手稿 + ≤80 字符的一句话，B 用完全相同的一句话、不传任何图，C 加风格书 + 面板序列 + 输出硬约束、不传构图图，D 给本账本 A/B/C 各一张、逐元素挑选，在 C 底稿上替换对应处，E 拿紧邻上一稿只改物理。风格书从 C 沿用到位图。最后一张合格 E 草图仍交作者选择后再正式出位图。详见 [routing](references/routing.md)。
 
 **A/B 共用的一句话不得预设形状或颜色（L2）**。例如「画一张高能核物理中的三维喷注淬火期刊示意图，展示背对背喷注」，省去「暖色椭球 QGP」「蓝色喷注」等画法。D 可以选用物理成立、画得更好的形状；仅当它确实违反硬物理并有 `[HPn]` 或可量证据，才在 E 局部改形状，保留原有材质。不把偏离手稿外形或默认椭球本身判作物理错误。
 
@@ -551,7 +562,7 @@ python3 scripts/auto_converge.py --ref 参考图.png \
 - ☐ 与参考图的结构/物理内容一致（A 类）
 - ☐ 视觉达到可投稿水平
 
-> 停在"元素清单全中 + 物理无误"。**不追像素级复刻**——那会陷入无限调参。
+> 有目标图的 SVG，完成原尺寸保真、关键结构、4 倍和试编辑核查后再交付。以 spec 创作的新图按物理约束和图面回执封版。
 
 ---
 
@@ -608,7 +619,7 @@ python3 scripts/auto_converge.py --ref 参考图.png \
 - 生成与闸门：`gen_figure.py`、`ref_guard.py`、`ladder_gate.py`、`ir_scope_gate.py`、`ir_layout_guard.py`、`keep_gate.py`、`element_list.py`、`choice_gate.py`、`check_sketch.py`、`gate3d_rank.py`、`axis_gate.py`、`check_3d_generic.py`、`check_delivery.py`、`preview.py`、`init_workspace.py`
 - 素材库：`schematic_library.py`（统计 / 校验 / 语义词检索 / OpenAlex 候选发现 / Europe PMC CC BY 采集）
 - 元素生产链：`article_element_harvester.py`、`publisher_figure_harvester.py`、`figure_element_candidates.py`、`build_element_library.py`、`element_library.py`、`spec_confirm.py`、`spec_compile.py`、`visual_review.py`、`nature_gate.py`
-- 双版 SVG：`check_direct_svg.py`（两版）、`check_svg_pair.py`（共同对象/文字及无切换的拖动）。临摹备用：`raster_to_vector_semantic.py`、`trace_rebuild.py`、`svg_spline.py`、`shade_smooth.py`、`pick_layer.py`。
+- 双版 SVG：`review_redraw.py`（参考图与两版交付）、`check_direct_svg.py`（单版结构）、`check_svg_pair.py`（对象与编辑诊断）。临摹备用：`raster_to_vector_semantic.py`、`trace_rebuild.py`、`svg_spline.py`、`shade_smooth.py`、`pick_layer.py`。
 - 临摹备用的语义发布：`semantic_conflicts.py`、`semantic_competition.py`、`semantic_release.py`、`release_gate.py`、`edit_to_visual.py`。
 - 诊断与返修：`check_render.py`、`compare_ref.py`、`style_bench.py`、`repair_brief.py`、`audit_composition.py`
 - 其余（IR、拼版、复现、工具探测）见 `references/scripts.md`。

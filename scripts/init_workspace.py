@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""init_workspace -- 在一个新工作区落地 skill 的硬规则（v5.3）
+"""init_workspace -- 在一个新工作区落地 skill 的硬规则（v5.3.1）
 
 做两件事：
   1) 写 <ws>/AGENTS.md —— 硬规则的入口版（新对话一进来就能看到，不依赖用户手抄）；
@@ -27,6 +27,7 @@ SHIMS = [
     "make_picker", "choice_gate", "element_list", "preview", "compare_ref", "audit_refs",
     "sketch_handoff", "sketch_ingest", "sketch_to_vector", "trim_border",
     "ir_to_genbrief", "brief_lite", "check_direct_svg", "check_svg_pair", "fidelity_gate", "svg_zoom_review",
+    "review_redraw",
     "raster_to_vector_semantic", "trace_rebuild",
     "semantic_conflicts", "semantic_competition", "semantic_release", "release_gate",
     "edit_to_visual",
@@ -55,7 +56,7 @@ sys.path.insert(0, str(TARGET.parent))
 runpy.run_path(str(TARGET), run_name="__main__")
 '''
 
-AGENTS = """# AGENTS.md —— 配图工作硬规则（由 hep-nature-figure v5.3 生成）
+AGENTS = """# AGENTS.md —— 配图工作硬规则（由 hep-nature-figure v5.3.1 生成）
 
 > 完整规则与标定：`{skill}/references/hard_rules.md`
 > 本文件是入口版；两者冲突时**取更严的那条**。
@@ -148,7 +149,7 @@ IR 的版式 / 材质偏好**不构成物理要求**。
 
 已有作者指定的成品图、只要重绘 SVG 时，从对象拆解直接开始，跳过生图、草图阶梯和逐像素临摹。需要创作新图时，草图、作者选择和成品位图门禁照旧，最后按对象重绘 SVG。
 按对象直接重绘：量参考图的比例与锚点 → 列对象和前后关系 → 画出完整形体（包括可合理补画的遮挡部分） → 用真渐变、独立阴影和原生文字塑形 → 回渲染、隐藏/移动一个对象核对。SVG 不嵌位图；每个物体是可单独编辑的命名组。
-用 `tools/check_direct_svg.py` 验结构；图层隐藏或移动后的几何要回渲染核对。只有作者明确要像素级保真、对照旧算法或维护旧稿时，才走临摹备用。若要求纯代码且材质是连续渐变，读 skill 的 `references/continuous-gradient-svg.md`。有目标位图时用 `tools/fidelity_gate.py` 在原尺寸验两版的全图、关键对象和网格，再用 `tools/svg_zoom_review.py` 保存 4 倍局部对照。保留实际显隐或移位结果。
+有目标位图时用 `tools/review_redraw.py` 验两版的整体色差、关键物体、细线轮廓和真实试编辑，并保存 4 倍局部图。若要求纯代码且材质是连续渐变，读 skill 的 `references/continuous-gradient-svg.md`。临摹备用用于作者指定的算法对照或既有稿件维护。
 临摹备用保留 `semantic_conflicts.py`、`semantic_competition.py`、`semantic_release.py`、`release_gate.py` 和 `edit_to_visual.py`，仅按该路线的条件使用。
 
 ## 10. 交付强制项

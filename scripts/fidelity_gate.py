@@ -25,6 +25,8 @@ PROFILES = {
     "texture": {"canvas": (8, 8), "region": (14, 16), "tile": (22, 32)},
 }
 TILE_COUNT = 8
+EDGE_MATCH_MIN = 0.75
+EDGE_MIN_REFERENCE_PIXELS = 8
 
 
 def regions_at_size(raw_regions, width, height):
@@ -73,6 +75,57 @@ def compare(source, rendered, profile, regions):
             "regions": per_region, "tiles": tiles}, delta
 
 
+def compare_structure(source, rendered, regions):
+    """Measure missing and spurious structural edges in named source-pixel crops."""
+    import cv2
+
+    if source.shape != rendered.shape:
+        raise ValueError("edge comparison requires identical native pixel dimensions")
+    scale = max(source.shape[:2]) / 1024
+    tolerance = max(1, round(3 * scale))
+    sigma = max(0.75, 0.9 * scale)
+
+    def detect(rgb):
+        smooth = cv2.GaussianBlur(rgb.astype(np.uint8), (0, 0), sigma)
+        return np.logical_or.reduce([
+            cv2.Canny(channel, 32, 75, L2gradient=True) != 0
+            for channel in cv2.split(smooth)
+        ])
+
+    reference = detect(source)
+    candidate = detect(rendered)
+    to_reference = cv2.distanceTransform((~reference).astype(np.uint8), cv2.DIST_L2, cv2.DIST_MASK_PRECISE)
+    to_candidate = cv2.distanceTransform((~candidate).astype(np.uint8), cv2.DIST_L2, cv2.DIST_MASK_PRECISE)
+    missing = reference & (to_candidate > tolerance)
+    extra = candidate & (to_reference > tolerance)
+
+    def score(box):
+        x0, y0, x1, y1 = box
+        crop = np.s_[y0:y1, x0:x1]
+        n_ref = int(reference[crop].sum())
+        n_svg = int(candidate[crop].sum())
+        recall = 1 - int(missing[crop].sum()) / n_ref if n_ref else None
+        precision = 1 - int(extra[crop].sum()) / n_svg if n_svg else None
+        enough = n_ref >= EDGE_MIN_REFERENCE_PIXELS
+        passed = enough and precision is not None and min(recall, precision) >= EDGE_MATCH_MIN
+        return {"box": box, "reference_edges": n_ref, "svg_edges": n_svg,
+                "recall": recall, "precision": precision, "pass": passed,
+                "reason": None if enough else "reference crop has too few detectable edges"}
+
+    height, width = source.shape[:2]
+    selected = {name: score(box) for name, box in regions.items()}
+    canvas = score((0, 0, width, height))
+    canvas.pop("pass")
+    report = {"tolerance_px": tolerance, "minimum_each": EDGE_MATCH_MIN,
+              "canvas_diagnostic": canvas, "regions": selected,
+              "status": "pass" if all(row["pass"] for row in selected.values()) else "fail"}
+    overlay = (0.72 * source + 0.28 * 255).astype(np.uint8)
+    overlay[missing] = (214, 25, 71)
+    overlay[extra] = (0, 140, 210)
+    overlay[missing & extra] = (108, 55, 181)
+    return report, overlay
+
+
 def render(contents, width, height):
     import cairosvg
 
@@ -115,6 +168,14 @@ def show(name, report):
               f">32 {row['gt32_pct']:.2f}%/{row['gt32_pct_limit']}%")
     if failed_tiles:
         print(f"  {len(failed_tiles)} of {len(report['tiles'])} tiles over budget")
+    if "structure" in report:
+        shape = report["structure"]
+        for key, row in shape["regions"].items():
+            recall = "--" if row["recall"] is None else f"{row['recall']:.1%}"
+            precision = "--" if row["precision"] is None else f"{row['precision']:.1%}"
+            status = "PASS" if row["pass"] else "FAIL"
+            reason = f" ({row['reason']})" if row["reason"] else ""
+            print(f"  {status} structure {key}: recall {recall}, precision {precision}{reason}")
 
 
 def main():
@@ -125,6 +186,8 @@ def main():
     parser.add_argument("--texture", type=Path, help="final editable transparent-texture SVG")
     parser.add_argument("--region", action="append", nargs=5, required=True,
                         metavar=("ID", "X0", "Y0", "X1", "Y1"), help="repeat for each key object or panel")
+    parser.add_argument("--structure", action="append", default=[], metavar="ID",
+                        help="also check edge recall/precision in this --region (repeatable)")
     parser.add_argument("--outdir", type=Path, required=True)
     args = parser.parse_args()
 
@@ -135,6 +198,11 @@ def main():
         parser.error("edit and texture must be distinct SVG files")
     products = {"fidelity.json"} | {f"{name}.{kind}.png" for name in variants
                                    for kind in ("render", "compare", "diff")}
+    if args.structure:
+        products.update(f"{name}.edges.png" for name in variants)
+        region_ids = {name for name, *_ in args.region}
+        if not set(args.structure) <= region_ids:
+            parser.error("--structure must name a declared --region")
     inputs = {path.resolve() for path in [args.reference, *variants.values()]}
     if inputs & {(args.outdir / product).resolve() for product in products}:
         parser.error("an output path overlaps an input file")
@@ -161,6 +229,13 @@ def main():
                 rendered, detail["renderer"] = render(contents, width, height)
                 result, delta = compare(source, rendered, PROFILES[name], regions)
                 save_images(args.outdir, name, source, rendered, delta)
+                if args.structure:
+                    structure_regions = {name: regions[name] for name in args.structure}
+                    structure, overlay = compare_structure(source, rendered, structure_regions)
+                    Image.fromarray(overlay).save(args.outdir / f"{name}.edges.png")
+                    result["structure"] = structure
+                    if structure["status"] == "fail":
+                        result["status"] = "fail"
                 detail.update(result)
             except (OSError, ValueError, TypeError, ImportError, ET.ParseError) as exc:
                 detail["error"] = str(exc)

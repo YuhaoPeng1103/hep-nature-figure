@@ -5,7 +5,7 @@
 
 **面向高能核物理 3D 示意图的配图 Skill。** 从手绘草图或物理描述出发，在草图和成品上核对几何关系，保留复杂的光照与渐变，并交付零嵌入位图的 SVG 与按物理对象分层的编辑稿。
 
-当前主线为 [v5.3](CHANGELOG.md#v53--2026-11-25)，新装请用 `main`。既有元素级素材库、spec 编译与投稿安全工作流继续可用。
+当前版本为 [v5.3.1](CHANGELOG.md#v531--2026-11-25)。成品位图重绘用 [双版交付审查](references/svg-fidelity.md#双版交付审查) 检查关键轮廓和细线，并回渲染移动、显隐和 4 倍局部。
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 

@@ -10,13 +10,15 @@ from xml.etree import ElementTree as ET
 
 import cairosvg
 import numpy as np
-from PIL import Image
+from PIL import Image, ImageDraw
 
 SCRIPTS = Path(__file__).resolve().parents[1] / "scripts"
 sys.path.insert(0, str(SCRIPTS))
 
 from check_svg_pair import named_objects, rgba_probe, validate_edit
 from compare_ref import measure
+from fidelity_gate import PROFILES, compare, compare_structure
+from spec_compile import resolve_endpoint
 from svg_glazes import Glaze, Scale, fit_glazes
 from svg_zoom_review import render_crop
 
@@ -30,6 +32,64 @@ SCENE = """<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 4 4">
 
 
 class SvgRedrawTests(unittest.TestCase):
+    def test_structure_gate_catches_thin_line_drift_even_when_color_gate_passes(self):
+        regions = {"axis": (27, 20, 72, 89)}
+        frames = []
+        for x in (45, 51):
+            image = Image.new("RGB", (160, 100), "white")
+            ImageDraw.Draw(image).line((x, 25, x, 82), fill="#303030")
+            frames.append(np.asarray(image, dtype=np.float32))
+        ref, shifted = frames
+        self.assertEqual(compare(ref, shifted, PROFILES["edit"], regions)[0]["status"], "pass")
+        self.assertEqual(compare_structure(ref, ref, regions)[0]["status"], "pass")
+        report, overlay = compare_structure(ref, shifted, regions)
+        self.assertEqual(report["status"], "fail")
+        self.assertLess(report["regions"]["axis"]["recall"], 0.75)
+        self.assertLess(report["regions"]["axis"]["precision"], 0.75)
+        self.assertTrue(np.any(np.all(overlay == (214, 25, 71), axis=-1)))
+        self.assertTrue(np.any(np.all(overlay == (0, 140, 210), axis=-1)))
+
+    def test_spec_endpoint_shorthand_and_anchor_both_honor_offsets(self):
+        elements = {"tip": {"x_mm": 20, "y_mm": 30, "width_mm": 8, "height_mm": 4}}
+        self.assertEqual(resolve_endpoint("tip", elements, [-2, 3], "path.to"), (18, 33))
+        self.assertEqual(resolve_endpoint({"element": "tip", "anchor": "left"},
+                                          elements, [-2, 3], "path.to"), (14, 33))
+
+    def test_review_requires_and_records_distinct_variants_zoom_and_visible_edits(self):
+        import json
+
+        scene = """<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 96 64">
+          <defs><linearGradient id="paint"><stop stop-color="#23b"/><stop offset="1" stop-color="#7bf"/></linearGradient></defs>
+          <g id="rear" data-element="rear"><rect x="3" y="24" width="90" height="4" fill="#970"/></g>
+          <g id="front" data-element="front"><circle cx="38" cy="30" r="13" fill="url(#paint)"/></g>
+        </svg>"""
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            ref, edit, texture = (root / name for name in ("ref.png", "edit.svg", "texture.svg"))
+            source = root / "draw.py"
+            edit.write_text(scene, encoding="utf-8")
+            texture.write_text(scene.replace('id="front" data-element="front"',
+                                'id="front" data-element="front" data-role="intrinsic-RGBA-vector-texture"'),
+                               encoding="utf-8")
+            source.write_text(f"SCENE = {scene!r}", encoding="utf-8")
+            cairosvg.svg2png(bytestring=scene.encode(), output_width=96, output_height=64, write_to=str(ref))
+            out = root / "out"
+            command = [sys.executable, "-X", "utf8", str(SCRIPTS / "review_redraw.py"),
+                       "--reference", str(ref), "--edit", str(edit), "--texture", str(texture),
+                       "--source", str(source), "--region", "circle", "18", "12", "62", "51",
+                       "--structure", "circle", "--move", "front", "25", "8", "--outdir", str(out)]
+            result = subprocess.run(command, capture_output=True, text=True, encoding="utf-8", timeout=45)
+            self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+            report = json.loads((out / "review.json").read_text(encoding="utf-8"))
+            self.assertEqual(report["status"], "pass")
+            for kind in ("edit", "texture"):
+                self.assertTrue((out / report["checks"][f"{kind}_probe"]["image"]).exists())
+            self.assertTrue((out / "zoom" / "circle.zoom.png").exists())
+            command[command.index("--texture") + 1] = str(edit)
+            result = subprocess.run(command, capture_output=True, text=True, encoding="utf-8", timeout=45)
+            self.assertEqual(result.returncode, 2)
+            self.assertIn("distinct SVG files", result.stderr)
+
     def test_foreground_union_counts_extra_and_missing_paint(self):
         with tempfile.TemporaryDirectory() as directory:
             ref, mine = (Path(directory) / f"{name}.png" for name in ("ref", "mine"))
@@ -144,7 +204,7 @@ class SvgRedrawTests(unittest.TestCase):
             result = subprocess.run(python + [str(shim), "--help"], check=True, capture_output=True,
                                     encoding="utf-8", cwd=workspace, timeout=30)
             self.assertIn("--metrics", result.stdout)
-            for name in ("fidelity_gate", "svg_zoom_review"):
+            for name in ("fidelity_gate", "svg_zoom_review", "review_redraw"):
                 executable = workspace / "tools" / f"{name}.py"
                 subprocess.run(python + [str(executable), "--help"], check=True, capture_output=True,
                                encoding="utf-8", cwd=workspace, timeout=30)

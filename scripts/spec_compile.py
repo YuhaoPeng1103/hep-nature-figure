@@ -468,9 +468,7 @@ def anchor_point(element: dict, anchor: str, library: dict) -> tuple[float, floa
 
 def resolve_endpoint(ref, elements: dict, offset, field: str) -> tuple[float, float]:
     if isinstance(ref, str):
-        if ref not in elements:
-            raise ValueError(f"{field}: unknown element {ref}")
-        return element_center(elements[ref])
+        ref = {"element": ref}
     if not isinstance(ref, dict):
         raise ValueError(f"{field}: expected element id or anchor object")
     eid = ref.get("element")

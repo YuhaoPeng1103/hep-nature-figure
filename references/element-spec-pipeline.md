@@ -56,6 +56,13 @@ Built-in elements are transparent native SVGs. Their metadata records family,
 variant, licence,
 attribution, SHA-256, dimensionality, review, and generation origin.
 
+Select each visible asset against its actual slot and geometry requirements.
+Render the original SVG before choosing it. For example, check a jet's apex
+and projected taper as well as its color. Use the same-position preview below
+when two assets fit the physics but differ in appearance. A semantic asset ID
+alone does not establish a visual match. Include the chosen IDs and their
+source origins in the spec review.
+
 Article-derived entries are paired: `_edit.svg` is the default scalable native
 SVG, and `_texture.svg` is the optional fidelity reference. Set
 `render_mode: texture` on one element to use the latter without changing its

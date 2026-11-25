@@ -48,6 +48,22 @@ def named_objects(root):
     return objects
 
 
+def validate_pair(geometry, texture):
+    gr, gg, gt = load(geometry)
+    tr, tg, tt = load(texture)
+    if gr.get("viewBox") != tr.get("viewBox") or tuple(gg) != tuple(tg):
+        raise ValueError("Two variants must share the same viewBox and top-level object order (except background)")
+    if named_objects(gr).keys() != named_objects(tr).keys():
+        raise ValueError("Named object IDs differ between variants")
+    if sorted(gt) != sorted(tt):
+        raise ValueError("Native text content differs between variants")
+    if not any(n.get("data-role") == "intrinsic-RGBA-vector-texture" for n in tr.iter()):
+        raise ValueError("Texture variant lacks declared independent RGBA textures")
+    if any(n.get("data-role") == "appearance-patch" for n in tr.iter()):
+        raise ValueError("The old background-dependent appearance patch is not the texture deliverable")
+    return gr, tr, tg, tt
+
+
 def validate_edit(original, edited, changed, kind):
     before, after = deepcopy(original), deepcopy(edited)
     original_objects, edited_objects = named_objects(before), named_objects(after)
@@ -141,16 +157,7 @@ def main():
     if bool(a.edited)!=bool(a.changed) or (a.rgba_object and (not a.edited or a.kind!="transform")):
         p.error("--edited requires --changed, and --rgba-object requires a transform edit")
     try:
-        gr,gg,gt=load(a.geometry)
-        tr,tg,tt=load(a.texture)
-        if gr.get("viewBox")!=tr.get("viewBox") or gg.keys()!=tg.keys():
-            raise ValueError("Two variants must share the same viewBox and top-level object IDs (except background)")
-        if sorted(gt)!=sorted(tt):
-            raise ValueError("Native text content differs between variants")
-        if not any(n.get("data-role")=="intrinsic-RGBA-vector-texture" for n in tr.iter()):
-            raise ValueError("Texture variant lacks declared independent RGBA textures")
-        if any(n.get("data-role")=="appearance-patch" for n in tr.iter()):
-            raise ValueError("The old background-dependent appearance patch is not the texture deliverable")
+        _,tr,tg,tt=validate_pair(a.geometry, a.texture)
         if a.edited:
             er,_,_=load(a.edited)
             validate_edit(tr, er, a.changed, a.kind)
